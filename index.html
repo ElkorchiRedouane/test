@@ -21,7 +21,19 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .photos .photo-remove{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(24,46,44,.88);color:white;font-weight:900;font-size:1rem;display:grid;place-items:center;box-shadow:0 4px 10px rgba(0,0,0,.18)}
 .photos .photo-index{position:absolute;left:6px;bottom:6px;background:rgba(255,255,255,.9);color:var(--ink);border-radius:999px;padding:3px 7px;font-size:.68rem;font-weight:850}.note-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.mic{width:48px;height:48px;border-radius:50%;border:0;background:#f0e1e7;color:var(--pink);font-size:1.2rem;font-weight:900}.advanced{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.advanced summary{cursor:pointer;font-weight:850;margin-bottom:12px}.notice{border-radius:14px;padding:11px 13px;background:#eef4ec;color:#466a62;font-size:.87rem;line-height:1.45;margin:10px 0}.notice.warn{background:#fff1d9;color:#775f2e}.notice.err{background:#f9e2e3;color:#883f43}.saved-flash{background:#e7f0e3;border:1px solid #d4e3cf;border-radius:18px;padding:14px;margin-bottom:12px;font-weight:800}
 .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.summary-card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:14px}.summary-card strong{display:block;font-size:1.35rem}.summary-card span{font-size:.78rem;color:var(--muted)}
-.modal{position:fixed;inset:0;background:rgba(28,45,44,.5);display:grid;place-items:center;padding:18px;z-index:90}.modal.hidden{display:none}.modal-box{width:min(650px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modal-head h2{margin:0}.modal-head button{border:0;background:transparent;font-size:1.4rem}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
+.modal{position:fixed;inset:0;background:rgba(28,45,44,.5);display:grid;place-items:center;padding:18px;z-index:90}.modal.hidden{display:none}.modal-box{width:min(650px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modal-head h2{margin:0}.modal-head button{border:0;background:transparent;font-size:1.4rem}
+.camera-modal{position:fixed;inset:0;background:#000;z-index:110;display:flex;flex-direction:column}
+.camera-modal.hidden{display:none}
+.camera-top{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;color:white;background:rgba(0,0,0,.45);z-index:2}
+.camera-top button{border:0;background:rgba(255,255,255,.14);color:white;border-radius:999px;padding:9px 13px;font-weight:800}
+.camera-stage{position:relative;flex:1;display:grid;place-items:center;overflow:hidden;background:#000}
+.camera-stage video{width:100%;height:100%;object-fit:cover}
+.camera-bottom{padding:14px 18px calc(18px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;background:#080808;color:white}
+.shutter{width:76px;height:76px;border-radius:50%;border:6px solid white;background:#d8d8d8;box-shadow:0 0 0 2px rgba(0,0,0,.45) inset}
+.camera-count{min-width:74px;font-weight:900;text-align:center}
+.camera-done{border:0;background:var(--pink);color:white;border-radius:999px;padding:11px 17px;font-weight:900}
+.mic.recording{background:#c84e58;color:white;animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.08)}}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:120;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:white;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
 @media(max-width:720px){.quick{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.photos{grid-template-columns:repeat(3,1fr)}.page-head h1{font-size:1.45rem}.row{align-items:flex-start}.row-actions{display:grid}.deposit-banner{top:62px}.hero h1{font-size:1.5rem}}
 </style>
@@ -68,20 +80,17 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="page-head"><div><h1 id="articleTitle">Nouvel article</h1><p id="articleSub">Photo, note, vérification, suivant.</p></div><button id="finishFromArticle" class="btn ghost small hidden">Terminer dépôt</button></div>
     <div class="panel"><div class="panel-head"><h2>1. Photo + note</h2><span class="badge pink">IA</span></div><div class="panel-body">
       <div class="photo-box">
-        <b>📷 Ajouter des photos</b>
-        <div style="font-size:.8rem;color:var(--muted);margin:5px 0 10px">Prends une photo, puis appuie encore sur le bouton pour en ajouter d’autres. Tu peux aussi choisir plusieurs images depuis la photothèque.</div>
-        <div class="actions" style="margin-top:0">
-          <label class="btn green" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-            📷 Prendre une photo
-            <input id="cameraPhoto" type="file" accept="image/*" capture="environment" style="display:none">
-          </label>
-          <label class="btn ghost" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-            🖼️ Choisir plusieurs photos
-            <input id="galleryPhotos" type="file" accept="image/*" multiple style="display:none">
-          </label>
-        </div>
-      </div>
-      <div id="photoPreview" class="photos"></div>
+  <b>📷 Photos de l’article</b>
+  <div style="font-size:.8rem;color:var(--muted);margin:5px 0 10px">La caméra reste ouverte pour prendre plusieurs photos à la suite.</div>
+  <div class="actions" style="margin-top:0">
+    <button id="openCamera" type="button" class="btn green">📷 Ouvrir la caméra</button>
+    <label class="btn ghost" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
+      🖼️ Photothèque
+      <input id="galleryPhotos" type="file" accept="image/*" multiple style="display:none">
+    </label>
+  </div>
+</div>
+<div id="photoPreview" class="photos"></div>
       <div class="note-row" style="margin-top:12px"><div class="field"><label>Note libre</label><textarea id="rawText" placeholder="Gap fille 6 ans hoodie bleu très bon état 14$ petite trace manche bac A3"></textarea></div><button id="micBtn" class="mic" title="Dicter">🎙️</button></div>
       <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div>
       <div id="analysisMsg"></div>
@@ -163,6 +172,11 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <div id="summaryContent"></div>
 </div></div>
 
+<div id="cameraModal" class="camera-modal hidden">
+  <div class="camera-top"><button id="closeCamera" type="button">✕ Fermer</button><strong>Photos article</strong><span id="cameraTopCount">0</span></div>
+  <div class="camera-stage"><video id="cameraVideo" autoplay playsinline muted></video><canvas id="cameraCanvas" class="hidden"></canvas></div>
+  <div class="camera-bottom"><div class="camera-count" id="cameraCount">0 photo</div><button id="cameraShutter" type="button" class="shutter" aria-label="Prendre la photo"></button><button id="cameraDone" type="button" class="camera-done">Terminé</button></div>
+</div>
 <div id="toast" class="toast hidden"></div>
 
 <script type="module">
@@ -289,13 +303,46 @@ function renderPhotos(){
     card.appendChild(img);card.appendChild(del);card.appendChild(idx);el.appendChild(card);
   });
 }
-$("cameraPhoto").onchange=e=>{addPhotos(e.target.files);e.target.value=""};
 $("galleryPhotos").onchange=e=>{addPhotos(e.target.files);e.target.value=""};
+
+let cameraStream=null;
+async function openCameraSession(){
+  try{
+    cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+    $("cameraVideo").srcObject=cameraStream;$("cameraModal").classList.remove("hidden");updateCameraCount();
+  }catch(e){toast("Impossible d’ouvrir la caméra. Vérifie l’autorisation caméra dans Safari.");}
+}
+function closeCameraSession(){if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}$("cameraVideo").srcObject=null;$("cameraModal").classList.add("hidden")}
+function updateCameraCount(){const n=photos.length;$("cameraCount").textContent=n+" photo"+(n>1?"s":"");$("cameraTopCount").textContent=n}
+$("openCamera").onclick=openCameraSession;$("closeCamera").onclick=closeCameraSession;$("cameraDone").onclick=closeCameraSession;
+$("cameraShutter").onclick=async()=>{const v=$("cameraVideo");if(!v.videoWidth)return;const c=$("cameraCanvas"),max=1600,s=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);c.getContext("2d").drawImage(v,0,0,c.width,c.height);const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.88));if(blob){photos.push(new File([blob],"photo-"+Date.now()+".jpg",{type:"image/jpeg"}));renderPhotos();updateCameraCount();navigator.vibrate?.(35)}};
 async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=1200,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.75))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)})}
 $("analyzeBtn").onclick=async()=>{const text=$("rawText").value.trim();if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}$("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Analyse…";const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);const{data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});$("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";if(error){note($("analysisMsg"),esc(error.message||"Erreur"),"err");return}fillAnalysis(data?.data||{});$("analysisMode").textContent=data?.mode==="ai"?"IA + photos":"Analyse rapide";$("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");note($("analysisMsg"),data?.message||"Vérifie surtout taille, état et prix.",data?.mode==="fallback"?"warn":"")};
 function fillAnalysis(x){const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};Object.entries(m).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});if(x.description_html)$("fDescription").value=x.description_html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}
 
-$("micBtn").onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast("Dictée non disponible sur ce navigateur");return}const r=new SR();r.lang="fr-CA";r.interimResults=false;r.onresult=e=>{$("rawText").value=($("rawText").value+" "+e.results[0][0].transcript).trim()};r.onerror=()=>toast("La dictée n’a pas fonctionné");r.start()};
+let recorder=null,audioChunks=[],micStream=null;
+$("micBtn").onclick=async()=>{
+  if(recorder&&recorder.state==="recording"){recorder.stop();return}
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":(MediaRecorder.isTypeSupported("audio/webm")?"audio/webm":"");
+    recorder=new MediaRecorder(micStream,mime?{mimeType:mime}:undefined);audioChunks=[];
+    recorder.ondataavailable=e=>{if(e.data.size)audioChunks.push(e.data)};
+    recorder.onstop=async()=>{
+      $("micBtn").classList.remove("recording");$("micBtn").textContent="🎙️";micStream?.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(audioChunks,{type:recorder.mimeType||"audio/webm"});
+      const ext=(blob.type.includes("mp4")?"m4a":"webm"),fd=new FormData();
+      fd.append("file",new File([blob],"note."+ext,{type:blob.type}));
+      toast("Transcription en cours…");
+      const {data,error}=await sb.functions.invoke("transcribe-audio",{body:fd});
+      if(error||data?.error){toast("La transcription n’a pas fonctionné");return}
+      const text=String(data?.text||"").trim();
+      if(text)$("rawText").value=($("rawText").value+" "+text).trim();
+      toast(text?"Dictée ajoutée":"Aucun texte détecté");
+    };
+    recorder.start();$("micBtn").classList.add("recording");$("micBtn").textContent="■";toast("Parle, puis appuie sur ■ pour arrêter");
+  }catch(e){toast("Impossible d’utiliser le micro. Vérifie l’autorisation micro dans Safari.");}
+};
 
 async function saveArticle(toShopify){
  const d=activeDeposit,p={deposit_id:d?.id||null,consignor_id:d?.consignor_id||null,acquisition_mode:d?.acquisition_mode||(articleMode==="quick"?"own_stock":null),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
@@ -324,7 +371,7 @@ function renderStock(){
  $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":"gray")+'">'+esc(i.status==="online"?"En ligne":"À publier")+'</span><strong>'+money(i.sale_price)+'</strong></div></div>').join(""):'<div class="empty">Aucun article.</div>'
 }
 $("stockSearch").oninput=renderStock;
-function clearArticle(){photos=[];if($("cameraPhoto"))$("cameraPhoto").value="";if($("galleryPhotos"))$("galleryPhotos").value="";$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
+function clearArticle(){photos=[];if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 authState();
 </script>
