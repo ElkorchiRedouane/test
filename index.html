@@ -230,6 +230,7 @@ $("saveConsignor").onclick=async()=>{
   if(!payload.full_name){toast("Nom requis");return}
   let r=currentConsignorId?await sb.from("consignors").update(payload).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(payload).select().single();
   if(r.error){toast(r.error.message);return}
+  sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});
   $("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll();
 };
 async function deleteConsignor(id){
@@ -245,6 +246,7 @@ $("saveDeposit").onclick=async()=>{
   const commission=$("dCommission").value?Number($("dCommission").value):(selected?.default_commission_pct??null);
   const {data,error}=await sb.from("deposits").insert({consignor_id:cid,received_on:$("dDate").value||new Date().toISOString().slice(0,10),acquisition_mode:$("dMode").value,commission_pct:commission,notes:$("dNotes").value.trim()||null}).select().single();
   if(error){toast(error.message);return}
+  sb.functions.invoke("sync-shopify-ops",{body:{kind:"deposit",id:data.id}}).catch(()=>{});
   $("depositModal").classList.add("hidden");toast("Dépôt "+data.code+" créé");await refreshAll();openDeposit(data.id);
 };
 function renderDeposits(){
