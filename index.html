@@ -65,6 +65,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
       <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
     </div>
+    <div id="shopifyHealth" class="notice warn">Connexion Shopify non vérifiée. <button id="testShopify" class="btn ghost small" style="margin-left:8px">Tester Shopify</button></div>
     <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
   </section>
 
@@ -205,9 +206,27 @@ $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeo
 function go(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors()}
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
-async function refreshAll(){
+async function testShopifyConnection(){
+      const box=$("shopifyHealth"),btn=$("testShopify");
+      if(!box||!btn)return;
+      btn.disabled=true;btn.textContent="Test…";
+      const {data,error}=await sb.functions.invoke("shopify-health",{body:{}});
+      btn.disabled=false;btn.textContent="Tester Shopify";
+      if(error){box.className="notice err";box.innerHTML='❌ Connexion Shopify impossible. <button id="testShopify" class="btn ghost small" style="margin-left:8px">Retester</button>';$("testShopify").onclick=testShopifyConnection;return}
+      if(data?.ok){
+        box.className="notice";
+        box.innerHTML='✅ Shopify connecté à <strong>'+esc(data.shop?.name||"Friperie Milou")+'</strong>. Portées API complètes.';
+      }else{
+        const missing=(data?.missing||[]).join(", ");
+        box.className="notice warn";
+        box.innerHTML='⚠️ Shopify répond, mais il manque : <strong>'+esc(missing||data?.error||"permission inconnue")+'</strong>. <button id="testShopify" class="btn ghost small" style="margin-left:8px">Retester</button>';
+        $("testShopify").onclick=testShopifyConnection;
+      }
+    }
+    async function refreshAll(){
  await Promise.all([loadConsignors(),loadDeposits(),loadStock()]);
  renderConsignors();renderDeposits();renderStock();fillDepositSelect();renderStats();
+ const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
 }
 async function loadConsignors(){const{data}=await sb.from("consignors").select("*").order("created_at",{ascending:false});consignors=data||[]}
 async function loadDeposits(){const{data}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url,commission_pct)").order("created_at",{ascending:false});deposits=data||[]}
