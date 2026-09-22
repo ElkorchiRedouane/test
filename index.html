@@ -6,240 +6,350 @@
 <meta name="theme-color" content="#315f5c">
 <title>Milou Ops</title>
 <style>
-:root{--bg:#fbf7ef;--panel:#fffdf8;--ink:#245a59;--muted:#6e8683;--line:#e7ddd0;--pink:#c97893;--green:#315f5c;--sage:#dfe9d8;--yellow:#ece47b;--danger:#b75050;--shadow:0 12px 34px rgba(49,95,92,.08)}
-*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
-button,input,select,textarea{font:inherit}.hidden{display:none!important}.shell{min-height:100vh;padding-bottom:88px}.topbar{position:sticky;top:0;z-index:20;background:rgba(251,247,239,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;align-items:center}.brand{display:flex;align-items:center;gap:10px}.mark{width:40px;height:40px;border-radius:50%;background:var(--pink);color:white;display:grid;place-items:center;font-weight:900}.brand b{display:block}.brand small{color:var(--muted)}.logout{border:1px solid var(--line);background:white;border-radius:999px;padding:8px 12px;color:var(--ink)}
-main{max-width:1050px;margin:auto;padding:18px 14px}.hero{background:linear-gradient(120deg,#f3e2e7,#fff3df 58%,#e3ecde);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px}.hero h1{margin:0 0 6px;font-size:1.8rem}.hero p{margin:0;color:var(--muted);line-height:1.45}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.stat{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow)}.stat strong{font-size:1.45rem;display:block}.stat span{font-size:.78rem;color:var(--muted)}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.ph{padding:15px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}.ph h2{font-size:1rem;margin:0}.body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--muted)}input,select,textarea{width:100%;border:1px solid #dcd2c5;background:#fff;border-radius:13px;padding:12px;color:var(--ink);outline:none}input:focus,select:focus,textarea:focus{border-color:#8daaa7;box-shadow:0 0 0 3px rgba(49,95,92,.08)}textarea{min-height:110px;resize:vertical}
-.btn{border:0;border-radius:999px;padding:12px 16px;font-weight:800;cursor:pointer}.primary{background:var(--pink);color:white}.secondary{background:var(--green);color:white}.ghost{background:white;border:1px solid var(--line);color:var(--ink)}.danger{background:#f7e3e3;color:var(--danger)}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
-.photo-input{border:2px dashed #d7c9bb;border-radius:18px;padding:16px;text-align:center;background:#fff9f2}.photo-input input{border:0;background:transparent;padding:8px}.previews{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.previews img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:800}.badge.pink{background:#f3dfe6}.badge.yellow{background:#f5efb3}.notice{border-radius:14px;padding:11px 13px;background:#eef4ec;color:#466a62;font-size:.88rem;line-height:1.45;margin:10px 0}.notice.warn{background:#fff1d7;color:#7d642c}.notice.err{background:#f9e2e2;color:#8d3f3f}
-.list{display:grid;gap:9px}.row{border:1px solid var(--line);background:white;border-radius:16px;padding:12px;display:flex;gap:12px;justify-content:space-between;align-items:center}.row-main{min-width:0}.row b{display:block}.row small{color:var(--muted)}.row .price{font-weight:900}.row img{width:60px;height:60px;object-fit:cover;border-radius:12px;background:#f3eee8}.empty{text-align:center;padding:28px;color:var(--muted)}
-.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.nav button{border:0;background:transparent;padding:10px 4px 8px;color:#718481;font-size:.72rem}.nav button span{display:block;font-size:1.25rem;margin-bottom:2px}.nav button.active{color:var(--pink);font-weight:900}
-.view{display:none}.view.active{display:block}.login-wrap{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#f7e7eb,#fbf6e9 52%,#e6eee1)}.login-card{width:min(440px,100%);background:#fffdf9;border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:0 24px 70px rgba(49,95,92,.12)}.login-card .logo{font-size:2rem;font-weight:900;margin-bottom:4px}.login-card .logo span{color:var(--pink)}.login-card p{color:var(--muted);line-height:1.5}.tabs{display:flex;background:#f5eee4;border-radius:999px;padding:4px;margin:18px 0}.tabs button{flex:1;border:0;background:transparent;border-radius:999px;padding:9px;font-weight:800;color:var(--muted)}.tabs button.active{background:white;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:6px}@keyframes spin{to{transform:rotate(360deg)}}.toast{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:100;background:#244f4d;color:white;padding:11px 16px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
-@media(max-width:720px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.previews{grid-template-columns:repeat(3,1fr)}.hero h1{font-size:1.5rem}.row{align-items:flex-start}.row-actions{display:grid;gap:6px}}
+:root{--bg:#fbf7ef;--panel:#fffdf8;--ink:#245a59;--muted:#6f8582;--line:#e8ddd0;--pink:#c97893;--green:#315f5c;--sage:#dfe9d8;--yellow:#f2eaa2;--red:#b84f55;--shadow:0 10px 30px rgba(49,95,92,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}button,input,select,textarea{font:inherit}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#f7e5ea,#fff4df 55%,#e5ede0)}.login-card{width:min(430px,100%);background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:0 25px 70px rgba(49,95,92,.12)}.logo{font-size:2rem;font-weight:900}.logo span{color:var(--pink)}.login-card p{color:var(--muted);line-height:1.5}.field{display:grid;gap:6px}.field label{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;font-weight:850;color:var(--muted)}input,select,textarea{width:100%;border:1px solid #dcd2c5;background:#fff;border-radius:14px;padding:12px;color:var(--ink);outline:none}textarea{min-height:105px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:#85a5a2;box-shadow:0 0 0 3px rgba(49,95,92,.08)}
+.btn{border:0;border-radius:999px;padding:12px 16px;font-weight:850;cursor:pointer}.btn.primary{background:var(--pink);color:#fff}.btn.green{background:var(--green);color:#fff}.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn.danger{background:#f8e5e6;color:var(--red)}.btn.small{padding:8px 12px;font-size:.83rem}.btn:disabled{opacity:.55;cursor:not-allowed}
+.app{min-height:100vh;padding-bottom:78px}.top{position:sticky;top:0;z-index:20;background:rgba(251,247,239,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px 15px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--pink);color:#fff;font-weight:900}.brand b{display:block}.brand small{display:block;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis}.top button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 11px;color:var(--ink)}
+main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.active{display:block}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:4px 0 16px}.page-head h1{margin:0;font-size:1.75rem}.page-head p{margin:4px 0 0;color:var(--muted);line-height:1.45}.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{margin:0;font-size:1rem}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
+.hero{background:linear-gradient(120deg,#f4e2e7,#fff2dd 58%,#e3ecdf);border:1px solid var(--line);border-radius:26px;padding:22px;box-shadow:var(--shadow);margin-bottom:14px}.hero h1{margin:0 0 7px;font-size:1.85rem}.hero p{margin:0;color:var(--muted);line-height:1.5}.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.quick button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:18px 14px;text-align:left;box-shadow:var(--shadow);color:var(--ink)}.quick .ico{font-size:1.65rem;display:block;margin-bottom:8px}.quick b{display:block}.quick small{display:block;color:var(--muted);margin-top:4px;line-height:1.35}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.stat strong{font-size:1.4rem;display:block}.stat span{font-size:.76rem;color:var(--muted)}
+.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.empty{text-align:center;color:var(--muted);padding:26px}.notice{border-radius:14px;padding:11px 13px;background:#eef4ec;color:#456963;font-size:.87rem;line-height:1.45;margin:10px 0}.notice.warn{background:#fff1d9;color:#765f2f}.notice.err{background:#f9e2e3;color:#883f43}
+.context{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#eef4ec;border:1px solid #d9e6d7;border-radius:18px;padding:13px 14px;margin-bottom:12px}.context b{display:block}.context small{color:var(--muted)}.photo-box{border:2px dashed #d9ccbd;background:#fff9f2;border-radius:18px;padding:16px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee}.advanced{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.advanced summary{cursor:pointer;font-weight:800;color:var(--ink);margin-bottom:12px}.deposit-card{border:1px solid var(--line);border-radius:18px;padding:14px;background:#fff}.deposit-card.selected{border-color:#93b0ad;box-shadow:0 0 0 3px rgba(49,95,92,.06)}.deposit-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.modal{position:fixed;inset:0;background:rgba(28,45,44,.5);display:grid;place-items:center;padding:18px;z-index:80}.modal.hidden{display:none}.modal-box{width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modal-head h2{margin:0}.modal-head button{border:0;background:transparent;font-size:1.4rem}
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:100;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:#fff;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
+@media(max-width:720px){.quick{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.photos{grid-template-columns:repeat(3,1fr)}.page-head{align-items:flex-start}.page-head h1{font-size:1.5rem}.row{align-items:flex-start}.row-actions{display:grid}.hero h1{font-size:1.55rem}}
 </style>
 </head>
 <body>
-<div id="login" class="login-wrap">
+<div id="login" class="login">
   <div class="login-card">
     <div class="logo">Milou <span>Ops</span></div>
-    <p>Outil interne de consignation et de mise en ligne de Friperie Milou.</p>
-    <div class="tabs"><button id="tabSignin" class="active">Connexion</button><button id="tabSignup">Créer le compte</button></div>
-    <div class="field"><label>Courriel autorisé</label><input id="authEmail" type="email" autocomplete="email" placeholder="courriel@exemple.com"></div>
-    <div class="field" style="margin-top:10px"><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="8 caractères minimum"></div>
+    <p>Gestion simple des consignateurs, dépôts et articles de Friperie Milou.</p>
+    <div class="field"><label>Courriel</label><input id="authEmail" type="email" autocomplete="email"></div>
+    <div class="field" style="margin-top:10px"><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password"></div>
     <div id="authMsg"></div>
-    <button id="authBtn" class="btn secondary" style="width:100%;margin-top:14px">Se connecter</button>
-    <p style="font-size:.78rem;margin-top:14px">Lors de la première création de compte, Supabase peut demander de confirmer le courriel avant la première connexion.</p>
+    <button id="authBtn" class="btn green" style="width:100%;margin-top:14px">Se connecter</button>
   </div>
 </div>
 
-<div id="app" class="shell hidden">
-  <header class="topbar"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout" class="logout">Déconnexion</button></header>
+<div id="app" class="app hidden">
+  <header class="top">
+    <div class="brand"><div class="brand-mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div>
+    <button id="logout">Déconnexion</button>
+  </header>
+
   <main>
-    <section class="hero"><h1>Réception → photo → description → Shopify</h1><p>Chaque article garde son SKU, son déposant, son dépôt et son emplacement physique.</p></section>
-    <section class="stats">
-      <div class="stat"><strong id="stProcess">0</strong><span>À traiter</span></div>
-      <div class="stat"><strong id="stPublish">0</strong><span>À publier</span></div>
-      <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
-      <div class="stat"><strong id="stConsignors">0</strong><span>Consignateurs</span></div>
+    <section id="home" class="page active">
+      <div class="hero"><h1>Que veux-tu faire?</h1><p>Trois actions principales. Rien de plus compliqué.</p></div>
+      <div class="quick">
+        <button data-go="consignors"><span class="ico">👤</span><b>Ajouter un consignateur</b><small>Créer, modifier ou supprimer une fiche.</small></button>
+        <button data-go="deposits"><span class="ico">🧺</span><b>Créer / gérer un dépôt</b><small>Créer le dépôt puis ajouter ses articles un par un.</small></button>
+        <button id="standaloneBtn"><span class="ico">📷</span><b>Ajouter un article seul</b><small>Sans dépôt et sans consignateur.</small></button>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong id="stCons">0</strong><span>Consignateurs</span></div>
+        <div class="stat"><strong id="stDeposits">0</strong><span>Dépôts ouverts</span></div>
+        <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
+        <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
+      </div>
+      <div id="shopifyNotice" class="notice warn">Shopify est prévu dans le flux : le bouton « Enregistrer + Shopify » publiera l’article et enregistrera aussi le SKU, dépôt, consignateur, commission et emplacement dans les champs internes Shopify dès que la connexion Admin API sera activée.</div>
     </section>
 
-    <section id="capture" class="view active">
-      <div class="panel"><div class="ph"><h2>1. Contexte de l’article</h2><span class="badge">Rapide</span></div><div class="body grid">
-        <div class="field"><label>Dépôt</label><select id="itemDeposit"><option value="">Aucun / stock propre</option></select></div>
-        <div class="field"><label>Consignateur</label><select id="itemConsignor"><option value="">Aucun</option></select></div>
-        <div class="field"><label>Mode d’acquisition</label><select id="itemMode"><option value="consignment">Consignation</option><option value="purchase">Achat</option><option value="donation">Don</option><option value="own_stock">Stock propre</option></select></div>
-        <div class="field"><label>Commission (%)</label><input id="itemCommission" type="number" min="0" max="100" step=".01" placeholder="ex. 40"></div>
-      </div></div>
+    <section id="consignors" class="page">
+      <div class="page-head"><div><h1>Consignateurs</h1><p>Une fiche par personne, modifiable à tout moment.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
+      <div class="panel"><div class="panel-head"><h2>Liste</h2></div><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
+    </section>
 
-      <div class="panel"><div class="ph"><h2>2. Photos + texte libre</h2><span class="badge pink">IA</span></div><div class="body">
-        <div class="photo-input"><b>📷 Photographier l’article</b><div style="font-size:.8rem;color:var(--muted);margin:4px 0 6px">Devant, dos, étiquette et défaut si nécessaire.</div><input id="photos" type="file" accept="image/*" capture="environment" multiple></div>
-        <div id="previews" class="previews"></div>
-        <div class="field" style="margin-top:12px"><label>Note libre</label><textarea id="rawText" placeholder="Ex. gap fille 6 ans hoodie bleu très bon état petite trace manche 14$ bac A3"></textarea></div>
-        <div class="actions"><button id="analyzeBtn" class="btn secondary">✨ Analyser automatiquement</button></div>
+    <section id="deposits" class="page">
+      <div class="page-head"><div><h1>Dépôts</h1><p>Crée un dépôt, puis ajoute ses vêtements au fur et à mesure.</p></div><button id="newDeposit" class="btn primary small">+ Nouveau dépôt</button></div>
+      <div id="depositDetail" class="hidden"></div>
+      <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2></div><div class="panel-body"><div id="depositList" class="list"></div></div></div>
+    </section>
+
+    <section id="article" class="page">
+      <div class="page-head"><div><h1 id="articlePageTitle">Nouvel article</h1><p id="articlePageSubtitle">Ajout rapide, avec ou sans dépôt.</p></div><button id="cancelArticle" class="btn ghost small">Annuler</button></div>
+      <div id="articleContext" class="context"><div><b>Article seul</b><small>Aucun dépôt ni consignateur</small></div><span class="badge">Libre</span></div>
+
+      <div class="panel"><div class="panel-head"><h2>1. Photos + note rapide</h2><span class="badge pink">IA</span></div><div class="panel-body">
+        <div class="photo-box"><b>📷 Prendre les photos</b><div style="font-size:.8rem;color:var(--muted);margin:5px 0">Devant, dos, étiquette, défaut si nécessaire.</div><input id="photos" type="file" accept="image/*" capture="environment" multiple></div>
+        <div id="photoPreview" class="photos"></div>
+        <div class="field" style="margin-top:12px"><label>Texte libre</label><textarea id="rawText" placeholder="Ex. Gap fille 6 ans hoodie bleu très bon état petite trace manche 14$ bac A3"></textarea></div>
+        <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div>
         <div id="analysisMsg"></div>
       </div></div>
 
-      <div class="panel"><div class="ph"><h2>3. Vérifier les informations</h2><span id="analysisMode" class="badge yellow">À vérifier</span></div><div class="body grid">
-        <div class="field full"><label>Titre produit</label><input id="fTitle"></div>
+      <div class="panel"><div class="panel-head"><h2>2. Vérifier seulement l’essentiel</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
+        <div class="field full"><label>Titre</label><input id="fTitle"></div>
         <div class="field"><label>Marque</label><input id="fBrand"></div>
-        <div class="field"><label>Catégorie</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
+        <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
         <div class="field"><label>Taille</label><input id="fSize"></div>
-        <div class="field"><label>Section</label><select id="fSection"><option value="">—</option><option>Fille</option><option>Garçon</option><option>Unisexe</option></select></div>
-        <div class="field"><label>Tranche d’âge</label><select id="fAge"><option value="">—</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select></div>
         <div class="field"><label>État</label><select id="fCondition"><option value="">—</option><option>Comme neuf</option><option>Excellent état</option><option>Très bon état</option><option>Bon état</option></select></div>
-        <div class="field"><label>Couleur</label><input id="fColor"></div>
-        <div class="field"><label>Saison</label><select id="fSeason"><option>Toute saison</option><option>Printemps / été</option><option>Automne / hiver</option></select></div>
-        <div class="field"><label>Matière</label><input id="fMaterial"></div>
-        <div class="field"><label>Prix de vente ($)</label><input id="fPrice" type="number" step=".01" min="0"></div>
-        <div class="field"><label>Prix suggéré ($)</label><input id="fSuggested" type="number" step=".01" min="0"></div>
+        <div class="field"><label>Prix ($)</label><input id="fPrice" type="number" step=".01" min="0"></div>
         <div class="field"><label>Emplacement</label><input id="fLocation" placeholder="BAC-A03"></div>
-        <div class="field full"><label>Défauts / particularités</label><textarea id="fDefects"></textarea></div>
-        <div class="field full"><label>Description Shopify</label><textarea id="fDescription"></textarea></div>
-        <div class="actions field full"><button id="saveDraft" class="btn ghost">Enregistrer brouillon</button><button id="saveValidated" class="btn primary">✓ Enregistrer et valider</button></div>
-      </div></div>
-    </section>
+        <div class="field"><label>Commission (%)</label><input id="fCommission" type="number" min="0" max="100" step=".01"></div>
 
-    <section id="consignors" class="view">
-      <div class="panel"><div class="ph"><h2>Nouveau consignateur</h2><span class="badge">CON-…</span></div><div class="body grid">
-        <div class="field full"><label>Nom complet</label><input id="cName"></div>
-        <div class="field"><label>Courriel</label><input id="cEmail" type="email"></div>
-        <div class="field"><label>Téléphone</label><input id="cPhone" type="tel"></div>
-        <div class="field"><label>Commission par défaut (%)</label><input id="cCommission" type="number" min="0" max="100" step=".01"></div>
-        <div class="field full"><label>Notes</label><textarea id="cNotes"></textarea></div>
-        <div class="actions field full"><button id="createConsignor" class="btn primary">Créer le consignateur</button></div>
-      </div></div>
-      <div class="panel"><div class="ph"><h2>Consignateurs actifs</h2></div><div class="body"><div id="consignorList" class="list"></div></div></div>
-    </section>
+        <details class="advanced full">
+          <summary>Plus de détails (optionnel)</summary>
+          <div class="grid">
+            <div class="field"><label>Section</label><select id="fSection"><option value="">—</option><option>Fille</option><option>Garçon</option><option>Unisexe</option></select></div>
+            <div class="field"><label>Tranche d’âge</label><select id="fAge"><option value="">—</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select></div>
+            <div class="field"><label>Couleur</label><input id="fColor"></div>
+            <div class="field"><label>Saison</label><select id="fSeason"><option>Toute saison</option><option>Printemps / été</option><option>Automne / hiver</option></select></div>
+            <div class="field"><label>Matière</label><input id="fMaterial"></div>
+            <div class="field"><label>Coût d’acquisition ($)</label><input id="fCost" type="number" min="0" step=".01"></div>
+            <div class="field full"><label>Défauts / particularités</label><textarea id="fDefects"></textarea></div>
+            <div class="field full"><label>Description Shopify</label><textarea id="fDescription"></textarea></div>
+          </div>
+        </details>
 
-    <section id="deposits" class="view">
-      <div class="panel"><div class="ph"><h2>Nouveau dépôt</h2><span class="badge">DEP-…</span></div><div class="body grid">
-        <div class="field full"><label>Consignateur</label><select id="dConsignor"></select></div>
-        <div class="field"><label>Date</label><input id="dDate" type="date"></div>
-        <div class="field"><label>Mode</label><select id="dMode"><option value="consignment">Consignation</option><option value="purchase">Achat</option><option value="donation">Don</option><option value="own_stock">Stock propre</option></select></div>
-        <div class="field"><label>Commission (%)</label><input id="dCommission" type="number" min="0" max="100" step=".01"></div>
-        <div class="field full"><label>Notes</label><textarea id="dNotes"></textarea></div>
-        <div class="actions field full"><button id="createDeposit" class="btn primary">Créer le dépôt</button></div>
+        <div class="actions full">
+          <button id="saveOnly" class="btn ghost">Enregistrer seulement</button>
+          <button id="saveShopify" class="btn primary">Enregistrer + Shopify</button>
+        </div>
       </div></div>
-      <div class="panel"><div class="ph"><h2>Dépôts récents</h2></div><div class="body"><div id="depositList" class="list"></div></div></div>
-    </section>
-
-    <section id="publish" class="view">
-      <div class="panel"><div class="ph"><h2>Articles validés à publier</h2><span class="badge pink">Shopify</span></div><div class="body"><div id="publishList" class="list"></div></div></div>
-      <div class="notice warn">Le bouton de publication est déjà prévu. Il deviendra pleinement opérationnel dès que le jeton Admin API Shopify sera ajouté à Supabase.</div>
     </section>
   </main>
-  <nav class="nav">
-    <button data-view="capture" class="active"><span>📷</span>Article</button>
-    <button data-view="consignors"><span>👤</span>Consignateurs</button>
-    <button data-view="deposits"><span>🧺</span>Dépôts</button>
-    <button data-view="publish"><span>🛍️</span>À publier</button>
+
+  <nav class="bottom">
+    <button data-page="home" class="active"><span>⌂</span>Accueil</button>
+    <button data-page="consignors"><span>👤</span>Consignateurs</button>
+    <button data-page="deposits"><span>🧺</span>Dépôts</button>
+    <button id="navArticle"><span>📷</span>Article</button>
   </nav>
 </div>
+
+<div id="consignorModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2 id="consignorModalTitle">Nouveau consignateur</h2><button data-close="consignorModal">×</button></div>
+    <div class="grid">
+      <div class="field full"><label>Nom complet</label><input id="cName"></div>
+      <div class="field"><label>Courriel</label><input id="cEmail" type="email"></div>
+      <div class="field"><label>Téléphone</label><input id="cPhone" type="tel"></div>
+      <div class="field"><label>Commission par défaut (%)</label><input id="cCommission" type="number" min="0" max="100" step=".01"></div>
+      <div class="field full"><label>Notes</label><textarea id="cNotes"></textarea></div>
+    </div>
+    <div class="actions"><button id="saveConsignor" class="btn primary">Enregistrer</button></div>
+  </div>
+</div>
+
+<div id="depositModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Nouveau dépôt</h2><button data-close="depositModal">×</button></div>
+    <div class="grid">
+      <div class="field full"><label>Consignateur</label><select id="dConsignor"><option value="">Sans consignateur</option></select></div>
+      <div class="field"><label>Date</label><input id="dDate" type="date"></div>
+      <div class="field"><label>Mode</label><select id="dMode"><option value="consignment">Consignation</option><option value="purchase">Achat</option><option value="donation">Don</option><option value="own_stock">Stock propre</option></select></div>
+      <div class="field"><label>Commission (%)</label><input id="dCommission" type="number" min="0" max="100" step=".01"></div>
+      <div class="field full"><label>Notes</label><textarea id="dNotes"></textarea></div>
+    </div>
+    <div class="actions"><button id="saveDeposit" class="btn primary">Créer le dépôt</button></div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-const SUPABASE_URL = "https://lgdapxduxmhcixjwzfrq.supabase.co";
-const SUPABASE_KEY = "sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI";
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-let authMode="signin", photos=[], consignors=[], deposits=[];
+const SUPABASE_URL="https://lgdapxduxmhcixjwzfrq.supabase.co";
+const SUPABASE_KEY="sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI";
+const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let consignors=[],deposits=[],selectedDeposit=null,currentConsignorId=null,photos=[];
 
 const $=id=>document.getElementById(id);
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),2800)}
-function notice(el,msg,type=""){el.innerHTML='<div class="notice '+type+'">'+msg+'</div>'}
+function note(el,msg,type=""){el.innerHTML='<div class="notice '+type+'">'+msg+'</div>'}
 function money(v){return v==null?"—":Number(v).toLocaleString("fr-CA",{style:"currency",currency:"CAD"})}
-function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+function modeLabel(v){return ({consignment:"Consignation",purchase:"Achat",donation:"Don",own_stock:"Stock propre"})[v]||v}
 
 async function authState(){
   const {data:{session}}=await sb.auth.getSession();
   if(!session){$("login").classList.remove("hidden");$("app").classList.add("hidden");return}
   const {data:allowed}=await sb.rpc("is_milou_user");
-  if(!allowed){await sb.auth.signOut();notice($("authMsg"),"Ce courriel n’est pas autorisé pour Milou Ops.","err");return}
+  if(!allowed){await sb.auth.signOut();note($("authMsg"),"Ce compte n’est pas autorisé.","err");return}
   $("login").classList.add("hidden");$("app").classList.remove("hidden");$("userEmail").textContent=session.user.email||"";
   await refreshAll();
 }
-sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
-
-$("tabSignin").onclick=()=>{authMode="signin";$("tabSignin").classList.add("active");$("tabSignup").classList.remove("active");$("authBtn").textContent="Se connecter"};
-$("tabSignup").onclick=()=>{authMode="signup";$("tabSignup").classList.add("active");$("tabSignin").classList.remove("active");$("authBtn").textContent="Créer le compte"};
 $("authBtn").onclick=async()=>{
   const email=$("authEmail").value.trim(),password=$("authPassword").value;
-  if(!email||password.length<8){notice($("authMsg"),"Entre un courriel autorisé et un mot de passe d’au moins 8 caractères.","err");return}
-  $("authBtn").disabled=true;$("authBtn").innerHTML='<span class="spinner"></span>Patiente…';
-  let res;
-  if(authMode==="signup") res=await sb.auth.signUp({email,password});
-  else res=await sb.auth.signInWithPassword({email,password});
-  $("authBtn").disabled=false;$("authBtn").textContent=authMode==="signup"?"Créer le compte":"Se connecter";
-  if(res.error){notice($("authMsg"),escapeHtml(res.error.message),"err");return}
-  if(authMode==="signup"&&!res.data.session) notice($("authMsg"),"Compte créé. Vérifie le courriel reçu, puis reviens te connecter.","warn");
-  else await authState();
+  if(!email||!password){note($("authMsg"),"Entre ton courriel et ton mot de passe.","err");return}
+  $("authBtn").disabled=true;$("authBtn").textContent="Connexion…";
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  $("authBtn").disabled=false;$("authBtn").textContent="Se connecter";
+  if(error){note($("authMsg"),esc(error.message),"err");return}
+  await authState();
 };
 $("logout").onclick=()=>sb.auth.signOut();
+sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===b.dataset.view));if(b.dataset.view==="publish")loadPublish()});
+function go(page){
+  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===page));
+  document.querySelectorAll(".bottom button[data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
+  if(page==="deposits")renderDeposits();
+  if(page==="consignors")renderConsignors();
+}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
+document.querySelectorAll(".bottom button[data-page]").forEach(b=>b.onclick=()=>go(b.dataset.page));
+$("navArticle").onclick=()=>startStandalone();
+$("standaloneBtn").onclick=()=>startStandalone();
 
-async function refreshAll(){await Promise.all([loadConsignors(),loadDeposits(),loadStats()]);renderSelectors();renderConsignors();renderDeposits();await loadPublish()}
+async function refreshAll(){await Promise.all([loadConsignors(),loadDeposits(),loadStats()]);renderConsignors();renderDeposits();fillSelectors()}
+async function loadConsignors(){const {data,error}=await sb.from("consignors").select("*").order("created_at",{ascending:false});if(!error)consignors=data||[]}
+async function loadDeposits(){const {data,error}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url)").order("created_at",{ascending:false});if(!error)deposits=data||[]}
 async function loadStats(){
   const [{count:a},{count:b},{count:c},{count:d}]=await Promise.all([
-    sb.from("items").select("*",{count:"exact",head:true}).eq("status","to_process"),
+    sb.from("consignors").select("*",{count:"exact",head:true}).eq("status","active"),
+    sb.from("deposits").select("*",{count:"exact",head:true}).neq("status","closed"),
     sb.from("items").select("*",{count:"exact",head:true}).eq("validated",true).is("shopify_product_id",null),
-    sb.from("items").select("*",{count:"exact",head:true}).eq("status","online"),
-    sb.from("consignors").select("*",{count:"exact",head:true}).eq("status","active")
+    sb.from("items").select("*",{count:"exact",head:true}).eq("status","online")
   ]);
-  $("stProcess").textContent=a||0;$("stPublish").textContent=b||0;$("stOnline").textContent=c||0;$("stConsignors").textContent=d||0;
+  $("stCons").textContent=a||0;$("stDeposits").textContent=b||0;$("stPending").textContent=c||0;$("stOnline").textContent=d||0;
 }
-async function loadConsignors(){const {data,error}=await sb.from("consignors").select("*").eq("status","active").order("created_at",{ascending:false});if(error){console.error(error);return}consignors=data||[]}
-async function loadDeposits(){const {data,error}=await sb.from("deposits").select("*,consignors(code,full_name)").order("created_at",{ascending:false}).limit(50);if(error){console.error(error);return}deposits=data||[]}
-function renderSelectors(){
-  const cOpts='<option value="">Aucun</option>'+consignors.map(c=>'<option value="'+c.id+'">'+escapeHtml(c.code+" — "+c.full_name)+'</option>').join("");
-  $("itemConsignor").innerHTML=cOpts;$("dConsignor").innerHTML='<option value="">Choisir…</option>'+consignors.map(c=>'<option value="'+c.id+'">'+escapeHtml(c.code+" — "+c.full_name)+'</option>').join("");
-  $("itemDeposit").innerHTML='<option value="">Aucun / stock propre</option>'+deposits.filter(d=>d.status!=="closed").map(d=>'<option value="'+d.id+'">'+escapeHtml(d.code+" — "+(d.consignors?.full_name||""))+'</option>').join("");
+function fillSelectors(){
+  $("dConsignor").innerHTML='<option value="">Sans consignateur</option>'+consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
 }
-function renderConsignors(){$("consignorList").innerHTML=consignors.length?consignors.map(c=>'<div class="row"><div class="row-main"><b>'+escapeHtml(c.full_name)+'</b><small>'+escapeHtml(c.code)+(c.email?" • "+escapeHtml(c.email):"")+'</small></div><span class="badge">'+(c.default_commission_pct??"—")+'%</span></div>').join(""):'<div class="empty">Aucun consignateur.</div>'}
-function renderDeposits(){$("depositList").innerHTML=deposits.length?deposits.map(d=>'<div class="row"><div class="row-main"><b>'+escapeHtml(d.code)+'</b><small>'+escapeHtml(d.consignors?.full_name||"Sans consignateur")+' • '+escapeHtml(d.received_on)+'</small></div><span class="badge">'+escapeHtml(d.status)+'</span></div>').join(""):'<div class="empty">Aucun dépôt.</div>'}
-
-$("createConsignor").onclick=async()=>{
-  const name=$("cName").value.trim();if(!name){toast("Nom requis");return}
-  const payload={full_name:name,email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};
-  const {data,error}=await sb.from("consignors").insert(payload).select().single();if(error){toast(error.message);return}
-  ["cName","cEmail","cPhone","cCommission","cNotes"].forEach(id=>$(id).value="");toast("Consignateur "+data.code+" créé");await refreshAll();
+function renderConsignors(){
+  const el=$("consignorList");
+  if(!consignors.length){el.innerHTML='<div class="empty">Aucun consignateur.</div>';return}
+  el.innerHTML=consignors.map(c=>'<div class="row"><div class="row-main"><b>'+esc(c.full_name)+'</b><small>'+esc(c.code)+(c.email?" • "+esc(c.email):"")+(c.phone?" • "+esc(c.phone):"")+'</small></div><div class="row-actions"><button class="btn ghost small editCons" data-id="'+c.id+'">Modifier</button><button class="btn danger small delCons" data-id="'+c.id+'">Supprimer</button></div></div>').join("");
+  document.querySelectorAll(".editCons").forEach(b=>b.onclick=()=>openConsignor(b.dataset.id));
+  document.querySelectorAll(".delCons").forEach(b=>b.onclick=()=>deleteConsignor(b.dataset.id));
+}
+$("newConsignor").onclick=()=>openConsignor(null);
+function openConsignor(id){
+  currentConsignorId=id;
+  const c=id?consignors.find(x=>x.id===id):null;
+  $("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";
+  $("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";
+  $("consignorModal").classList.remove("hidden");
+}
+$("saveConsignor").onclick=async()=>{
+  const payload={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};
+  if(!payload.full_name){toast("Nom requis");return}
+  let r=currentConsignorId?await sb.from("consignors").update(payload).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(payload).select().single();
+  if(r.error){toast(r.error.message);return}
+  $("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll();
 };
-$("createDeposit").onclick=async()=>{
-  const cid=$("dConsignor").value;if(!cid&&$("dMode").value==="consignment"){toast("Choisis un consignateur");return}
-  const payload={consignor_id:cid||null,received_on:$("dDate").value||new Date().toISOString().slice(0,10),acquisition_mode:$("dMode").value,commission_pct:$("dCommission").value?Number($("dCommission").value):null,notes:$("dNotes").value.trim()||null};
-  const {data,error}=await sb.from("deposits").insert(payload).select().single();if(error){toast(error.message);return}
-  $("dNotes").value="";toast("Dépôt "+data.code+" créé");await refreshAll();$("itemDeposit").value=data.id;$("itemConsignor").value=cid||"";
-};
-$("dDate").value=new Date().toISOString().slice(0,10);
-$("itemDeposit").onchange=()=>{const d=deposits.find(x=>x.id===$("itemDeposit").value);if(d){$("itemConsignor").value=d.consignor_id||"";$("itemMode").value=d.acquisition_mode||"consignment";if(d.commission_pct!=null)$("itemCommission").value=d.commission_pct}};
+async function deleteConsignor(id){
+  const c=consignors.find(x=>x.id===id);if(!confirm("Supprimer "+(c?.full_name||"ce consignateur")+" ? Les dépôts et articles existants seront conservés sans lien."))return;
+  const {error}=await sb.from("consignors").delete().eq("id",id);if(error){toast(error.message);return}
+  toast("Consignateur supprimé");await refreshAll();
+}
 
-$("photos").onchange=e=>{photos=Array.from(e.target.files||[]).slice(0,6);$("previews").innerHTML="";photos.forEach(f=>{const img=document.createElement("img");img.src=URL.createObjectURL(f);$("previews").appendChild(img)})};
+$("newDeposit").onclick=()=>{$("dDate").value=new Date().toISOString().slice(0,10);$("dConsignor").value="";$("dMode").value="consignment";$("dCommission").value="";$("dNotes").value="";$("depositModal").classList.remove("hidden")};
+$("saveDeposit").onclick=async()=>{
+  const cid=$("dConsignor").value||null;
+  const selected=cid?consignors.find(c=>c.id===cid):null;
+  const commission=$("dCommission").value?Number($("dCommission").value):(selected?.default_commission_pct??null);
+  const {data,error}=await sb.from("deposits").insert({consignor_id:cid,received_on:$("dDate").value||new Date().toISOString().slice(0,10),acquisition_mode:$("dMode").value,commission_pct:commission,notes:$("dNotes").value.trim()||null}).select().single();
+  if(error){toast(error.message);return}
+  $("depositModal").classList.add("hidden");toast("Dépôt "+data.code+" créé");await refreshAll();openDeposit(data.id);
+};
+function renderDeposits(){
+  const el=$("depositList");if(!deposits.length){el.innerHTML='<div class="empty">Aucun dépôt.</div>';return}
+  el.innerHTML=deposits.map(d=>'<div class="row"><div class="row-main"><b>'+esc(d.code)+'</b><small>'+esc(d.consignors?.full_name||"Sans consignateur")+' • '+esc(modeLabel(d.acquisition_mode))+' • '+(d.items?.length||0)+' article(s)</small></div><div class="row-actions"><button class="btn green small openDep" data-id="'+d.id+'">Ouvrir</button></div></div>').join("");
+  document.querySelectorAll(".openDep").forEach(b=>b.onclick=()=>openDeposit(b.dataset.id));
+}
+function openDeposit(id){
+  selectedDeposit=deposits.find(x=>x.id===id)||null;if(!selectedDeposit)return;
+  go("deposits");
+  const d=selectedDeposit;
+  const itemRows=(d.items||[]).length?(d.items||[]).map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status)+'</small></div><div class="row-actions"><span class="badge">'+money(i.sale_price)+'</span></div></div>').join(""):'<div class="empty">Aucun article dans ce dépôt.</div>';
+  $("depositDetail").classList.remove("hidden");
+  $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><div class="deposit-meta"><span class="badge">'+esc(modeLabel(d.acquisition_mode))+'</span><span class="badge">'+(d.commission_pct??"—")+'%</span><span class="badge">'+esc(d.received_on)+'</span></div></div><button id="addToDeposit" class="btn primary small">+ Ajouter un article</button></div><div class="panel-body"><div class="list">'+itemRows+'</div></div></div>';
+  $("addToDeposit").onclick=()=>startArticleForDeposit(d.id);
+}
+function startStandalone(){selectedDeposit=null;prepareArticleContext(null);go("article")}
+function startArticleForDeposit(id){selectedDeposit=deposits.find(x=>x.id===id)||null;prepareArticleContext(selectedDeposit);go("article")}
+function prepareArticleContext(d){
+  clearArticle();
+  if(d){
+    $("articlePageTitle").textContent="Article du dépôt "+d.code;
+    $("articlePageSubtitle").textContent="Après enregistrement, reste sur ce dépôt pour saisir l’article suivant.";
+    $("articleContext").innerHTML='<div><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • commission '+(d.commission_pct??"—")+'%</small></div><span class="badge">Dépôt actif</span>';
+    $("fCommission").value=d.commission_pct??"";
+  }else{
+    $("articlePageTitle").textContent="Article seul";
+    $("articlePageSubtitle").textContent="Sans dépôt et sans consignateur.";
+    $("articleContext").innerHTML='<div><b>Article seul</b><small>Aucun dépôt ni consignateur</small></div><span class="badge">Libre</span>';
+  }
+}
+$("cancelArticle").onclick=()=>selectedDeposit?openDeposit(selectedDeposit.id):go("home");
+
+$("photos").onchange=e=>{photos=Array.from(e.target.files||[]).slice(0,6);$("photoPreview").innerHTML="";photos.forEach(f=>{const img=document.createElement("img");img.src=URL.createObjectURL(f);$("photoPreview").appendChild(img)})};
 async function imageDataUrl(file){
-  if(!/^image\/(jpeg|png|webp)$/i.test(file.type)) return null;
+  if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;
   return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.75))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)});
 }
 $("analyzeBtn").onclick=async()=>{
   const text=$("rawText").value.trim();if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}
-  $("analyzeBtn").disabled=true;$("analyzeBtn").innerHTML='<span class="spinner"></span>Analyse…';
+  $("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Analyse…";
   const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);
   const {data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});
-  $("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser automatiquement";
-  if(error){notice($("analysisMsg"),escapeHtml(error.message||"Erreur d’analyse"),"err");return}
-  const x=data?.data||{};fillAnalysis(x);$("analysisMode").textContent=data.mode==="ai"?"IA + vision":"Analyse rapide";$("analysisMode").className="badge "+(data.mode==="ai"?"pink":"yellow");notice($("analysisMsg"),data.message||"Analyse terminée. Vérifie les champs avant d’enregistrer.",data.mode==="fallback"?"warn":"");
+  $("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";
+  if(error){note($("analysisMsg"),esc(error.message||"Erreur d’analyse"),"err");return}
+  fillAnalysis(data?.data||{});$("analysisMode").textContent=data?.mode==="ai"?"IA + photo":"Analyse rapide";$("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");
+  note($("analysisMsg"),data?.message||"Analyse terminée. Vérifie surtout taille, état et prix.",data?.mode==="fallback"?"warn":"");
 };
 function fillAnalysis(x){
-  const map={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fSection:"section",fAge:"age_band",fCondition:"condition",fColor:"color",fSeason:"season",fMaterial:"material",fPrice:"sale_price",fSuggested:"suggested_price",fLocation:"location_code",fDefects:"defects"};
-  Object.entries(map).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});
+  const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};
+  Object.entries(m).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});
   if(x.description_html)$("fDescription").value=x.description_html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 }
-async function saveItem(validated){
-  const payload={deposit_id:$("itemDeposit").value||null,consignor_id:$("itemConsignor").value||null,raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,condition:$("fCondition").value||null,defects:$("fDefects").value.trim()||null,suggested_price:$("fSuggested").value?Number($("fSuggested").value):null,sale_price:$("fPrice").value?Number($("fPrice").value):null,commission_pct:$("itemCommission").value?Number($("itemCommission").value):null,location_code:$("fLocation").value.trim()||null,description_html:$("fDescription").value.trim()?'<p>'+escapeHtml($("fDescription").value.trim())+'</p>':null,status:validated?"validated":"ai_ready",validated};
+async function saveArticle(publish){
+  const d=selectedDeposit;
+  const payload={
+    deposit_id:d?.id||null,
+    consignor_id:d?.consignor_id||null,
+    raw_text:$("rawText").value.trim()||null,
+    title:$("fTitle").value.trim()||null,
+    brand:$("fBrand").value.trim()||null,
+    category:$("fCategory").value||null,
+    size:$("fSize").value.trim()||null,
+    condition:$("fCondition").value||null,
+    sale_price:$("fPrice").value?Number($("fPrice").value):null,
+    suggested_price:$("fPrice").value?Number($("fPrice").value):null,
+    location_code:$("fLocation").value.trim()||null,
+    commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),
+    section:$("fSection").value||null,
+    age_band:$("fAge").value||null,
+    color:$("fColor").value.trim()||null,
+    season:$("fSeason").value||null,
+    material:$("fMaterial").value.trim()||null,
+    defects:$("fDefects").value.trim()||null,
+    acquisition_cost:$("fCost").value?Number($("fCost").value):null,
+    description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,
+    status:"validated",
+    validated:true
+  };
+  if(!payload.title){toast("Le titre est requis");return}
+  if(!payload.sale_price){toast("Le prix est requis");return}
   const {data:item,error}=await sb.from("items").insert(payload).select().single();if(error){toast(error.message);return}
   for(let i=0;i<photos.length;i++){
     const f=photos[i],safe=f.name.replace(/[^a-zA-Z0-9._-]/g,"_"),path=item.id+"/"+crypto.randomUUID()+"-"+safe;
-    const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type,upsert:false});if(up.error){console.error(up.error);continue}
-    await sb.from("item_photos").insert({item_id:item.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0});
+    const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type,upsert:false});if(!up.error)await sb.from("item_photos").insert({item_id:item.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0});
   }
-  toast("Article "+item.sku+" enregistré");clearItem();await loadStats();await loadPublish();
+  if(publish){
+    const {data:pub,error:pubErr}=await sb.functions.invoke("publish-shopify",{body:{item_id:item.id}});
+    if(pubErr||pub?.error){
+      toast("Article "+item.sku+" enregistré. Shopify reste à envoyer.");
+    }else toast("Article "+item.sku+" publié sur Shopify");
+  }else toast("Article "+item.sku+" enregistré");
+  await refreshAll();
+  if(d){selectedDeposit=deposits.find(x=>x.id===d.id)||d;prepareArticleContext(selectedDeposit);go("article")}
+  else{prepareArticleContext(null);go("home")}
 }
-$("saveDraft").onclick=()=>saveItem(false);$("saveValidated").onclick=()=>saveItem(true);
-function clearItem(){photos=[];$("photos").value="";$("previews").innerHTML="";["rawText","fTitle","fBrand","fSize","fColor","fMaterial","fPrice","fSuggested","fLocation","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fSection").value="";$("fAge").value="";$("fCondition").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="À vérifier";$("analysisMsg").innerHTML=""}
+$("saveOnly").onclick=()=>saveArticle(false);$("saveShopify").onclick=()=>saveArticle(true);
 
-async function loadPublish(){
-  const {data,error}=await sb.from("items").select("id,sku,title,brand,size,sale_price,status,shopify_url,item_photos(storage_path,is_primary)").eq("validated",true).is("shopify_product_id",null).order("created_at",{ascending:false}).limit(50);
-  if(error){$("publishList").innerHTML='<div class="notice err">'+escapeHtml(error.message)+'</div>';return}
-  if(!data?.length){$("publishList").innerHTML='<div class="empty">Aucun article en attente.</div>';return}
-  const rows=[];
-  for(const it of data){
-    let img="";
-    const p=(it.item_photos||[]).find(x=>x.is_primary)||(it.item_photos||[])[0];
-    if(p){const {data:s}=await sb.storage.from("item-photos").createSignedUrl(p.storage_path,600);if(s?.signedUrl)img='<img src="'+s.signedUrl+'">'}
-    rows.push('<div class="row">'+img+'<div class="row-main" style="flex:1"><b>'+escapeHtml(it.title||it.sku)+'</b><small>'+escapeHtml(it.sku)+(it.size?" • "+escapeHtml(it.size):"")+'</small></div><div class="row-actions"><div class="price">'+money(it.sale_price)+'</div><button class="btn primary publishBtn" data-id="'+it.id+'">Publier</button></div></div>');
-  }
-  $("publishList").innerHTML=rows.join("");
-  document.querySelectorAll(".publishBtn").forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent="Publication…";const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:b.dataset.id}});b.disabled=false;b.textContent="Publier";if(error){toast(error.message||"Erreur Shopify");return}if(data?.error){toast(data.error);return}toast("Publié sur Shopify");await loadPublish();await loadStats()});
+function clearArticle(){
+  photos=[];$("photos").value="";$("photoPreview").innerHTML="";
+  ["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");
+  $("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML="";
 }
+document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.add("hidden")}));
 authState();
 </script>
 </body>
