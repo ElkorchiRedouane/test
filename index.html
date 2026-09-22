@@ -261,8 +261,49 @@ function bindDepositButtons(){
 function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
- $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status)+'</small></div><strong>'+money(i.sale_price)+'</strong></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
- const a=$("depAdd"),f=$("depFinish");if(a)a.onclick=()=>startDepositSession(id);if(f)f.onclick=()=>finishDeposit(id);
+ $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>') + (items.some(i=>i.status!=="online")?'<button id="depPublishAll" class="btn green small">Publier tout sur Shopify</button>':'')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status==="online"?"En ligne":"À publier")+'</small></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(i.status!=="online"?'<button class="btn primary small depPublishOne" data-id="'+i.id+'">Publier Shopify</button>':(i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':""))+'</div></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
+ const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll");
+ if(a)a.onclick=()=>startDepositSession(id);
+ if(f)f.onclick=()=>finishDeposit(id);
+ if(all)all.onclick=()=>publishDeposit(id);
+ document.querySelectorAll(".depPublishOne").forEach(b=>b.onclick=()=>publishOneFromDeposit(b.dataset.id,id));
+}
+
+async function publishOneFromDeposit(itemId,depositId){
+  const btn=document.querySelector('.depPublishOne[data-id="'+itemId+'"]');
+  if(btn){btn.disabled=true;btn.textContent="Publication…";}
+  const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:itemId}});
+  if(error||data?.error){
+    const detail=data?.details?.map?.(x=>x.message).join(" • ")||data?.detail||data?.error||error?.message||"Erreur inconnue";
+    toast("Shopify : "+detail);
+    if(btn){btn.disabled=false;btn.textContent="Publier Shopify";}
+    return;
+  }
+  toast("Article publié sur Shopify");
+  await refreshAll();
+  renderDepositDetail(depositId);
+}
+
+async function publishDeposit(depositId){
+  const d=deposits.find(x=>x.id===depositId);
+  if(!d)return;
+  const pending=(d.items||[]).filter(i=>i.status!=="online");
+  if(!pending.length){toast("Tout le dépôt est déjà en ligne");return;}
+  const allBtn=$("depPublishAll");
+  if(allBtn){allBtn.disabled=true;allBtn.textContent="Publication 0/"+pending.length;}
+  let ok=0,failed=0,lastError="";
+  for(let idx=0;idx<pending.length;idx++){
+    if(allBtn)allBtn.textContent="Publication "+(idx+1)+"/"+pending.length;
+    const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:pending[idx].id}});
+    if(error||data?.error){
+      failed++;
+      lastError=data?.details?.map?.(x=>x.message).join(" • ")||data?.detail||data?.error||error?.message||"Erreur inconnue";
+    }else ok++;
+  }
+  await refreshAll();
+  renderDepositDetail(depositId);
+  if(failed)toast(ok+" publié(s), "+failed+" erreur(s)"+(lastError?" : "+lastError:""));
+  else toast(ok+" article(s) publié(s) sur Shopify");
 }
 
 function renderConsignors(){
