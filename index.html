@@ -55,6 +55,10 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <main>
   <section id="home" class="page active">
     <div class="hero"><h1>Réception rapide</h1><p>Commence un dépôt ou ajoute simplement un vêtement. Le reste se fait en chaîne.</p></div>
+<div id="shopifyHealth" class="notice warn" style="margin-top:12px">
+  <strong>Connexion Shopify non vérifiée.</strong><br>
+  <button id="testShopify" class="btn green small" style="margin-top:8px">Tester Shopify</button>
+</div>
     <div class="quick">
       <button id="newDepositHome"><span class="ico">🧺</span><b>Nouveau dépôt</b><small>Une personne apporte plusieurs vêtements. Tu crées le dépôt une fois, puis tu enchaînes les articles.</small></button>
       <button id="quickItemHome"><span class="ico">📷</span><b>Article rapide</b><small>Un article acheté, donné ou appartenant à la boutique. Aucun consignateur nécessaire.</small></button>
@@ -65,7 +69,6 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
       <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
     </div>
-    <div id="shopifyHealth" class="notice warn">Connexion Shopify non vérifiée. <button id="testShopify" class="btn ghost small" style="margin-left:8px">Tester Shopify</button></div>
     <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
   </section>
 
