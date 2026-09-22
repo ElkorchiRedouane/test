@@ -390,7 +390,22 @@ function showSummary(d){
 
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),rows=stock.filter(i=>!q||[i.sku,i.title,i.brand,i.size,i.consignors?.full_name,i.deposits?.code].some(v=>String(v||"").toLowerCase().includes(q)));
- $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":"gray")+'">'+esc(i.status==="online"?"En ligne":"À publier")+'</span><strong>'+money(i.sale_price)+'</strong></div></div>').join(""):'<div class="empty">Aucun article.</div>'
+ $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":"gray")+'">'+esc(i.status==="online"?"En ligne":"À publier")+'</span><strong>'+money(i.sale_price)+'</strong>'+(i.status!=="online"?'<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button>':(i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':""))+'</div></div>').join(""):'<div class="empty">Aucun article.</div>';
+ document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
+}
+async function retryShopify(id){
+  const btn=document.querySelector('.retryShopify[data-id="'+id+'"]');
+  if(btn){btn.disabled=true;btn.textContent="Envoi…"}
+  const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:id}});
+  if(btn){btn.disabled=false;btn.textContent="Envoyer Shopify"}
+  if(error||data?.error){
+    const detail=data?.details?.map?.(x=>x.message).join(" • ")||data?.detail||data?.error||error?.message||"Erreur inconnue";
+    toast("Shopify : "+detail);
+    return;
+  }
+  toast("Article publié sur Shopify");
+  await refreshAll();
+  go("stock");
 }
 $("stockSearch").oninput=renderStock;
 function clearArticle(){photos=[];if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
