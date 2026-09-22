@@ -344,6 +344,7 @@ function renderDepositDetail(id){
  if(f)f.onclick=()=>finishDeposit(id);
  if(all)all.onclick=()=>publishDeposit(id);
  document.querySelectorAll(".depPublishOne").forEach(b=>b.onclick=()=>publishOneFromDeposit(b.dataset.id,id));
+ document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id,id));
 }
 
 async function publishOneFromDeposit(itemId,depositId){
@@ -398,13 +399,40 @@ function openConsignorDetail(id){
  const c=consignors.find(x=>x.id===id);if(!c)return;
  const ds=deposits.filter(d=>d.consignor_id===id||d.consignors?.id===id),ss=sales.filter(s=>s.consignor_id===id);
  const soldTotal=ss.reduce((a,s)=>a+Number(s.gross_amount||0),0),due=ss.filter(s=>s.payout_status!=="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0),paid=ss.filter(s=>s.payout_status==="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0);
- $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+Number(c.default_commission_pct||0)+'% par défaut</small></div><button class="btn ghost small" id="closeConsDetail">Fermer</button></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div><h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
- $("closeConsDetail").onclick=()=>{$("consignorDetail").innerHTML=""};bindDepositButtons();
+ $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+Number(c.default_commission_pct||0)+'% par défaut</small></div><div class="row-actions"><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div><h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
+ $("closeConsDetail").onclick=()=>{$("consignorDetail").innerHTML=""};
+ $("deleteConsDetail").onclick=()=>deleteConsignorSafe(id);
+ $("deactivateConsDetail").onclick=()=>deactivateConsignor(id);
+ bindDepositButtons();
 }
 $("newConsignor").onclick=()=>openConsignor(null);
 function openConsignor(id){currentConsignorId=id;const c=id?consignors.find(x=>x.id===id):null;$("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";$("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";$("consignorModal").classList.remove("hidden")}
 $("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll()};
-async function deleteConsignor(id){const c=consignors.find(x=>x.id===id);if(!confirm("Supprimer "+(c?.full_name||"ce consignateur")+" ?"))return;const{error}=await sb.from("consignors").delete().eq("id",id);if(error){toast(error.message);return}toast("Consignateur supprimé");await refreshAll()}
+async function deleteConsignorSafe(id){
+  const c=consignors.find(x=>x.id===id);if(!c)return;
+  const ds=deposits.filter(d=>d.consignor_id===id||d.consignors?.id===id);
+  const its=stock.filter(i=>i.consignors?.id===id);
+  const ss=sales.filter(s=>s.consignor_id===id);
+  if(ds.length||its.length||ss.length){
+    toast("Suppression impossible : ce consignateur a un historique. Désactive-le plutôt.");
+    return;
+  }
+  if(!confirm("Supprimer définitivement "+c.full_name+" ?"))return;
+  const{error}=await sb.from("consignors").delete().eq("id",id);
+  if(error){toast(error.message);return}
+  $("consignorDetail").innerHTML="";
+  toast("Consignateur supprimé");
+  await refreshAll();
+}
+async function deactivateConsignor(id){
+  const c=consignors.find(x=>x.id===id);if(!c)return;
+  if(!confirm("Désactiver "+c.full_name+" ? Son historique sera conservé."))return;
+  const{error}=await sb.from("consignors").update({status:"inactive"}).eq("id",id);
+  if(error){toast(error.message);return}
+  toast("Consignateur désactivé");
+  await refreshAll();
+  openConsignorDetail(id);
+}
 
 function openNewDeposit(){fillDepositSelect();$("dConsignor").value="";$("newConsignorInline").classList.add("hidden");$("dDate").value=new Date().toISOString().slice(0,10);$("dMode").value="consignment";$("dCommission").value="";$("dNotes").value="";$("dnName").value="";$("dnEmail").value="";$("dnPhone").value="";$("dnDefaultCommission").value="";$("depositModal").classList.remove("hidden")}
 ["newDepositHome","newDepositSmall","newDepositPage"].forEach(id=>$(id).onclick=openNewDeposit);
@@ -530,7 +558,28 @@ function renderStock(){
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+'<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(!i.shopify_product_id?'<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':""))+'</div></div>').join(""):'<div class="empty">Aucun article.</div>';
  document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
+ document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id));
 }
+async function deleteItemFlow(id,depositId=null){
+  const item=stock.find(x=>x.id===id)||deposits.flatMap(d=>d.items||[]).find(x=>x.id===id);
+  if(!item)return;
+  let deleteShopify=false;
+  if(item.shopify_product_id){
+    deleteShopify=confirm("Cet article existe aussi sur Shopify.\n\nOK = supprimer dans Milou Ops ET Shopify\nAnnuler = supprimer seulement dans Milou Ops");
+    if(!deleteShopify){
+      const localOnly=confirm("Confirmer la suppression uniquement dans Milou Ops ?");
+      if(!localOnly)return;
+    }
+  }else{
+    if(!confirm("Supprimer définitivement "+(item.sku||"cet article")+" de Milou Ops ?"))return;
+  }
+  const {data,error}=await sb.functions.invoke("delete-item",{body:{item_id:id,delete_shopify:deleteShopify}});
+  if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
+  toast("Article supprimé");
+  await refreshAll();
+  if(depositId)renderDepositDetail(depositId);else go("stock");
+}
+
 async function retryShopify(id){
   const btn=document.querySelector('.retryShopify[data-id="'+id+'"]');
   if(btn){btn.disabled=true;btn.textContent="Envoi…"}
