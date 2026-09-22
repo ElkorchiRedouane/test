@@ -15,7 +15,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0}.quick button{border:1px solid var(--line);background:#fff;border-radius:22px;padding:20px 16px;text-align:left;color:var(--ink);box-shadow:var(--shadow)}.quick .ico{font-size:1.8rem;display:block;margin-bottom:9px}.quick b{display:block;font-size:1.03rem}.quick small{display:block;color:var(--muted);line-height:1.4;margin-top:4px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.stat strong{font-size:1.4rem;display:block}.stat span{font-size:.76rem;color:var(--muted)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{font-size:1rem;margin:0}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
-.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
+.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.sendDepShopify{white-space:normal;line-height:1.15}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
 .deposit-banner{position:sticky;top:63px;z-index:15;background:#edf4eb;border:1px solid #d9e6d6;border-radius:18px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.deposit-banner b{display:block}.deposit-banner small{color:var(--muted);display:block;margin-top:2px}.counter{font-size:1.3rem;font-weight:900}.photo-box{border:2px dashed #d7c9ba;background:#fff9f2;border-radius:20px;padding:17px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos .photo-card{position:relative}
 .photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee;display:block}
 .photos .photo-remove{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(24,46,44,.88);color:white;font-weight:900;font-size:1rem;display:grid;place-items:center;box-shadow:0 4px 10px rgba(0,0,0,.18)}
@@ -248,7 +248,14 @@ $("dConsignor").onchange=()=>{const v=$("dConsignor").value;$("newConsignorInlin
 function renderHomeDeposits(){
  const list=deposits.slice(0,6);$("homeDepositList").innerHTML=list.length?list.map(d=>depRow(d)).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
 }
-function depRow(d){return '<div class="row"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+(d.items?.length||0)+' article(s) • '+(d.status==="closed"?"Terminé":"Ouvert")+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button class="btn green small resumeDep" data-id="'+d.id+'">Reprendre</button>':'<button class="btn ghost small viewDep" data-id="'+d.id+'">Voir</button>')+'</div></div>'}
+function depRow(d){
+  const items=d.items||[];
+  const pending=items.filter(i=>i.status!=="online").length;
+  return '<div class="row"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+(d.status==="closed"?"Terminé":"Ouvert")+(pending?' • '+pending+' à publier':' • Tout en ligne')+'</small></div><div class="row-actions">'+
+    (pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer le dépôt à Shopify</button>':'')+
+    (d.status!=="closed"?'<button class="btn green small resumeDep" data-id="'+d.id+'">Reprendre</button>':'<button class="btn ghost small viewDep" data-id="'+d.id+'">Voir</button>')+
+  '</div></div>'
+}
 function renderDeposits(){
  renderHomeDeposits();
  $("depositList").innerHTML=deposits.length?deposits.map(d=>depRow(d)).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
@@ -257,6 +264,15 @@ function renderDeposits(){
 function bindDepositButtons(){
  document.querySelectorAll(".resumeDep").forEach(b=>b.onclick=()=>startDepositSession(b.dataset.id));
  document.querySelectorAll(".viewDep").forEach(b=>b.onclick=()=>renderDepositDetail(b.dataset.id));
+ document.querySelectorAll(".sendDepShopify").forEach(b=>b.onclick=async()=>{
+   const id=b.dataset.id;
+   b.disabled=true;
+   const original=b.textContent;
+   b.textContent="Envoi du dépôt…";
+   await publishDeposit(id);
+   b.disabled=false;
+   b.textContent=original;
+ });
 }
 function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
