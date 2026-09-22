@@ -15,7 +15,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0}.quick button{border:1px solid var(--line);background:#fff;border-radius:22px;padding:20px 16px;text-align:left;color:var(--ink);box-shadow:var(--shadow)}.quick .ico{font-size:1.8rem;display:block;margin-bottom:9px}.quick b{display:block;font-size:1.03rem}.quick small{display:block;color:var(--muted);line-height:1.4;margin-top:4px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.stat strong{font-size:1.4rem;display:block}.stat span{font-size:.76rem;color:var(--muted)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{font-size:1rem;margin:0}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
-.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.sendDepShopify{white-space:normal;line-height:1.15}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
+.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.item-thumb{width:64px;height:64px;flex:0 0 64px;border-radius:13px;object-fit:cover;background:#eee;border:1px solid var(--line)}.item-thumb.placeholder{display:grid;place-items:center;font-size:1.3rem;color:var(--muted)}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.sendDepShopify{white-space:normal;line-height:1.15}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
 .deposit-banner{position:sticky;top:63px;z-index:15;background:#edf4eb;border:1px solid #d9e6d6;border-radius:18px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.deposit-banner b{display:block}.deposit-banner small{color:var(--muted);display:block;margin-top:2px}.counter{font-size:1.3rem;font-weight:900}.photo-box{border:2px dashed #d7c9ba;background:#fff9f2;border-radius:20px;padding:17px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos .photo-card{position:relative}
 .photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee;display:block}
 .photos .photo-remove{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(24,46,44,.88);color:white;font-weight:900;font-size:1rem;display:grid;place-items:center;box-shadow:0 4px 10px rgba(0,0,0,.18)}
@@ -232,12 +232,24 @@ async function testShopifyConnection(){
  const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
 }
 async function loadConsignors(){const{data}=await sb.from("consignors").select("*").order("created_at",{ascending:false});consignors=data||[]}
-async function loadDeposits(){const{data}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url,commission_pct)").order("created_at",{ascending:false});deposits=data||[]}
-async function loadStock(){const{data}=await sb.from("items").select("id,sku,title,brand,size,status,sale_price,shopify_url,created_at,deposits(code),consignors(code,full_name)").order("created_at",{ascending:false}).limit(300);stock=data||[]}
+async function loadDeposits(){
+  const{data}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url,shopify_product_id,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
+  deposits=data||[];
+  for(const d of deposits){
+    for(const i of (d.items||[])){
+      const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
+      if(pics[0]?.storage_path){
+        const {data:signed}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);
+        i.photo_url=signed?.signedUrl||null;
+      }
+    }
+  }
+}
+async function loadStock(){const{data}=await sb.from("items").select("id,sku,title,brand,size,status,sale_price,shopify_url,shopify_product_id,created_at,deposits(code),consignors(code,full_name)").order("created_at",{ascending:false}).limit(300);stock=data||[]}
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
  $("stOpenDep").textContent=deposits.filter(d=>d.status!=="closed").length;
- $("stPending").textContent=stock.filter(i=>i.status==="validated").length;
+ $("stPending").textContent=stock.filter(i=>!i.shopify_product_id).length;
  $("stOnline").textContent=stock.filter(i=>i.status==="online").length;
 }
 function fillDepositSelect(){
@@ -250,8 +262,8 @@ function renderHomeDeposits(){
 }
 function depRow(d){
   const items=d.items||[];
-  const pending=items.filter(i=>i.status!=="online").length;
-  return '<div class="row"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+(d.status==="closed"?"Terminé":"Ouvert")+(pending?' • '+pending+' à publier':' • Tout en ligne')+'</small></div><div class="row-actions">'+
+  const pending=items.filter(i=>!i.shopify_product_id).length;
+  return '<div class="row"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+(d.status==="closed"?"Terminé":"Ouvert")+(pending?' • '+pending+' à envoyer':' • Tous envoyés à Shopify')+'</small></div><div class="row-actions">'+
     (pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer le dépôt à Shopify</button>':'')+
     (d.status!=="closed"?'<button class="btn green small resumeDep" data-id="'+d.id+'">Reprendre</button>':'<button class="btn ghost small viewDep" data-id="'+d.id+'">Voir</button>')+
   '</div></div>'
@@ -277,7 +289,7 @@ function bindDepositButtons(){
 function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
- $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>') + (items.some(i=>i.status!=="online")?'<button id="depPublishAll" class="btn green small">Publier tout sur Shopify</button>':'')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status==="online"?"En ligne":"À publier")+'</small></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(i.status!=="online"?'<button class="btn primary small depPublishOne" data-id="'+i.id+'">Publier Shopify</button>':(i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':""))+'</div></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
+ $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>') + (items.some(i=>!i.shopify_product_id)?'<button id="depPublishAll" class="btn green small">Publier tout sur Shopify</button>':'')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+'<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status==="online"?"En ligne":(i.shopify_product_id?"Brouillon Shopify":"À envoyer"))+'</small></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(!i.shopify_product_id?'<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button>':(i.status==="online"&&i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':'<span class="badge yellow">Brouillon</span>'))+'</div></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
  const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll");
  if(a)a.onclick=()=>startDepositSession(id);
  if(f)f.onclick=()=>finishDeposit(id);
@@ -295,7 +307,7 @@ async function publishOneFromDeposit(itemId,depositId){
     if(btn){btn.disabled=false;btn.textContent="Publier Shopify";}
     return;
   }
-  toast("Article publié sur Shopify");
+  toast("Article envoyé en brouillon Shopify");
   await refreshAll();
   renderDepositDetail(depositId);
 }
@@ -303,7 +315,7 @@ async function publishOneFromDeposit(itemId,depositId){
 async function publishDeposit(depositId){
   const d=deposits.find(x=>x.id===depositId);
   if(!d)return;
-  const pending=(d.items||[]).filter(i=>i.status!=="online");
+  const pending=(d.items||[]).filter(i=>!i.shopify_product_id);
   if(!pending.length){toast("Tout le dépôt est déjà en ligne");return;}
   const allBtn=$("depPublishAll");
   if(allBtn){allBtn.disabled=true;allBtn.textContent="Publication 0/"+pending.length;}
@@ -319,7 +331,7 @@ async function publishDeposit(depositId){
   await refreshAll();
   renderDepositDetail(depositId);
   if(failed)toast(ok+" publié(s), "+failed+" erreur(s)"+(lastError?" : "+lastError:""));
-  else toast(ok+" article(s) publié(s) sur Shopify");
+  else toast(ok+" article(s) envoyé(s) en brouillon Shopify");
 }
 
 function renderConsignors(){
@@ -429,7 +441,7 @@ async function saveArticle(toShopify){
  const ins=await sb.from("items").insert(p).select().single();if(ins.error){toast(ins.error.message);return}
  for(let i=0;i<photos.length;i++){const f=photos[i],path=ins.data.id+"/"+crypto.randomUUID()+"-"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type});if(!up.error)await sb.from("item_photos").insert({item_id:ins.data.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0})}
  let shopMsg="";
- if(toShopify){const{data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:ins.data.id}});shopMsg=(!error&&!data?.error)?" • publié Shopify":" • Shopify en attente"}
+ if(toShopify){const{data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:ins.data.id}});shopMsg=(!error&&!data?.error)?" • brouillon Shopify créé":" • Shopify en attente"}
  await refreshAll();
  if(d){activeDeposit=deposits.find(x=>x.id===d.id)||d;$("savedFlash").textContent="✓ "+ins.data.sku+" enregistré"+shopMsg;$("savedFlash").classList.remove("hidden");setTimeout(()=>$("savedFlash").classList.add("hidden"),3500);prepareArticle();go("article")}
  else{toast(ins.data.sku+" enregistré"+shopMsg);prepareArticle();go("home")}
@@ -447,7 +459,7 @@ function showSummary(d){
 
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),rows=stock.filter(i=>!q||[i.sku,i.title,i.brand,i.size,i.consignors?.full_name,i.deposits?.code].some(v=>String(v||"").toLowerCase().includes(q)));
- $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":"gray")+'">'+esc(i.status==="online"?"En ligne":"À publier")+'</span><strong>'+money(i.sale_price)+'</strong>'+(i.status!=="online"?'<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button>':(i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':""))+'</div></div>').join(""):'<div class="empty">Aucun article.</div>';
+ $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":(i.shopify_product_id?"yellow":"gray"))+'">'+esc(i.status==="online"?"En ligne":(i.shopify_product_id?"Brouillon Shopify":"À envoyer"))+'</span><strong>'+money(i.sale_price)+'</strong>'+(!i.shopify_product_id?'<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button>':(i.status==="online"&&i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':""))+'</div></div>').join(""):'<div class="empty">Aucun article.</div>';
  document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
 }
 async function retryShopify(id){
@@ -460,7 +472,7 @@ async function retryShopify(id){
     toast("Shopify : "+detail);
     return;
   }
-  toast("Article publié sur Shopify");
+  toast("Article envoyé en brouillon Shopify");
   await refreshAll();
   go("stock");
 }
