@@ -6,26 +6,28 @@
 <meta name="theme-color" content="#315f5c">
 <title>Milou Ops</title>
 <style>
-:root{--bg:#fbf7ef;--panel:#fffdf8;--ink:#245a59;--muted:#6f8582;--line:#e8ddd0;--pink:#c97893;--green:#315f5c;--sage:#dfe9d8;--yellow:#f2eaa2;--red:#b84f55;--shadow:0 10px 30px rgba(49,95,92,.08)}
-*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}button,input,select,textarea{font:inherit}.hidden{display:none!important}
-.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#f7e5ea,#fff4df 55%,#e5ede0)}.login-card{width:min(430px,100%);background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:0 25px 70px rgba(49,95,92,.12)}.logo{font-size:2rem;font-weight:900}.logo span{color:var(--pink)}.login-card p{color:var(--muted);line-height:1.5}.field{display:grid;gap:6px}.field label{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;font-weight:850;color:var(--muted)}input,select,textarea{width:100%;border:1px solid #dcd2c5;background:#fff;border-radius:14px;padding:12px;color:var(--ink);outline:none}textarea{min-height:105px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:#85a5a2;box-shadow:0 0 0 3px rgba(49,95,92,.08)}
-.btn{border:0;border-radius:999px;padding:12px 16px;font-weight:850;cursor:pointer}.btn.primary{background:var(--pink);color:#fff}.btn.green{background:var(--green);color:#fff}.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn.danger{background:#f8e5e6;color:var(--red)}.btn.small{padding:8px 12px;font-size:.83rem}.btn:disabled{opacity:.55;cursor:not-allowed}
-.app{min-height:100vh;padding-bottom:78px}.top{position:sticky;top:0;z-index:20;background:rgba(251,247,239,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px 15px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--pink);color:#fff;font-weight:900}.brand b{display:block}.brand small{display:block;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis}.top button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 11px;color:var(--ink)}
-main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.active{display:block}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:4px 0 16px}.page-head h1{margin:0;font-size:1.75rem}.page-head p{margin:4px 0 0;color:var(--muted);line-height:1.45}.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{margin:0;font-size:1rem}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
-.hero{background:linear-gradient(120deg,#f4e2e7,#fff2dd 58%,#e3ecdf);border:1px solid var(--line);border-radius:26px;padding:22px;box-shadow:var(--shadow);margin-bottom:14px}.hero h1{margin:0 0 7px;font-size:1.85rem}.hero p{margin:0;color:var(--muted);line-height:1.5}.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.quick button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:18px 14px;text-align:left;box-shadow:var(--shadow);color:var(--ink)}.quick .ico{font-size:1.65rem;display:block;margin-bottom:8px}.quick b{display:block}.quick small{display:block;color:var(--muted);margin-top:4px;line-height:1.35}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.stat strong{font-size:1.4rem;display:block}.stat span{font-size:.76rem;color:var(--muted)}
-.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.empty{text-align:center;color:var(--muted);padding:26px}.notice{border-radius:14px;padding:11px 13px;background:#eef4ec;color:#456963;font-size:.87rem;line-height:1.45;margin:10px 0}.notice.warn{background:#fff1d9;color:#765f2f}.notice.err{background:#f9e2e3;color:#883f43}
-.context{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#eef4ec;border:1px solid #d9e6d7;border-radius:18px;padding:13px 14px;margin-bottom:12px}.context b{display:block}.context small{color:var(--muted)}.photo-box{border:2px dashed #d9ccbd;background:#fff9f2;border-radius:18px;padding:16px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee}.advanced{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.advanced summary{cursor:pointer;font-weight:800;color:var(--ink);margin-bottom:12px}.deposit-card{border:1px solid var(--line);border-radius:18px;padding:14px;background:#fff}.deposit-card.selected{border-color:#93b0ad;box-shadow:0 0 0 3px rgba(49,95,92,.06)}.deposit-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.modal{position:fixed;inset:0;background:rgba(28,45,44,.5);display:grid;place-items:center;padding:18px;z-index:80}.modal.hidden{display:none}.modal-box{width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modal-head h2{margin:0}.modal-head button{border:0;background:transparent;font-size:1.4rem}
-.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:100;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:#fff;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
-@media(max-width:720px){.quick{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.photos{grid-template-columns:repeat(3,1fr)}.page-head{align-items:flex-start}.page-head h1{font-size:1.5rem}.row{align-items:flex-start}.row-actions{display:grid}.hero h1{font-size:1.55rem}}
+:root{--bg:#fbf7ef;--panel:#fffdf8;--ink:#245a59;--muted:#718784;--line:#e7ddd0;--pink:#c97893;--green:#315f5c;--sage:#dfe9d8;--yellow:#f4ecad;--danger:#ad4f55;--shadow:0 10px 28px rgba(49,95,92,.08)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}button,input,select,textarea{font:inherit}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#f7e6ea,#fff2df 55%,#e4ede0)}.login-card{width:min(430px,100%);background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:0 25px 70px rgba(49,95,92,.12)}.logo{font-size:2rem;font-weight:900}.logo span{color:var(--pink)}.login-card p{color:var(--muted);line-height:1.5}.field{display:grid;gap:6px}.field label{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;font-weight:850;color:var(--muted)}input,select,textarea{width:100%;border:1px solid #ddd2c4;background:#fff;border-radius:14px;padding:12px;color:var(--ink);outline:none}input:focus,select:focus,textarea:focus{border-color:#86a5a2;box-shadow:0 0 0 3px rgba(49,95,92,.08)}textarea{min-height:100px;resize:vertical}
+.btn{border:0;border-radius:999px;padding:12px 16px;font-weight:850;cursor:pointer}.btn.primary{background:var(--pink);color:white}.btn.green{background:var(--green);color:white}.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn.danger{background:#f8e4e5;color:var(--danger)}.btn.small{padding:8px 12px;font-size:.83rem}.btn:disabled{opacity:.55;cursor:not-allowed}
+.app{min-height:100vh;padding-bottom:80px}.top{position:sticky;top:0;z-index:25;background:rgba(251,247,239,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:11px 14px;display:flex;justify-content:space-between;align-items:center}.brand{display:flex;align-items:center;gap:10px}.mark{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--pink);color:white;font-weight:900}.brand b{display:block}.brand small{display:block;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis}.top>button{border:1px solid var(--line);background:white;color:var(--ink);border-radius:999px;padding:8px 11px}
+main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.active{display:block}.page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:2px 0 14px}.page-head h1{margin:0;font-size:1.7rem}.page-head p{margin:4px 0 0;color:var(--muted);line-height:1.45}.hero{background:linear-gradient(120deg,#f3e1e7,#fff2dc 58%,#e3ecde);border:1px solid var(--line);border-radius:26px;padding:22px;box-shadow:var(--shadow)}.hero h1{font-size:1.75rem;margin:0 0 7px}.hero p{margin:0;color:var(--muted);line-height:1.5}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0}.quick button{border:1px solid var(--line);background:#fff;border-radius:22px;padding:20px 16px;text-align:left;color:var(--ink);box-shadow:var(--shadow)}.quick .ico{font-size:1.8rem;display:block;margin-bottom:9px}.quick b{display:block;font-size:1.03rem}.quick small{display:block;color:var(--muted);line-height:1.4;margin-top:4px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.stat strong{font-size:1.4rem;display:block}.stat span{font-size:.76rem;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{font-size:1rem;margin:0}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
+.list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.row-main{min-width:0;flex:1}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
+.deposit-banner{position:sticky;top:63px;z-index:15;background:#edf4eb;border:1px solid #d9e6d6;border-radius:18px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.deposit-banner b{display:block}.deposit-banner small{color:var(--muted);display:block;margin-top:2px}.counter{font-size:1.3rem;font-weight:900}.photo-box{border:2px dashed #d7c9ba;background:#fff9f2;border-radius:20px;padding:17px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:13px;background:#eee}.note-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.mic{width:48px;height:48px;border-radius:50%;border:0;background:#f0e1e7;color:var(--pink);font-size:1.2rem;font-weight:900}.advanced{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.advanced summary{cursor:pointer;font-weight:850;margin-bottom:12px}.notice{border-radius:14px;padding:11px 13px;background:#eef4ec;color:#466a62;font-size:.87rem;line-height:1.45;margin:10px 0}.notice.warn{background:#fff1d9;color:#775f2e}.notice.err{background:#f9e2e3;color:#883f43}.saved-flash{background:#e7f0e3;border:1px solid #d4e3cf;border-radius:18px;padding:14px;margin-bottom:12px;font-weight:800}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.summary-card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:14px}.summary-card strong{display:block;font-size:1.35rem}.summary-card span{font-size:.78rem;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(28,45,44,.5);display:grid;place-items:center;padding:18px;z-index:90}.modal.hidden{display:none}.modal-box{width:min(650px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:24px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.2)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modal-head h2{margin:0}.modal-head button{border:0;background:transparent;font-size:1.4rem}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:120;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:white;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
+@media(max-width:720px){.quick{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.photos{grid-template-columns:repeat(3,1fr)}.page-head h1{font-size:1.45rem}.row{align-items:flex-start}.row-actions{display:grid}.deposit-banner{top:62px}.hero h1{font-size:1.5rem}}
 </style>
 </head>
 <body>
 <div id="login" class="login">
   <div class="login-card">
     <div class="logo">Milou <span>Ops</span></div>
-    <p>Gestion simple des consignateurs, dépôts et articles de Friperie Milou.</p>
+    <p>L’outil de réception de Friperie Milou.</p>
     <div class="field"><label>Courriel</label><input id="authEmail" type="email" autocomplete="email"></div>
     <div class="field" style="margin-top:10px"><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password"></div>
     <div id="authMsg"></div>
@@ -34,325 +36,249 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </div>
 
 <div id="app" class="app hidden">
-  <header class="top">
-    <div class="brand"><div class="brand-mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div>
-    <button id="logout">Déconnexion</button>
-  </header>
+<header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout">Déconnexion</button></header>
+<main>
+  <section id="home" class="page active">
+    <div class="hero"><h1>Réception rapide</h1><p>Commence un dépôt ou ajoute simplement un vêtement. Le reste se fait en chaîne.</p></div>
+    <div class="quick">
+      <button id="newDepositHome"><span class="ico">🧺</span><b>Nouveau dépôt</b><small>Une personne apporte plusieurs vêtements. Tu crées le dépôt une fois, puis tu enchaînes les articles.</small></button>
+      <button id="quickItemHome"><span class="ico">📷</span><b>Article rapide</b><small>Un article acheté, donné ou appartenant à la boutique. Aucun consignateur nécessaire.</small></button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong id="stCons">0</strong><span>Consignateurs</span></div>
+      <div class="stat"><strong id="stOpenDep">0</strong><span>Dépôts ouverts</span></div>
+      <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
+      <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
+  </section>
 
-  <main>
-    <section id="home" class="page active">
-      <div class="hero"><h1>Que veux-tu faire?</h1><p>Trois actions principales. Rien de plus compliqué.</p></div>
-      <div class="quick">
-        <button data-go="consignors"><span class="ico">👤</span><b>Ajouter un consignateur</b><small>Créer, modifier ou supprimer une fiche.</small></button>
-        <button data-go="deposits"><span class="ico">🧺</span><b>Créer / gérer un dépôt</b><small>Créer le dépôt puis ajouter ses articles un par un.</small></button>
-        <button id="standaloneBtn"><span class="ico">📷</span><b>Ajouter un article seul</b><small>Sans dépôt et sans consignateur.</small></button>
-      </div>
-      <div class="stats">
-        <div class="stat"><strong id="stCons">0</strong><span>Consignateurs</span></div>
-        <div class="stat"><strong id="stDeposits">0</strong><span>Dépôts ouverts</span></div>
-        <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
-        <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
-      </div>
-      <div id="shopifyNotice" class="notice warn">Shopify est prévu dans le flux : le bouton « Enregistrer + Shopify » publiera l’article et enregistrera aussi le SKU, dépôt, consignateur, commission et emplacement dans les champs internes Shopify dès que la connexion Admin API sera activée.</div>
-    </section>
+  <section id="deposits" class="page">
+    <div class="page-head"><div><h1>Dépôts</h1><p>Reprendre un dépôt, voir ses articles ou le terminer.</p></div><button id="newDepositPage" class="btn primary small">+ Nouveau</button></div>
+    <div id="depositDetail"></div>
+    <div class="panel"><div class="panel-head"><h2>Tous les dépôts</h2></div><div class="panel-body"><div id="depositList" class="list"></div></div></div>
+  </section>
 
-    <section id="consignors" class="page">
-      <div class="page-head"><div><h1>Consignateurs</h1><p>Une fiche par personne, modifiable à tout moment.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
-      <div class="panel"><div class="panel-head"><h2>Liste</h2></div><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
-    </section>
+  <section id="article" class="page">
+    <div id="savedFlash" class="saved-flash hidden"></div>
+    <div id="depositBanner" class="deposit-banner hidden"></div>
+    <div class="page-head"><div><h1 id="articleTitle">Nouvel article</h1><p id="articleSub">Photo, note, vérification, suivant.</p></div><button id="finishFromArticle" class="btn ghost small hidden">Terminer dépôt</button></div>
+    <div class="panel"><div class="panel-head"><h2>1. Photo + note</h2><span class="badge pink">IA</span></div><div class="panel-body">
+      <div class="photo-box"><b>📷 Photographier</b><div style="font-size:.8rem;color:var(--muted);margin:5px 0">Devant + étiquette. Ajoute une photo du défaut si nécessaire.</div><input id="photos" type="file" accept="image/*" capture="environment" multiple></div>
+      <div id="photoPreview" class="photos"></div>
+      <div class="note-row" style="margin-top:12px"><div class="field"><label>Note libre</label><textarea id="rawText" placeholder="Gap fille 6 ans hoodie bleu très bon état 14$ petite trace manche bac A3"></textarea></div><button id="micBtn" class="mic" title="Dicter">🎙️</button></div>
+      <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div>
+      <div id="analysisMsg"></div>
+    </div></div>
 
-    <section id="deposits" class="page">
-      <div class="page-head"><div><h1>Dépôts</h1><p>Crée un dépôt, puis ajoute ses vêtements au fur et à mesure.</p></div><button id="newDeposit" class="btn primary small">+ Nouveau dépôt</button></div>
-      <div id="depositDetail" class="hidden"></div>
-      <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2></div><div class="panel-body"><div id="depositList" class="list"></div></div></div>
-    </section>
-
-    <section id="article" class="page">
-      <div class="page-head"><div><h1 id="articlePageTitle">Nouvel article</h1><p id="articlePageSubtitle">Ajout rapide, avec ou sans dépôt.</p></div><button id="cancelArticle" class="btn ghost small">Annuler</button></div>
-      <div id="articleContext" class="context"><div><b>Article seul</b><small>Aucun dépôt ni consignateur</small></div><span class="badge">Libre</span></div>
-
-      <div class="panel"><div class="panel-head"><h2>1. Photos + note rapide</h2><span class="badge pink">IA</span></div><div class="panel-body">
-        <div class="photo-box"><b>📷 Prendre les photos</b><div style="font-size:.8rem;color:var(--muted);margin:5px 0">Devant, dos, étiquette, défaut si nécessaire.</div><input id="photos" type="file" accept="image/*" capture="environment" multiple></div>
-        <div id="photoPreview" class="photos"></div>
-        <div class="field" style="margin-top:12px"><label>Texte libre</label><textarea id="rawText" placeholder="Ex. Gap fille 6 ans hoodie bleu très bon état petite trace manche 14$ bac A3"></textarea></div>
-        <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div>
-        <div id="analysisMsg"></div>
-      </div></div>
-
-      <div class="panel"><div class="panel-head"><h2>2. Vérifier seulement l’essentiel</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
-        <div class="field full"><label>Titre</label><input id="fTitle"></div>
-        <div class="field"><label>Marque</label><input id="fBrand"></div>
-        <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
-        <div class="field"><label>Taille</label><input id="fSize"></div>
-        <div class="field"><label>État</label><select id="fCondition"><option value="">—</option><option>Comme neuf</option><option>Excellent état</option><option>Très bon état</option><option>Bon état</option></select></div>
-        <div class="field"><label>Prix ($)</label><input id="fPrice" type="number" step=".01" min="0"></div>
-        <div class="field"><label>Emplacement</label><input id="fLocation" placeholder="BAC-A03"></div>
+    <div class="panel"><div class="panel-head"><h2>2. Vérifier</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
+      <div class="field full"><label>Titre</label><input id="fTitle"></div>
+      <div class="field"><label>Marque</label><input id="fBrand"></div>
+      <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
+      <div class="field"><label>Taille</label><input id="fSize"></div>
+      <div class="field"><label>État</label><select id="fCondition"><option value="">—</option><option>Comme neuf</option><option>Excellent état</option><option>Très bon état</option><option>Bon état</option></select></div>
+      <div class="field"><label>Prix ($)</label><input id="fPrice" type="number" min="0" step=".01"></div>
+      <div class="field"><label>Emplacement</label><input id="fLocation" placeholder="BAC-A03"></div>
+      <details class="advanced full"><summary>Plus de détails</summary><div class="grid">
+        <div class="field"><label>Section</label><select id="fSection"><option value="">—</option><option>Fille</option><option>Garçon</option><option>Unisexe</option></select></div>
+        <div class="field"><label>Tranche d’âge</label><select id="fAge"><option value="">—</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select></div>
+        <div class="field"><label>Couleur</label><input id="fColor"></div>
+        <div class="field"><label>Saison</label><select id="fSeason"><option>Toute saison</option><option>Printemps / été</option><option>Automne / hiver</option></select></div>
+        <div class="field"><label>Matière</label><input id="fMaterial"></div>
         <div class="field"><label>Commission (%)</label><input id="fCommission" type="number" min="0" max="100" step=".01"></div>
+        <div class="field"><label>Coût acquisition ($)</label><input id="fCost" type="number" min="0" step=".01"></div>
+        <div class="field full"><label>Défauts / particularités</label><textarea id="fDefects"></textarea></div>
+        <div class="field full"><label>Description Shopify</label><textarea id="fDescription"></textarea></div>
+      </div></details>
+      <div class="actions full"><button id="saveOnly" class="btn ghost">✓ Enregistrer et suivant</button><button id="saveShopify" class="btn primary">✓ Enregistrer + Shopify</button></div>
+    </div></div>
+  </section>
 
-        <details class="advanced full">
-          <summary>Plus de détails (optionnel)</summary>
-          <div class="grid">
-            <div class="field"><label>Section</label><select id="fSection"><option value="">—</option><option>Fille</option><option>Garçon</option><option>Unisexe</option></select></div>
-            <div class="field"><label>Tranche d’âge</label><select id="fAge"><option value="">—</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select></div>
-            <div class="field"><label>Couleur</label><input id="fColor"></div>
-            <div class="field"><label>Saison</label><select id="fSeason"><option>Toute saison</option><option>Printemps / été</option><option>Automne / hiver</option></select></div>
-            <div class="field"><label>Matière</label><input id="fMaterial"></div>
-            <div class="field"><label>Coût d’acquisition ($)</label><input id="fCost" type="number" min="0" step=".01"></div>
-            <div class="field full"><label>Défauts / particularités</label><textarea id="fDefects"></textarea></div>
-            <div class="field full"><label>Description Shopify</label><textarea id="fDescription"></textarea></div>
-          </div>
-        </details>
+  <section id="stock" class="page">
+    <div class="page-head"><div><h1>Stock</h1><p>Tous les articles saisis, qu’ils soient publiés ou non.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
+    <div class="panel"><div class="panel-body"><div class="field"><label>Rechercher</label><input id="stockSearch" placeholder="SKU, titre, marque..."></div><div id="stockList" class="list" style="margin-top:12px"></div></div></div>
+  </section>
 
-        <div class="actions full">
-          <button id="saveOnly" class="btn ghost">Enregistrer seulement</button>
-          <button id="saveShopify" class="btn primary">Enregistrer + Shopify</button>
-        </div>
-      </div></div>
-    </section>
-  </main>
-
-  <nav class="bottom">
-    <button data-page="home" class="active"><span>⌂</span>Accueil</button>
-    <button data-page="consignors"><span>👤</span>Consignateurs</button>
-    <button data-page="deposits"><span>🧺</span>Dépôts</button>
-    <button id="navArticle"><span>📷</span>Article</button>
-  </nav>
+  <section id="consignors" class="page">
+    <div class="page-head"><div><h1>Consignateurs</h1><p>Créer, modifier ou supprimer une personne.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
+    <div class="panel"><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
+  </section>
+</main>
+<nav class="bottom">
+  <button data-page="home" class="active"><span>⌂</span>Accueil</button>
+  <button data-page="deposits"><span>🧺</span>Dépôts</button>
+  <button data-page="stock"><span>📦</span>Stock</button>
+  <button data-page="consignors"><span>👤</span>Consignateurs</button>
+</nav>
 </div>
 
-<div id="consignorModal" class="modal hidden">
-  <div class="modal-box">
-    <div class="modal-head"><h2 id="consignorModalTitle">Nouveau consignateur</h2><button data-close="consignorModal">×</button></div>
-    <div class="grid">
-      <div class="field full"><label>Nom complet</label><input id="cName"></div>
-      <div class="field"><label>Courriel</label><input id="cEmail" type="email"></div>
-      <div class="field"><label>Téléphone</label><input id="cPhone" type="tel"></div>
-      <div class="field"><label>Commission par défaut (%)</label><input id="cCommission" type="number" min="0" max="100" step=".01"></div>
-      <div class="field full"><label>Notes</label><textarea id="cNotes"></textarea></div>
-    </div>
-    <div class="actions"><button id="saveConsignor" class="btn primary">Enregistrer</button></div>
+<div id="depositModal" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><h2>Nouveau dépôt</h2><button data-close="depositModal">×</button></div>
+  <div class="field"><label>Consignateur</label><select id="dConsignor"></select></div>
+  <div id="newConsignorInline" class="hidden" style="margin-top:12px"><div class="grid">
+    <div class="field full"><label>Nom complet</label><input id="dnName"></div>
+    <div class="field"><label>Courriel</label><input id="dnEmail" type="email"></div>
+    <div class="field"><label>Téléphone</label><input id="dnPhone" type="tel"></div>
+    <div class="field"><label>Commission par défaut (%)</label><input id="dnDefaultCommission" type="number" min="0" max="100" step=".01"></div>
+  </div></div>
+  <div class="grid" style="margin-top:12px">
+    <div class="field"><label>Date</label><input id="dDate" type="date"></div>
+    <div class="field"><label>Mode</label><select id="dMode"><option value="consignment">Consignation</option><option value="purchase">Achat</option><option value="donation">Don</option><option value="own_stock">Stock propre</option></select></div>
+    <div class="field"><label>Commission du dépôt (%)</label><input id="dCommission" type="number" min="0" max="100" step=".01"></div>
+    <div class="field full"><label>Notes</label><textarea id="dNotes"></textarea></div>
   </div>
-</div>
+  <div class="actions"><button id="createDeposit" class="btn primary">Créer et commencer les articles</button></div>
+</div></div>
 
-<div id="depositModal" class="modal hidden">
-  <div class="modal-box">
-    <div class="modal-head"><h2>Nouveau dépôt</h2><button data-close="depositModal">×</button></div>
-    <div class="grid">
-      <div class="field full"><label>Consignateur</label><select id="dConsignor"><option value="">Sans consignateur</option></select></div>
-      <div class="field"><label>Date</label><input id="dDate" type="date"></div>
-      <div class="field"><label>Mode</label><select id="dMode"><option value="consignment">Consignation</option><option value="purchase">Achat</option><option value="donation">Don</option><option value="own_stock">Stock propre</option></select></div>
-      <div class="field"><label>Commission (%)</label><input id="dCommission" type="number" min="0" max="100" step=".01"></div>
-      <div class="field full"><label>Notes</label><textarea id="dNotes"></textarea></div>
-    </div>
-    <div class="actions"><button id="saveDeposit" class="btn primary">Créer le dépôt</button></div>
+<div id="consignorModal" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><h2 id="consignorModalTitle">Nouveau consignateur</h2><button data-close="consignorModal">×</button></div>
+  <div class="grid">
+    <div class="field full"><label>Nom complet</label><input id="cName"></div>
+    <div class="field"><label>Courriel</label><input id="cEmail" type="email"></div>
+    <div class="field"><label>Téléphone</label><input id="cPhone" type="tel"></div>
+    <div class="field"><label>Commission (%)</label><input id="cCommission" type="number" min="0" max="100" step=".01"></div>
+    <div class="field full"><label>Notes</label><textarea id="cNotes"></textarea></div>
   </div>
-</div>
+  <div class="actions"><button id="saveConsignor" class="btn primary">Enregistrer</button></div>
+</div></div>
+
+<div id="summaryModal" class="modal hidden"><div class="modal-box">
+  <div class="modal-head"><h2>Dépôt terminé</h2><button data-close="summaryModal">×</button></div>
+  <div id="summaryContent"></div>
+</div></div>
 
 <div id="toast" class="toast hidden"></div>
 
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-const SUPABASE_URL="https://lgdapxduxmhcixjwzfrq.supabase.co";
-const SUPABASE_KEY="sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI";
-const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
-
-let consignors=[],deposits=[],selectedDeposit=null,currentConsignorId=null,photos=[];
-
+const sb=createClient("https://lgdapxduxmhcixjwzfrq.supabase.co","sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI");
 const $=id=>document.getElementById(id);
+let consignors=[],deposits=[],stock=[],activeDeposit=null,currentConsignorId=null,photos=[],articleMode="quick";
+
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
-function toast(msg){$("toast").textContent=msg;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),2800)}
-function note(el,msg,type=""){el.innerHTML='<div class="notice '+type+'">'+msg+'</div>'}
-function money(v){return v==null?"—":Number(v).toLocaleString("fr-CA",{style:"currency",currency:"CAD"})}
-function modeLabel(v){return ({consignment:"Consignation",purchase:"Achat",donation:"Don",own_stock:"Stock propre"})[v]||v}
+function toast(m){$("toast").textContent=m;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),2500)}
+function note(el,m,t=""){el.innerHTML='<div class="notice '+t+'">'+m+'</div>'}
+function money(v){return Number(v||0).toLocaleString("fr-CA",{style:"currency",currency:"CAD"})}
+function modeLabel(v){return({consignment:"Consignation",purchase:"Achat",donation:"Don",own_stock:"Stock propre"})[v]||v}
 
 async function authState(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session){$("login").classList.remove("hidden");$("app").classList.add("hidden");return}
-  const {data:allowed}=await sb.rpc("is_milou_user");
-  if(!allowed){await sb.auth.signOut();note($("authMsg"),"Ce compte n’est pas autorisé.","err");return}
-  $("login").classList.add("hidden");$("app").classList.remove("hidden");$("userEmail").textContent=session.user.email||"";
-  await refreshAll();
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){$("login").classList.remove("hidden");$("app").classList.add("hidden");return}
+ const {data:allowed}=await sb.rpc("is_milou_user");
+ if(!allowed){await sb.auth.signOut();note($("authMsg"),"Compte non autorisé.","err");return}
+ $("login").classList.add("hidden");$("app").classList.remove("hidden");$("userEmail").textContent=session.user.email||"";
+ await refreshAll();
 }
-$("authBtn").onclick=async()=>{
-  const email=$("authEmail").value.trim(),password=$("authPassword").value;
-  if(!email||!password){note($("authMsg"),"Entre ton courriel et ton mot de passe.","err");return}
-  $("authBtn").disabled=true;$("authBtn").textContent="Connexion…";
-  const {error}=await sb.auth.signInWithPassword({email,password});
-  $("authBtn").disabled=false;$("authBtn").textContent="Se connecter";
-  if(error){note($("authMsg"),esc(error.message),"err");return}
-  await authState();
-};
-$("logout").onclick=()=>sb.auth.signOut();
-sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
+$("authBtn").onclick=async()=>{const email=$("authEmail").value.trim(),password=$("authPassword").value;if(!email||!password){note($("authMsg"),"Entre ton courriel et ton mot de passe.","err");return}$("authBtn").disabled=true;$("authBtn").textContent="Connexion…";const{error}=await sb.auth.signInWithPassword({email,password});$("authBtn").disabled=false;$("authBtn").textContent="Se connecter";if(error){note($("authMsg"),esc(error.message),"err");return}await authState()};
+$("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(page){
-  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===page));
-  document.querySelectorAll(".bottom button[data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
-  if(page==="deposits")renderDeposits();
-  if(page==="consignors")renderConsignors();
-}
-document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
-document.querySelectorAll(".bottom button[data-page]").forEach(b=>b.onclick=()=>go(b.dataset.page));
-$("navArticle").onclick=()=>startStandalone();
-$("standaloneBtn").onclick=()=>startStandalone();
+function go(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors()}
+document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
-async function refreshAll(){await Promise.all([loadConsignors(),loadDeposits(),loadStats()]);renderConsignors();renderDeposits();fillSelectors()}
-async function loadConsignors(){const {data,error}=await sb.from("consignors").select("*").order("created_at",{ascending:false});if(!error)consignors=data||[]}
-async function loadDeposits(){const {data,error}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url)").order("created_at",{ascending:false});if(!error)deposits=data||[]}
-async function loadStats(){
-  const [{count:a},{count:b},{count:c},{count:d}]=await Promise.all([
-    sb.from("consignors").select("*",{count:"exact",head:true}).eq("status","active"),
-    sb.from("deposits").select("*",{count:"exact",head:true}).neq("status","closed"),
-    sb.from("items").select("*",{count:"exact",head:true}).eq("validated",true).is("shopify_product_id",null),
-    sb.from("items").select("*",{count:"exact",head:true}).eq("status","online")
-  ]);
-  $("stCons").textContent=a||0;$("stDeposits").textContent=b||0;$("stPending").textContent=c||0;$("stOnline").textContent=d||0;
+async function refreshAll(){
+ await Promise.all([loadConsignors(),loadDeposits(),loadStock()]);
+ renderConsignors();renderDeposits();renderStock();fillDepositSelect();renderStats();
 }
-function fillSelectors(){
-  $("dConsignor").innerHTML='<option value="">Sans consignateur</option>'+consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
+async function loadConsignors(){const{data}=await sb.from("consignors").select("*").order("created_at",{ascending:false});consignors=data||[]}
+async function loadDeposits(){const{data}=await sb.from("deposits").select("*,consignors(code,full_name),items(id,sku,title,status,sale_price,shopify_url,commission_pct)").order("created_at",{ascending:false});deposits=data||[]}
+async function loadStock(){const{data}=await sb.from("items").select("id,sku,title,brand,size,status,sale_price,shopify_url,created_at,deposits(code),consignors(code,full_name)").order("created_at",{ascending:false}).limit(300);stock=data||[]}
+function renderStats(){
+ $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
+ $("stOpenDep").textContent=deposits.filter(d=>d.status!=="closed").length;
+ $("stPending").textContent=stock.filter(i=>i.status==="validated").length;
+ $("stOnline").textContent=stock.filter(i=>i.status==="online").length;
 }
+function fillDepositSelect(){
+ $("dConsignor").innerHTML='<option value="">Sans consignateur</option><option value="__new__">+ Nouveau consignateur…</option>'+consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
+}
+$("dConsignor").onchange=()=>{const v=$("dConsignor").value;$("newConsignorInline").classList.toggle("hidden",v!=="__new__");if(v&&v!=="__new__"){const c=consignors.find(x=>x.id===v);if(c?.default_commission_pct!=null)$("dCommission").value=c.default_commission_pct}};
+
+function renderHomeDeposits(){
+ const list=deposits.slice(0,6);$("homeDepositList").innerHTML=list.length?list.map(d=>depRow(d)).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
+}
+function depRow(d){return '<div class="row"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+(d.items?.length||0)+' article(s) • '+(d.status==="closed"?"Terminé":"Ouvert")+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button class="btn green small resumeDep" data-id="'+d.id+'">Reprendre</button>':'<button class="btn ghost small viewDep" data-id="'+d.id+'">Voir</button>')+'</div></div>'}
+function renderDeposits(){
+ renderHomeDeposits();
+ $("depositList").innerHTML=deposits.length?deposits.map(d=>depRow(d)).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
+ if(activeDeposit)renderDepositDetail(activeDeposit.id);else $("depositDetail").innerHTML="";
+}
+function bindDepositButtons(){
+ document.querySelectorAll(".resumeDep").forEach(b=>b.onclick=()=>startDepositSession(b.dataset.id));
+ document.querySelectorAll(".viewDep").forEach(b=>b.onclick=()=>renderDepositDetail(b.dataset.id));
+}
+function renderDepositDetail(id){
+ const d=deposits.find(x=>x.id===id);if(!d)return;
+ const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
+ $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status)+'</small></div><strong>'+money(i.sale_price)+'</strong></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
+ const a=$("depAdd"),f=$("depFinish");if(a)a.onclick=()=>startDepositSession(id);if(f)f.onclick=()=>finishDeposit(id);
+}
+
 function renderConsignors(){
-  const el=$("consignorList");
-  if(!consignors.length){el.innerHTML='<div class="empty">Aucun consignateur.</div>';return}
-  el.innerHTML=consignors.map(c=>'<div class="row"><div class="row-main"><b>'+esc(c.full_name)+'</b><small>'+esc(c.code)+(c.email?" • "+esc(c.email):"")+(c.phone?" • "+esc(c.phone):"")+'</small></div><div class="row-actions"><button class="btn ghost small editCons" data-id="'+c.id+'">Modifier</button><button class="btn danger small delCons" data-id="'+c.id+'">Supprimer</button></div></div>').join("");
-  document.querySelectorAll(".editCons").forEach(b=>b.onclick=()=>openConsignor(b.dataset.id));
-  document.querySelectorAll(".delCons").forEach(b=>b.onclick=()=>deleteConsignor(b.dataset.id));
+ $("consignorList").innerHTML=consignors.length?consignors.map(c=>'<div class="row"><div class="row-main"><b>'+esc(c.full_name)+'</b><small>'+esc(c.code)+(c.email?" • "+esc(c.email):"")+(c.phone?" • "+esc(c.phone):"")+'</small></div><div class="row-actions"><button class="btn ghost small editCons" data-id="'+c.id+'">Modifier</button><button class="btn danger small delCons" data-id="'+c.id+'">Supprimer</button></div></div>').join(""):'<div class="empty">Aucun consignateur.</div>';
+ document.querySelectorAll(".editCons").forEach(b=>b.onclick=()=>openConsignor(b.dataset.id));document.querySelectorAll(".delCons").forEach(b=>b.onclick=()=>deleteConsignor(b.dataset.id));
 }
 $("newConsignor").onclick=()=>openConsignor(null);
-function openConsignor(id){
-  currentConsignorId=id;
-  const c=id?consignors.find(x=>x.id===id):null;
-  $("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";
-  $("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";
-  $("consignorModal").classList.remove("hidden");
-}
-$("saveConsignor").onclick=async()=>{
-  const payload={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};
-  if(!payload.full_name){toast("Nom requis");return}
-  let r=currentConsignorId?await sb.from("consignors").update(payload).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(payload).select().single();
-  if(r.error){toast(r.error.message);return}
-  sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});
-  $("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll();
-};
-async function deleteConsignor(id){
-  const c=consignors.find(x=>x.id===id);if(!confirm("Supprimer "+(c?.full_name||"ce consignateur")+" ? Les dépôts et articles existants seront conservés sans lien."))return;
-  const {error}=await sb.from("consignors").delete().eq("id",id);if(error){toast(error.message);return}
-  toast("Consignateur supprimé");await refreshAll();
-}
+function openConsignor(id){currentConsignorId=id;const c=id?consignors.find(x=>x.id===id):null;$("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";$("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";$("consignorModal").classList.remove("hidden")}
+$("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll()};
+async function deleteConsignor(id){const c=consignors.find(x=>x.id===id);if(!confirm("Supprimer "+(c?.full_name||"ce consignateur")+" ?"))return;const{error}=await sb.from("consignors").delete().eq("id",id);if(error){toast(error.message);return}toast("Consignateur supprimé");await refreshAll()}
 
-$("newDeposit").onclick=()=>{$("dDate").value=new Date().toISOString().slice(0,10);$("dConsignor").value="";$("dMode").value="consignment";$("dCommission").value="";$("dNotes").value="";$("depositModal").classList.remove("hidden")};
-$("saveDeposit").onclick=async()=>{
-  const cid=$("dConsignor").value||null;
-  const selected=cid?consignors.find(c=>c.id===cid):null;
-  const commission=$("dCommission").value?Number($("dCommission").value):(selected?.default_commission_pct??null);
-  const {data,error}=await sb.from("deposits").insert({consignor_id:cid,received_on:$("dDate").value||new Date().toISOString().slice(0,10),acquisition_mode:$("dMode").value,commission_pct:commission,notes:$("dNotes").value.trim()||null}).select().single();
-  if(error){toast(error.message);return}
-  sb.functions.invoke("sync-shopify-ops",{body:{kind:"deposit",id:data.id}}).catch(()=>{});
-  $("depositModal").classList.add("hidden");toast("Dépôt "+data.code+" créé");await refreshAll();openDeposit(data.id);
+function openNewDeposit(){fillDepositSelect();$("dConsignor").value="";$("newConsignorInline").classList.add("hidden");$("dDate").value=new Date().toISOString().slice(0,10);$("dMode").value="consignment";$("dCommission").value="";$("dNotes").value="";$("dnName").value="";$("dnEmail").value="";$("dnPhone").value="";$("dnDefaultCommission").value="";$("depositModal").classList.remove("hidden")}
+["newDepositHome","newDepositSmall","newDepositPage"].forEach(id=>$(id).onclick=openNewDeposit);
+$("createDeposit").onclick=async()=>{
+ let cid=$("dConsignor").value||null;
+ if(cid==="__new__"){const name=$("dnName").value.trim();if(!name){toast("Nom du consignateur requis");return}const c=await sb.from("consignors").insert({full_name:name,email:$("dnEmail").value.trim()||null,phone:$("dnPhone").value.trim()||null,default_commission_pct:$("dnDefaultCommission").value?Number($("dnDefaultCommission").value):null}).select().single();if(c.error){toast(c.error.message);return}cid=c.data.id;sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:cid}}).catch(()=>{})}
+ const c=cid?consignors.find(x=>x.id===cid):null;
+ const commission=$("dCommission").value?Number($("dCommission").value):(c?.default_commission_pct??($("dnDefaultCommission").value?Number($("dnDefaultCommission").value):null));
+ const r=await sb.from("deposits").insert({consignor_id:cid,received_on:$("dDate").value,acquisition_mode:$("dMode").value,commission_pct:commission,notes:$("dNotes").value.trim()||null,status:"processing"}).select().single();
+ if(r.error){toast(r.error.message);return}$("depositModal").classList.add("hidden");sb.functions.invoke("sync-shopify-ops",{body:{kind:"deposit",id:r.data.id}}).catch(()=>{});await refreshAll();startDepositSession(r.data.id);
 };
-function renderDeposits(){
-  const el=$("depositList");if(!deposits.length){el.innerHTML='<div class="empty">Aucun dépôt.</div>';return}
-  el.innerHTML=deposits.map(d=>'<div class="row"><div class="row-main"><b>'+esc(d.code)+'</b><small>'+esc(d.consignors?.full_name||"Sans consignateur")+' • '+esc(modeLabel(d.acquisition_mode))+' • '+(d.items?.length||0)+' article(s)</small></div><div class="row-actions"><button class="btn green small openDep" data-id="'+d.id+'">Ouvrir</button></div></div>').join("");
-  document.querySelectorAll(".openDep").forEach(b=>b.onclick=()=>openDeposit(b.dataset.id));
+
+function startDepositSession(id){activeDeposit=deposits.find(x=>x.id===id)||null;if(!activeDeposit)return;articleMode="deposit";prepareArticle();go("article")}
+function startQuick(){activeDeposit=null;articleMode="quick";prepareArticle();go("article")}
+$("quickItemHome").onclick=startQuick;$("quickItemStock").onclick=startQuick;
+function prepareArticle(){
+ clearArticle();
+ if(articleMode==="deposit"&&activeDeposit){const n=(activeDeposit.items?.length||0)+1;$("depositBanner").classList.remove("hidden");$("finishFromArticle").classList.remove("hidden");$("depositBanner").innerHTML='<div><b>'+esc(activeDeposit.code)+' — '+esc(activeDeposit.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(activeDeposit.acquisition_mode))+' • commission '+(activeDeposit.commission_pct??"—")+'%</small></div><div class="counter">#'+n+'</div>';$("articleTitle").textContent="Article "+n;$("articleSub").textContent="Enregistre, puis le formulaire repart automatiquement pour l’article suivant.";$("fCommission").value=activeDeposit.commission_pct??""}
+ else{$("depositBanner").classList.add("hidden");$("finishFromArticle").classList.add("hidden");$("articleTitle").textContent="Article rapide";$("articleSub").textContent="Sans dépôt ni consignateur."}
 }
-function openDeposit(id){
-  selectedDeposit=deposits.find(x=>x.id===id)||null;if(!selectedDeposit)return;
-  go("deposits");
-  const d=selectedDeposit;
-  const itemRows=(d.items||[]).length?(d.items||[]).map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.status)+'</small></div><div class="row-actions"><span class="badge">'+money(i.sale_price)+'</span></div></div>').join(""):'<div class="empty">Aucun article dans ce dépôt.</div>';
-  $("depositDetail").classList.remove("hidden");
-  $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><div class="deposit-meta"><span class="badge">'+esc(modeLabel(d.acquisition_mode))+'</span><span class="badge">'+(d.commission_pct??"—")+'%</span><span class="badge">'+esc(d.received_on)+'</span></div></div><button id="addToDeposit" class="btn primary small">+ Ajouter un article</button></div><div class="panel-body"><div class="list">'+itemRows+'</div></div></div>';
-  $("addToDeposit").onclick=()=>startArticleForDeposit(d.id);
-}
-function startStandalone(){selectedDeposit=null;prepareArticleContext(null);go("article")}
-function startArticleForDeposit(id){selectedDeposit=deposits.find(x=>x.id===id)||null;prepareArticleContext(selectedDeposit);go("article")}
-function prepareArticleContext(d){
-  clearArticle();
-  if(d){
-    $("articlePageTitle").textContent="Article du dépôt "+d.code;
-    $("articlePageSubtitle").textContent="Après enregistrement, reste sur ce dépôt pour saisir l’article suivant.";
-    $("articleContext").innerHTML='<div><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • commission '+(d.commission_pct??"—")+'%</small></div><span class="badge">Dépôt actif</span>';
-    $("fCommission").value=d.commission_pct??"";
-  }else{
-    $("articlePageTitle").textContent="Article seul";
-    $("articlePageSubtitle").textContent="Sans dépôt et sans consignateur.";
-    $("articleContext").innerHTML='<div><b>Article seul</b><small>Aucun dépôt ni consignateur</small></div><span class="badge">Libre</span>';
-  }
-}
-$("cancelArticle").onclick=()=>selectedDeposit?openDeposit(selectedDeposit.id):go("home");
+$("finishFromArticle").onclick=()=>finishDeposit(activeDeposit?.id);
 
 $("photos").onchange=e=>{photos=Array.from(e.target.files||[]).slice(0,6);$("photoPreview").innerHTML="";photos.forEach(f=>{const img=document.createElement("img");img.src=URL.createObjectURL(f);$("photoPreview").appendChild(img)})};
-async function imageDataUrl(file){
-  if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;
-  return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.75))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)});
-}
-$("analyzeBtn").onclick=async()=>{
-  const text=$("rawText").value.trim();if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}
-  $("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Analyse…";
-  const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);
-  const {data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});
-  $("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";
-  if(error){note($("analysisMsg"),esc(error.message||"Erreur d’analyse"),"err");return}
-  fillAnalysis(data?.data||{});$("analysisMode").textContent=data?.mode==="ai"?"IA + photo":"Analyse rapide";$("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");
-  note($("analysisMsg"),data?.message||"Analyse terminée. Vérifie surtout taille, état et prix.",data?.mode==="fallback"?"warn":"");
-};
-function fillAnalysis(x){
-  const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};
-  Object.entries(m).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});
-  if(x.description_html)$("fDescription").value=x.description_html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-}
-async function saveArticle(publish){
-  const d=selectedDeposit;
-  const payload={
-    deposit_id:d?.id||null,
-    consignor_id:d?.consignor_id||null,
-    raw_text:$("rawText").value.trim()||null,
-    title:$("fTitle").value.trim()||null,
-    brand:$("fBrand").value.trim()||null,
-    category:$("fCategory").value||null,
-    size:$("fSize").value.trim()||null,
-    condition:$("fCondition").value||null,
-    sale_price:$("fPrice").value?Number($("fPrice").value):null,
-    suggested_price:$("fPrice").value?Number($("fPrice").value):null,
-    location_code:$("fLocation").value.trim()||null,
-    commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),
-    section:$("fSection").value||null,
-    age_band:$("fAge").value||null,
-    color:$("fColor").value.trim()||null,
-    season:$("fSeason").value||null,
-    material:$("fMaterial").value.trim()||null,
-    defects:$("fDefects").value.trim()||null,
-    acquisition_cost:$("fCost").value?Number($("fCost").value):null,
-    description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,
-    status:"validated",
-    validated:true
-  };
-  if(!payload.title){toast("Le titre est requis");return}
-  if(!payload.sale_price){toast("Le prix est requis");return}
-  const {data:item,error}=await sb.from("items").insert(payload).select().single();if(error){toast(error.message);return}
-  for(let i=0;i<photos.length;i++){
-    const f=photos[i],safe=f.name.replace(/[^a-zA-Z0-9._-]/g,"_"),path=item.id+"/"+crypto.randomUUID()+"-"+safe;
-    const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type,upsert:false});if(!up.error)await sb.from("item_photos").insert({item_id:item.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0});
-  }
-  if(publish){
-    const {data:pub,error:pubErr}=await sb.functions.invoke("publish-shopify",{body:{item_id:item.id}});
-    if(pubErr||pub?.error){
-      toast("Article "+item.sku+" enregistré. Shopify reste à envoyer.");
-    }else toast("Article "+item.sku+" publié sur Shopify");
-  }else toast("Article "+item.sku+" enregistré");
-  await refreshAll();
-  if(d){selectedDeposit=deposits.find(x=>x.id===d.id)||d;prepareArticleContext(selectedDeposit);go("article")}
-  else{prepareArticleContext(null);go("home")}
+async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=1200,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.75))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)})}
+$("analyzeBtn").onclick=async()=>{const text=$("rawText").value.trim();if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}$("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Analyse…";const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);const{data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});$("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";if(error){note($("analysisMsg"),esc(error.message||"Erreur"),"err");return}fillAnalysis(data?.data||{});$("analysisMode").textContent=data?.mode==="ai"?"IA + photos":"Analyse rapide";$("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");note($("analysisMsg"),data?.message||"Vérifie surtout taille, état et prix.",data?.mode==="fallback"?"warn":"")};
+function fillAnalysis(x){const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};Object.entries(m).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});if(x.description_html)$("fDescription").value=x.description_html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}
+
+$("micBtn").onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast("Dictée non disponible sur ce navigateur");return}const r=new SR();r.lang="fr-CA";r.interimResults=false;r.onresult=e=>{$("rawText").value=($("rawText").value+" "+e.results[0][0].transcript).trim()};r.onerror=()=>toast("La dictée n’a pas fonctionné");r.start()};
+
+async function saveArticle(toShopify){
+ const d=activeDeposit,p={deposit_id:d?.id||null,consignor_id:d?.consignor_id||null,acquisition_mode:d?.acquisition_mode||(articleMode==="quick"?"own_stock":null),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
+ if(!p.title){toast("Titre requis");return}if(!p.sale_price){toast("Prix requis");return}
+ const ins=await sb.from("items").insert(p).select().single();if(ins.error){toast(ins.error.message);return}
+ for(let i=0;i<photos.length;i++){const f=photos[i],path=ins.data.id+"/"+crypto.randomUUID()+"-"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type});if(!up.error)await sb.from("item_photos").insert({item_id:ins.data.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0})}
+ let shopMsg="";
+ if(toShopify){const{data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:ins.data.id}});shopMsg=(!error&&!data?.error)?" • publié Shopify":" • Shopify en attente"}
+ await refreshAll();
+ if(d){activeDeposit=deposits.find(x=>x.id===d.id)||d;$("savedFlash").textContent="✓ "+ins.data.sku+" enregistré"+shopMsg;$("savedFlash").classList.remove("hidden");setTimeout(()=>$("savedFlash").classList.add("hidden"),3500);prepareArticle();go("article")}
+ else{toast(ins.data.sku+" enregistré"+shopMsg);prepareArticle();go("home")}
 }
 $("saveOnly").onclick=()=>saveArticle(false);$("saveShopify").onclick=()=>saveArticle(true);
 
-function clearArticle(){
-  photos=[];$("photos").value="";$("photoPreview").innerHTML="";
-  ["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");
-  $("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML="";
+async function finishDeposit(id){
+ const d=deposits.find(x=>x.id===id);if(!d)return;
+ await sb.from("deposits").update({status:"closed"}).eq("id",id);await refreshAll();const fresh=deposits.find(x=>x.id===id)||d;activeDeposit=null;showSummary(fresh);go("deposits")
 }
-document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));
-document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.add("hidden")}));
+function showSummary(d){
+ const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0),pending=items.filter(i=>i.status!=="online").length;
+ $("summaryContent").innerHTML='<div class="notice">Le dépôt '+esc(d.code)+' est terminé.</div><div class="summary"><div class="summary-card"><strong>'+items.length+'</strong><span>Articles</span></div><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur de vente</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div><div class="summary-card"><strong>'+pending+'</strong><span>À publier Shopify</span></div></div><div class="actions"><button id="summaryClose" class="btn green">Retour aux dépôts</button></div>';$("summaryModal").classList.remove("hidden");setTimeout(()=>{const b=$("summaryClose");if(b)b.onclick=()=>{$("summaryModal").classList.add("hidden");go("deposits")}},0)
+}
+
+function renderStock(){
+ const q=($("stockSearch")?.value||"").toLowerCase(),rows=stock.filter(i=>!q||[i.sku,i.title,i.brand,i.size,i.consignors?.full_name,i.deposits?.code].some(v=>String(v||"").toLowerCase().includes(q)));
+ $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+(i.deposits?.code?" • "+esc(i.deposits.code):"")+(i.brand?" • "+esc(i.brand):"")+'</small></div><div class="row-actions"><span class="badge '+(i.status==="online"?"":"gray")+'">'+esc(i.status==="online"?"En ligne":"À publier")+'</span><strong>'+money(i.sale_price)+'</strong></div></div>').join(""):'<div class="empty">Aucun article.</div>'
+}
+$("stockSearch").oninput=renderStock;
+function clearArticle(){photos=[];$("photos").value="";$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
+document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 authState();
 </script>
-</body>
-</html>
+</body></html>
