@@ -55,6 +55,8 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="field" style="margin-top:10px"><label>Mot de passe</label><input id="authPassword" type="password" autocomplete="current-password"></div>
     <div id="authMsg"></div>
     <button id="authBtn" class="btn green" style="width:100%;margin-top:14px">Se connecter</button>
+<button id="signupBtn" class="btn ghost" style="width:100%;margin-top:10px">Créer mon compte / Première connexion</button>
+<p style="font-size:.76rem;color:var(--muted);margin:12px 0 0">Utilise uniquement une adresse autorisée par Friperie Milou.</p>
   </div>
 </div>
 
@@ -253,6 +255,28 @@ async function authState(){
  }
 }
 $("authBtn").onclick=async()=>{const email=$("authEmail").value.trim(),password=$("authPassword").value;if(!email||!password){note($("authMsg"),"Entre ton courriel et ton mot de passe.","err");return}$("authBtn").disabled=true;$("authBtn").textContent="Connexion…";const{error}=await sb.auth.signInWithPassword({email,password});$("authBtn").disabled=false;$("authBtn").textContent="Se connecter";if(error){note($("authMsg"),esc(error.message),"err");return}await authState()};
+$("signupBtn").onclick=async()=>{
+ const email=$("authEmail").value.trim(),password=$("authPassword").value;
+ if(!email||!password){note($("authMsg"),"Entre ton courriel et choisis un mot de passe.","err");return}
+ if(password.length<8){note($("authMsg"),"Choisis un mot de passe d’au moins 8 caractères.","err");return}
+ $("signupBtn").disabled=true;$("signupBtn").textContent="Création…";
+ const {data:allowed,error:allowErr}=await sb.rpc("is_email_allowed",{p_email:email});
+ if(allowErr){$("signupBtn").disabled=false;$("signupBtn").textContent="Créer mon compte / Première connexion";note($("authMsg"),"Impossible de vérifier cette adresse.","err");return}
+ if(!allowed){$("signupBtn").disabled=false;$("signupBtn").textContent="Créer mon compte / Première connexion";note($("authMsg"),"Cette adresse n’est pas autorisée pour Milou Ops.","err");return}
+ const {data,error}=await sb.auth.signUp({
+   email,
+   password,
+   options:{emailRedirectTo:window.location.origin+window.location.pathname}
+ });
+ $("signupBtn").disabled=false;$("signupBtn").textContent="Créer mon compte / Première connexion";
+ if(error){note($("authMsg"),esc(error.message),"err");return}
+ if(data?.session){
+   note($("authMsg"),"Compte créé. Connexion en cours…","");
+   await authState();
+ }else{
+   note($("authMsg"),"Compte créé. Vérifie ton courriel et clique sur le lien de confirmation, puis reviens te connecter.","");
+ }
+};
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
 function go(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
