@@ -60,7 +60,11 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .crop-review-head small{display:block;color:var(--muted);margin-top:3px;line-height:1.35}
 .crop-review-head button{border:0;background:#f3eee6;width:36px;height:36px;border-radius:50%;font-weight:900}
 .crop-review-stage{background:#171717;border-radius:16px;overflow:hidden;display:grid;place-items:center;max-height:62vh}
-.crop-review-stage canvas{display:block;max-width:100%;max-height:62vh;width:auto;height:auto}
+.crop-review-stage canvas{display:block;max-width:100%;max-height:56vh;width:auto;height:auto;touch-action:none}
+.crop-adjustments{display:grid;gap:8px;margin-top:10px;padding:10px;background:#f7f1e8;border-radius:14px}
+.crop-adjustments label{display:grid;grid-template-columns:1fr auto;gap:3px 10px;align-items:center;font-size:.76rem;font-weight:800;color:var(--ink)}
+.crop-adjustments label span{color:var(--muted);font-size:.72rem}
+.crop-adjustments input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--pink)}
 .crop-review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .mic.recording{background:#c84e58;color:white;animation:pulse 1s infinite}
 @keyframes pulse{50%{transform:scale(1.08)}}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
@@ -258,14 +262,20 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <div id="cropReviewModal" class="crop-review hidden">
   <div class="crop-review-box">
     <div class="crop-review-head">
-      <div><strong>Cadrage automatique</strong><small>Le cadre vert montre la zone qui sera conservée.</small></div>
+      <div><strong>Cadrage & lumière</strong><small>Déplace le cadre vert. Tire un coin pour le redimensionner. L’aperçu montre le rendu final.</small></div>
       <button id="cropReviewCancel" type="button">✕</button>
     </div>
     <div class="crop-review-stage">
       <canvas id="cropReviewCanvas"></canvas>
     </div>
+    <div class="crop-adjustments">
+      <label>☀️ Luminosité <span id="cropBrightnessValue">100%</span><input id="cropBrightness" type="range" min="80" max="130" value="100"></label>
+      <label>◐ Contraste <span id="cropContrastValue">100%</span><input id="cropContrast" type="range" min="90" max="135" value="100"></label>
+      <label>🎨 Couleurs <span id="cropSaturationValue">100%</span><input id="cropSaturation" type="range" min="80" max="135" value="100"></label>
+      <button id="cropAutoAdjust" type="button" class="btn ghost small">✨ Réglages auto</button>
+    </div>
     <div class="crop-review-actions">
-      <button id="cropUseFull" type="button" class="btn ghost">Photo entière</button>
+      <button id="cropResetAuto" type="button" class="btn ghost">↺ Recadrage auto</button>
       <button id="cropUseAuto" type="button" class="btn primary">Utiliser ce cadrage</button>
     </div>
   </div>
@@ -791,7 +801,7 @@ function detectSubjectBox(source,srcW,srcH){
     let bw=(best.maxX-best.minX+1)/w*srcW,bh=(best.maxY-best.minY+1)/hh*srcH;
 
     // Comfortable product margin around the detected garment.
-    const padX=bw*.16,padY=bh*.16;
+    const padX=bw*.10,padY=bh*.10;
     x=Math.max(0,x-padX);y=Math.max(0,y-padY);
     bw=Math.min(srcW-x,bw+padX*2);bh=Math.min(srcH-y,bh+padY*2);
 
@@ -804,37 +814,133 @@ function detectSubjectBox(source,srcW,srcH){
 let cropReviewResolver=null;
 
 async function reviewCropChoice(source,srcW,srcH,detected){
-  const autoBox=detected||{x:0,y:0,w:srcW,h:srcH};
   const modal=$("cropReviewModal"),canvas=$("cropReviewCanvas");
-  const maxW=900,maxH=1100,scale=Math.min(maxW/srcW,maxH/srcH,1);
+  const maxW=900,maxH=1050,scale=Math.min(maxW/srcW,maxH/srcH,1);
   canvas.width=Math.max(1,Math.round(srcW*scale));
   canvas.height=Math.max(1,Math.round(srcH*scale));
   const ctx=canvas.getContext("2d");
-  ctx.drawImage(source,0,0,canvas.width,canvas.height);
 
-  const bx=autoBox.x*scale,by=autoBox.y*scale,bw=autoBox.w*scale,bh=autoBox.h*scale;
-  ctx.save();
-  ctx.fillStyle="rgba(0,0,0,.40)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.clearRect(bx,by,bw,bh);
-  ctx.drawImage(source,autoBox.x,autoBox.y,autoBox.w,autoBox.h,bx,by,bw,bh);
-  ctx.strokeStyle="#79d39a";
-  ctx.lineWidth=Math.max(4,canvas.width*.006);
-  ctx.setLineDash([14,10]);
-  ctx.strokeRect(bx+2,by+2,Math.max(0,bw-4),Math.max(0,bh-4));
-  ctx.restore();
+  const targetRatio=.8;
+  const detectedFit=fitBoxToRatio(detected||{x:srcW*.12,y:srcH*.10,w:srcW*.76,h:srcH*.80},srcW,srcH,targetRatio);
+  const toCanvasBox=b=>({x:b.x*scale,y:b.y*scale,w:b.w*scale,h:b.h*scale});
+  const toSourceBox=b=>({x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale});
 
+  let box=toCanvasBox(detectedFit);
+  const autoBox={...box};
+  const autoTone=analyzeTone(source,srcW,srcH);
+  let tone={...autoTone};
+
+  const bSlider=$("cropBrightness"),cSlider=$("cropContrast"),sSlider=$("cropSaturation");
+  const bv=$("cropBrightnessValue"),cv=$("cropContrastValue"),sv=$("cropSaturationValue");
+
+  const toneToSliders=()=>{
+    bSlider.value=Math.round(tone.brightness*100);
+    cSlider.value=Math.round(tone.contrast*100);
+    sSlider.value=Math.round(tone.saturation*100);
+    bv.textContent=bSlider.value+"%";cv.textContent=cSlider.value+"%";sv.textContent=sSlider.value+"%";
+  };
+  const slidersToTone=()=>{
+    tone={brightness:Number(bSlider.value)/100,contrast:Number(cSlider.value)/100,saturation:Number(sSlider.value)/100};
+    bv.textContent=bSlider.value+"%";cv.textContent=cSlider.value+"%";sv.textContent=sSlider.value+"%";
+    draw();
+  };
+
+  function draw(){
+    ctx.save();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.filter=`brightness(${tone.brightness}) contrast(${tone.contrast}) saturate(${tone.saturation})`;
+    ctx.drawImage(source,0,0,canvas.width,canvas.height);
+    ctx.filter="none";
+
+    ctx.fillStyle="rgba(0,0,0,.42)";
+    ctx.beginPath();
+    ctx.rect(0,0,canvas.width,canvas.height);
+    ctx.rect(box.x,box.y,box.w,box.h);
+    ctx.fill("evenodd");
+
+    ctx.strokeStyle="#6fe29a";
+    ctx.lineWidth=Math.max(4,canvas.width*.007);
+    ctx.setLineDash([]);
+    ctx.strokeRect(box.x,box.y,box.w,box.h);
+
+    const hs=Math.max(12,canvas.width*.025);
+    const handles=[
+      [box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]
+    ];
+    ctx.fillStyle="#6fe29a";
+    ctx.strokeStyle="#fff";
+    ctx.lineWidth=2;
+    for(const [x,y] of handles){
+      ctx.beginPath();ctx.arc(x,y,hs,0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  toneToSliders();
+  draw();
   modal.classList.remove("hidden");
+
+  bSlider.oninput=slidersToTone;cSlider.oninput=slidersToTone;sSlider.oninput=slidersToTone;
+  $("cropAutoAdjust").onclick=()=>{tone={...autoTone};toneToSliders();draw()};
+  $("cropResetAuto").onclick=()=>{box={...autoBox};draw()};
+
+  let gesture=null;
+  const pt=e=>{
+    const r=canvas.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*(canvas.width/r.width),y:(e.clientY-r.top)*(canvas.height/r.height)};
+  };
+  const handleHit=(p)=>{
+    const points=[
+      {name:"tl",x:box.x,y:box.y},{name:"tr",x:box.x+box.w,y:box.y},
+      {name:"bl",x:box.x,y:box.y+box.h},{name:"br",x:box.x+box.w,y:box.y+box.h}
+    ];
+    const radius=Math.max(26,canvas.width*.055);
+    return points.find(q=>Math.hypot(p.x-q.x,p.y-q.y)<=radius)?.name||null;
+  };
+
+  canvas.onpointerdown=e=>{
+    e.preventDefault();canvas.setPointerCapture?.(e.pointerId);
+    const p=pt(e),handle=handleHit(p);
+    if(handle)gesture={type:"resize",handle,start:p,box:{...box}};
+    else if(p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+box.h)
+      gesture={type:"move",start:p,box:{...box}};
+  };
+
+  canvas.onpointermove=e=>{
+    if(!gesture)return;
+    e.preventDefault();
+    const p=pt(e),dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;
+    if(gesture.type==="move"){
+      box.x=Math.max(0,Math.min(canvas.width-box.w,gesture.box.x+dx));
+      box.y=Math.max(0,Math.min(canvas.height-box.h,gesture.box.y+dy));
+    }else{
+      const g=gesture.box,ratio=targetRatio,minW=Math.min(canvas.width*.25,140);
+      let anchorX,anchorY,newW,newH,newX,newY;
+      if(gesture.handle==="br"){anchorX=g.x;anchorY=g.y;newW=Math.max(minW,p.x-anchorX);newH=newW/ratio;newX=anchorX;newY=anchorY;}
+      if(gesture.handle==="tl"){anchorX=g.x+g.w;anchorY=g.y+g.h;newW=Math.max(minW,anchorX-p.x);newH=newW/ratio;newX=anchorX-newW;newY=anchorY-newH;}
+      if(gesture.handle==="tr"){anchorX=g.x;anchorY=g.y+g.h;newW=Math.max(minW,p.x-anchorX);newH=newW/ratio;newX=anchorX;newY=anchorY-newH;}
+      if(gesture.handle==="bl"){anchorX=g.x+g.w;anchorY=g.y;newW=Math.max(minW,anchorX-p.x);newH=newW/ratio;newX=anchorX-newW;newY=anchorY;}
+      if(newW&&newH){
+        if(newW>canvas.width){newW=canvas.width;newH=newW/ratio}
+        if(newH>canvas.height){newH=canvas.height;newW=newH*ratio}
+        newX=Math.max(0,Math.min(canvas.width-newW,newX));
+        newY=Math.max(0,Math.min(canvas.height-newH,newY));
+        box={x:newX,y:newY,w:newW,h:newH};
+      }
+    }
+    draw();
+  };
+  canvas.onpointerup=canvas.onpointercancel=()=>{gesture=null};
 
   return await new Promise(resolve=>{
     cropReviewResolver=(choice)=>{
       modal.classList.add("hidden");
+      canvas.onpointerdown=canvas.onpointermove=canvas.onpointerup=canvas.onpointercancel=null;
       cropReviewResolver=null;
       resolve(choice);
     };
-    $("cropUseAuto").onclick=()=>cropReviewResolver?.({mode:"auto",box:autoBox});
-    $("cropUseFull").onclick=()=>cropReviewResolver?.({mode:"full",box:{x:0,y:0,w:srcW,h:srcH}});
-    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({mode:"cancel",box:null});
+    $("cropUseAuto").onclick=()=>cropReviewResolver?.({mode:"custom",box:toSourceBox(box),tone:{...tone}});
+    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({mode:"cancel",box:null,tone:null});
   });
 }
 
@@ -871,7 +977,7 @@ async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalByte
 
   const initial=choice.box||{x:0,y:0,w:srcW,h:srcH};
   const box=fitBoxToRatio(initial,srcW,srcH,targetRatio);
-  const tone=analyzeTone(source,srcW,srcH);
+  const tone=choice.tone||analyzeTone(source,srcW,srcH);
 
   const c=document.createElement("canvas");
   c.width=targetW;c.height=targetH;
@@ -884,7 +990,7 @@ async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalByte
 
   return await canvasToPhotoFile(c,name,{
     sourceWidth:srcW,sourceHeight:srcH,sourceBytes:originalBytes,
-    subjectCrop:choice.mode==="auto"&&!!detected,
+    subjectCrop:choice.mode!=="cancel",
     tone
   });
 }
