@@ -679,40 +679,69 @@ async function loadBitmapOrImage(file){
   });
 }
 
-function analyzeTone(source,srcW,srcH){
+function analyzeTone(source,srcW,srcH,box=null){
   try{
-    const max=160,scale=Math.min(max/srcW,max/srcH,1);
-    const w=Math.max(28,Math.round(srcW*scale)),hh=Math.max(28,Math.round(srcH*scale));
+    const region=box||{x:0,y:0,w:srcW,h:srcH};
+    const max=180,scale=Math.min(max/region.w,max/region.h,1);
+    const w=Math.max(36,Math.round(region.w*scale)),hh=Math.max(36,Math.round(region.h*scale));
     const c=document.createElement("canvas");c.width=w;c.height=hh;
-    const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(source,0,0,w,hh);
+    const ctx=c.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(source,region.x,region.y,region.w,region.h,0,0,w,hh);
     const d=ctx.getImageData(0,0,w,hh).data;
     const lums=[],sats=[];
-    for(let i=0;i<d.length;i+=12){
+    for(let i=0;i<d.length;i+=8){
       const r=d[i],g=d[i+1],b=d[i+2];
       const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
       lums.push(.2126*r+.7152*g+.0722*b);
       sats.push(mx?((mx-mn)/mx):0);
     }
     lums.sort((a,b)=>a-b);sats.sort((a,b)=>a-b);
-    const p20=lums[Math.floor(lums.length*.20)]||80;
-    const p50=lums[Math.floor(lums.length*.50)]||135;
+    const p10=lums[Math.floor(lums.length*.10)]||55;
+    const p50=lums[Math.floor(lums.length*.50)]||130;
     const p90=lums[Math.floor(lums.length*.90)]||210;
     const sat50=sats[Math.floor(sats.length*.50)]||.25;
 
-    // Aim for a bright but natural ecommerce image while protecting highlights.
-    let brightness=148/Math.max(85,p50);
-    if(p90>235)brightness=Math.min(brightness,.98);
-    brightness=Math.max(.90,Math.min(1.20,brightness));
+    // Brighter, cleaner ecommerce look, with hard caps to preserve detail.
+    let brightness=154/Math.max(90,p50);
+    if(p90>228)brightness=Math.min(brightness,1.05);
+    brightness=Math.max(.92,Math.min(1.24,brightness));
 
-    const range=Math.max(45,p90-p20);
-    let contrast=115/range;
-    contrast=Math.max(1.03,Math.min(1.16,contrast));
+    const dynamic=Math.max(55,p90-p10);
+    let contrast=122/dynamic;
+    contrast=Math.max(1.04,Math.min(1.22,contrast));
 
-    let saturation=sat50<.16?1.18:(sat50<.28?1.11:(sat50>.55?.94:1.05));
-    saturation=Math.max(.92,Math.min(1.18,saturation));
+    let saturation=sat50<.14?1.20:(sat50<.25?1.13:(sat50>.58?.94:1.07));
+    saturation=Math.max(.92,Math.min(1.20,saturation));
 
     return {brightness,contrast,saturation};
-  }catch{return {brightness:1.05,contrast:1.08,saturation:1.07}}
+  }catch{return {brightness:1.08,contrast:1.10,saturation:1.08}}
+}
+
+function applyTonePixels(ctx,width,height,tone){
+  const img=ctx.getImageData(0,0,width,height);
+  const d=img.data;
+  const b=Number(tone?.brightness||1);
+  const c=Number(tone?.contrast||1);
+  const s=Number(tone?.saturation||1);
+  const clamp=v=>v<0?0:(v>255?255:v);
+
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i]*b,g=d[i+1]*b,bl=d[i+2]*b;
+
+    // contrast around middle gray
+    r=(r-128)*c+128;
+    g=(g-128)*c+128;
+    bl=(bl-128)*c+128;
+
+    // saturation around luminance
+    const y=.2126*r+.7152*g+.0722*bl;
+    r=y+(r-y)*s;
+    g=y+(g-y)*s;
+    bl=y+(bl-y)*s;
+
+    d[i]=clamp(r);d[i+1]=clamp(g);d[i+2]=clamp(bl);
+  }
+  ctx.putImageData(img,0,0);
 }
 
 function detectSubjectBox(source,srcW,srcH){
@@ -821,13 +850,14 @@ async function reviewCropChoice(source,srcW,srcH,detected){
   const ctx=canvas.getContext("2d");
 
   const targetRatio=.8;
-  const detectedFit=fitBoxToRatio(detected||{x:srcW*.12,y:srcH*.10,w:srcW*.76,h:srcH*.80},srcW,srcH,targetRatio);
+  const fallbackBox={x:srcW*.18,y:srcH*.16,w:srcW*.64,h:srcH*.68};
+  const detectedFit=fitBoxToRatio(detected||fallbackBox,srcW,srcH,targetRatio);
   const toCanvasBox=b=>({x:b.x*scale,y:b.y*scale,w:b.w*scale,h:b.h*scale});
   const toSourceBox=b=>({x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale});
 
   let box=toCanvasBox(detectedFit);
   const autoBox={...box};
-  const autoTone=analyzeTone(source,srcW,srcH);
+  let autoTone=analyzeTone(source,srcW,srcH,detectedFit);
   let tone={...autoTone};
 
   const bSlider=$("cropBrightness"),cSlider=$("cropContrast"),sSlider=$("cropSaturation");
@@ -845,13 +875,13 @@ async function reviewCropChoice(source,srcW,srcH,detected){
     draw();
   };
 
-  function draw(){
-    ctx.save();
+  let drawQueued=false;
+  function drawNow(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.filter=`brightness(${tone.brightness}) contrast(${tone.contrast}) saturate(${tone.saturation})`;
     ctx.drawImage(source,0,0,canvas.width,canvas.height);
-    ctx.filter="none";
+    applyTonePixels(ctx,canvas.width,canvas.height,tone);
 
+    ctx.save();
     ctx.fillStyle="rgba(0,0,0,.42)";
     ctx.beginPath();
     ctx.rect(0,0,canvas.width,canvas.height);
@@ -875,14 +905,26 @@ async function reviewCropChoice(source,srcW,srcH,detected){
     }
     ctx.restore();
   }
+  function draw(){
+    if(drawQueued)return;
+    drawQueued=true;
+    requestAnimationFrame(()=>{drawQueued=false;drawNow()});
+  }
 
   toneToSliders();
   draw();
   modal.classList.remove("hidden");
 
   bSlider.oninput=slidersToTone;cSlider.oninput=slidersToTone;sSlider.oninput=slidersToTone;
-  $("cropAutoAdjust").onclick=()=>{tone={...autoTone};toneToSliders();draw()};
-  $("cropResetAuto").onclick=()=>{box={...autoBox};draw()};
+  $("cropAutoAdjust").onclick=()=>{
+    autoTone=analyzeTone(source,srcW,srcH,toSourceBox(box));
+    tone={...autoTone};toneToSliders();draw();
+  };
+  $("cropResetAuto").onclick=()=>{
+    box={...autoBox};
+    autoTone=analyzeTone(source,srcW,srcH,toSourceBox(box));
+    tone={...autoTone};toneToSliders();draw();
+  };
 
   let gesture=null;
   const pt=e=>{
@@ -984,9 +1026,8 @@ async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalByte
   const ctx=c.getContext("2d",{alpha:false});
   ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,targetW,targetH);
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
-  ctx.filter=`brightness(${tone.brightness}) contrast(${tone.contrast}) saturate(${tone.saturation})`;
   ctx.drawImage(source,box.x,box.y,box.w,box.h,0,0,targetW,targetH);
-  ctx.filter="none";
+  applyTonePixels(ctx,targetW,targetH,tone);
 
   return await canvasToPhotoFile(c,name,{
     sourceWidth:srcW,sourceHeight:srcH,sourceBytes:originalBytes,
