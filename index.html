@@ -446,9 +446,9 @@ async function syncGoogleSheetNow(){
       const ctx=error?.context;
       if(ctx&&typeof ctx.json==="function"){body=await ctx.json();detail=body?.error||detail}
     }catch{}
-    if(data?.configured===false||body?.configured===false||/Connexion Google Sheet à terminer/i.test(detail)){
+    if(data?.configured===false||body?.configured===false||/Connexion Google Sheets? à terminer/i.test(detail)){
       if(box)box.className="notice warn";
-      if(status)status.textContent="Configuration Google Sheets à terminer — aucune donnée n’a été envoyée.";
+      if(status)status.textContent="Google Sheets à connecter — les changements restent enregistrés en attente.";
       toast("Connexion Google Sheets à configurer");
     }else{
       if(box)box.className="notice err";
