@@ -32,6 +32,13 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .shutter{width:76px;height:76px;border-radius:50%;border:6px solid white;background:#d8d8d8;box-shadow:0 0 0 2px rgba(0,0,0,.45) inset}
 .camera-count{min-width:74px;font-weight:900;text-align:center}
 .camera-done{border:0;background:var(--pink);color:white;border-radius:999px;padding:11px 17px;font-weight:900}
+.camera-shot-notice{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:rgba(30,105,82,.92);color:white;padding:9px 14px;border-radius:999px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.28)}
+.camera-thumbs{display:flex;gap:9px;overflow-x:auto;padding:9px 12px;background:#111;min-height:0}
+.camera-thumbs:empty{display:none}
+.camera-thumb{position:relative;flex:0 0 66px}
+.camera-thumb img{width:66px;height:66px;object-fit:cover;border-radius:10px;border:2px solid rgba(255,255,255,.7);display:block}
+.camera-thumb button{position:absolute;right:-4px;top:-4px;width:24px;height:24px;border:0;border-radius:50%;background:#b84f57;color:#fff;font-weight:900;display:grid;place-items:center}
+.camera-thumb span{position:absolute;left:4px;bottom:3px;background:rgba(0,0,0,.68);color:#fff;border-radius:999px;padding:1px 5px;font-size:.62rem;font-weight:800}
 .mic.recording{background:#c84e58;color:white;animation:pulse 1s infinite}
 @keyframes pulse{50%{transform:scale(1.08)}}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:120;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:white;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
@@ -135,7 +142,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="page-head"><div><h1>Stock</h1><p>État Milou + Shopify, prix, numéro produit et emplacement physique.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
     <div class="toolbar">
       <input id="stockSearch" class="wide" placeholder="SKU, Shopify, titre, marque, emplacement...">
-      <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option></select>
+      <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option></select>
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <button id="exportStock" class="btn ghost small">Excel</button>
     </div>
@@ -214,7 +221,8 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
 <div id="cameraModal" class="camera-modal hidden">
   <div class="camera-top"><button id="closeCamera" type="button">✕ Fermer</button><strong>Photos article</strong><span id="cameraTopCount">0</span></div>
-  <div class="camera-stage"><video id="cameraVideo" autoplay playsinline muted></video><canvas id="cameraCanvas" class="hidden"></canvas></div>
+  <div class="camera-stage"><video id="cameraVideo" autoplay playsinline muted></video><canvas id="cameraCanvas" class="hidden"></canvas><div id="cameraShotNotice" class="camera-shot-notice hidden">✓ Photo enregistrée</div></div>
+  <div id="cameraThumbs" class="camera-thumbs"></div>
   <div class="camera-bottom"><div class="camera-count" id="cameraCount">0 photo</div><button id="cameraShutter" type="button" class="shutter" aria-label="Prendre la photo"></button><button id="cameraDone" type="button" class="camera-done">Terminé</button></div>
 </div>
 <div id="toast" class="toast hidden"></div>
@@ -316,7 +324,7 @@ async function loadDeposits(){
   }
 }
 async function loadStock(){
- const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
+ const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
  if(error)throw new Error("Stock : "+error.message);
  stock=data||[];
  for(const i of stock){
@@ -346,7 +354,7 @@ function fillDepositSelect(){
 }
 $("dConsignor").onchange=()=>{const v=$("dConsignor").value;$("newConsignorInline").classList.toggle("hidden",v!=="__new__");if(v&&v!=="__new__"){const c=consignors.find(x=>x.id===v);if(c?.default_commission_pct!=null)$("dCommission").value=c.default_commission_pct}};
 
-function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon Shopify",online:"En ligne",sold:"Vendu",archived:"Archivé",returned:"Retourné",rejected:"Rejeté"})[s]||s}
+function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon Shopify",online:"En ligne",sold:"Vendu",archived:"Archivé",returned:"Retourné",rejected:"Rejeté",deleted_shopify:"Supprimé de Shopify"})[s]||s}
 function shopifyNumber(id){return id?String(id).split("/").pop():"—"}
 function exportXlsx(name,rows){if(!window.XLSX){toast("Module Excel non chargé");return}const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Données");XLSX.writeFile(wb,name+".xlsx")}
 async function syncShopifyNow(){
@@ -357,7 +365,7 @@ async function syncShopifyNow(){
   const{data,error}=await sb.functions.invoke("sync-shopify-state",{body:{}});
   if(btn){btn.disabled=false;btn.textContent="↻ Synchroniser Shopify"}
   if(error||data?.error){toast("Erreur synchronisation Shopify");return}
-  toast((data.synced||0)+" article(s) synchronisé(s)");
+  toast((data.synced||0)+" article(s) synchronisé(s)"+(data.deleted?(" • "+data.deleted+" supprimé(s) de Shopify"):""));
   await refreshAll();
 }
 function renderHomeDeposits(){
@@ -398,11 +406,27 @@ function bindDepositButtons(){
 function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
- $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+(d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>') + (items.some(i=>!i.shopify_product_id)?'<button id="depPublishAll" class="btn green small">Publier tout sur Shopify</button>':'')+'</div></div><div class="panel-body">'+(items.length?'<div class="list">'+items.map(i=>'<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+'<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(!i.shopify_product_id?'<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button>':(i.status==="online"&&i.shopify_url?'<a class="btn ghost small" href="'+esc(i.shopify_url)+'" target="_blank">Voir</a>':'<span class="badge yellow">Brouillon</span>'))+'</div></div>').join("")+'</div>':'<div class="empty">Aucun article.</div>')+'<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
- const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll");
+ const canDeleteDeposit=items.every(i=>!i.shopify_product_id);
+ $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+
+   (d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>')+
+   (items.some(i=>!i.shopify_product_id)?'<button id="depPublishAll" class="btn green small">Envoyer tout à Shopify</button>':'')+
+   (canDeleteDeposit?'<button id="depDelete" class="btn danger small">Supprimer le dépôt</button>':'')+
+ '</div></div><div class="panel-body">'+
+ (items.length?'<div class="list">'+items.map(i=>{
+   const deleted=i.status==="deleted_shopify";
+   const actions=!i.shopify_product_id
+     ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
+     : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>'));
+   return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+
+     '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
+     '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
+ }).join("")+'</div>':'<div class="empty">Aucun article.</div>')+
+ '<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
+ const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll"),del=$("depDelete");
  if(a)a.onclick=()=>startDepositSession(id);
  if(f)f.onclick=()=>finishDeposit(id);
  if(all)all.onclick=()=>publishDeposit(id);
+ if(del)del.onclick=()=>deleteDepositFlow(id);
  document.querySelectorAll(".depPublishOne").forEach(b=>b.onclick=()=>publishOneFromDeposit(b.dataset.id,id));
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id,id));
 }
@@ -538,7 +562,7 @@ function renderPhotos(){
     del.className="photo-remove";
     del.textContent="×";
     del.title="Supprimer cette photo";
-    del.onclick=()=>{photos.splice(i,1);renderPhotos()};
+    del.onclick=()=>{photos.splice(i,1);renderPhotos();updateCameraCount()};
     const idx=document.createElement("span");
     idx.className="photo-index";
     idx.textContent=(i+1)+"/"+photos.length;
@@ -555,9 +579,36 @@ async function openCameraSession(){
   }catch(e){toast("Impossible d’ouvrir la caméra. Vérifie l’autorisation caméra dans Safari.");}
 }
 function closeCameraSession(){if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}$("cameraVideo").srcObject=null;$("cameraModal").classList.add("hidden")}
-function updateCameraCount(){const n=photos.length;$("cameraCount").textContent=n+" photo"+(n>1?"s":"");$("cameraTopCount").textContent=n}
+function updateCameraCount(){
+ const n=photos.length;
+ $("cameraCount").textContent=n+" photo"+(n>1?"s":"");
+ $("cameraTopCount").textContent=n;
+ renderCameraThumbs();
+}
+function renderCameraThumbs(){
+ const el=$("cameraThumbs");if(!el)return;
+ el.innerHTML="";
+ photos.forEach((f,i)=>{
+   const card=document.createElement("div");card.className="camera-thumb";
+   const img=document.createElement("img");img.src=URL.createObjectURL(f);img.alt="Photo "+(i+1);
+   const del=document.createElement("button");del.type="button";del.textContent="×";del.title="Supprimer";
+   del.onclick=()=>{photos.splice(i,1);renderPhotos();updateCameraCount()};
+   const n=document.createElement("span");n.textContent=(i+1);
+   card.append(img,del,n);el.appendChild(card);
+ });
+}
+function showCameraShotNotice(){
+ const el=$("cameraShotNotice");if(!el)return;
+ el.classList.remove("hidden");
+ clearTimeout(showCameraShotNotice._t);
+ showCameraShotNotice._t=setTimeout(()=>el.classList.add("hidden"),900);
+}
 $("openCamera").onclick=openCameraSession;$("closeCamera").onclick=closeCameraSession;$("cameraDone").onclick=closeCameraSession;
-$("cameraShutter").onclick=async()=>{const v=$("cameraVideo");if(!v.videoWidth)return;const c=$("cameraCanvas"),max=1600,s=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);c.getContext("2d").drawImage(v,0,0,c.width,c.height);const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.88));if(blob){photos.push(new File([blob],"photo-"+Date.now()+".jpg",{type:"image/jpeg"}));renderPhotos();updateCameraCount();navigator.vibrate?.(35)}};
+$("cameraShutter").onclick=async()=>{const v=$("cameraVideo");if(!v.videoWidth)return;const c=$("cameraCanvas"),max=1600,s=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);c.getContext("2d").drawImage(v,0,0,c.width,c.height);const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.88));if(blob){
+  if(photos.length>=8){toast("Maximum 8 photos");return}
+  photos.push(new File([blob],"photo-"+Date.now()+".jpg",{type:"image/jpeg"}));
+  renderPhotos();updateCameraCount();showCameraShotNotice();navigator.vibrate?.(35);
+}};
 async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=1200,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.75))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)})}
 $("analyzeBtn").onclick=async()=>{const text=$("rawText").value.trim();if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}$("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Analyse…";const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);const{data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});$("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";if(error){note($("analysisMsg"),esc(error.message||"Erreur"),"err");return}fillAnalysis(data?.data||{});$("analysisMode").textContent=data?.mode==="ai"?"IA + photos":"Analyse rapide";$("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");note($("analysisMsg"),data?.message||"Vérifie surtout taille, état et prix.",data?.mode==="fallback"?"warn":"")};
 function fillAnalysis(x){const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};Object.entries(m).forEach(([id,k])=>{if(x[k]!=null)$(id).value=x[k]});if(x.description_html)$("fDescription").value=x.description_html.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}
@@ -614,30 +665,48 @@ function renderStock(){
    const text=[i.sku,i.title,i.brand,i.size,i.location_code,i.deposits?.code,i.consignors?.full_name,shopifyNumber(i.shopify_product_id)].join(" ").toLowerCase();
    return (!q||text.includes(q))&&(!st||i.status===st)&&(!sz||i.age_band===sz);
  });
- const counts={};stock.filter(i=>!["sold","returned","rejected","archived"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
+ const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
- $("stockList").innerHTML=rows.length?rows.map(i=>'<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+'<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div><div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+(!i.shopify_product_id?'<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':""))+'</div></div>').join(""):'<div class="empty">Aucun article.</div>';
+ $("stockList").innerHTML=rows.length?rows.map(i=>{
+   const deleted=i.status==="deleted_shopify";
+   const actions=!i.shopify_product_id
+     ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
+     : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':''));
+   return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
+   '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small>'+
+   '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
+   '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
+ }).join(""):'<div class="empty">Aucun article.</div>';
  document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id));
 }
 async function deleteItemFlow(id,depositId=null){
   const item=stock.find(x=>x.id===id)||deposits.flatMap(d=>d.items||[]).find(x=>x.id===id);
   if(!item)return;
-  let deleteShopify=false;
   if(item.shopify_product_id){
-    deleteShopify=confirm("Cet article existe aussi sur Shopify.\n\nOK = supprimer dans Milou Ops ET Shopify\nAnnuler = supprimer seulement dans Milou Ops");
-    if(!deleteShopify){
-      const localOnly=confirm("Confirmer la suppression uniquement dans Milou Ops ?");
-      if(!localOnly)return;
-    }
-  }else{
-    if(!confirm("Supprimer définitivement "+(item.sku||"cet article")+" de Milou Ops ?"))return;
+    toast("Déjà envoyé à Shopify : supprime-le dans Shopify puis synchronise.");
+    return;
   }
-  const {data,error}=await sb.functions.invoke("delete-item",{body:{item_id:id,delete_shopify:deleteShopify}});
+  if(!confirm("Supprimer définitivement "+(item.sku||"cet article")+" de Milou Ops ?"))return;
+  const {data,error}=await sb.functions.invoke("delete-item",{body:{item_id:id}});
   if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
   toast("Article supprimé");
   await refreshAll();
   if(depositId)renderDepositDetail(depositId);else go("stock");
+}
+
+async function deleteDepositFlow(id){
+  const d=deposits.find(x=>x.id===id);if(!d)return;
+  const sent=(d.items||[]).filter(i=>i.shopify_product_id);
+  if(sent.length){toast("Ce dépôt contient des articles déjà envoyés à Shopify : il doit être conservé.");return}
+  const n=(d.items||[]).length;
+  if(!confirm("Supprimer définitivement "+d.code+" et ses "+n+" article(s) non envoyés ?"))return;
+  const {data,error}=await sb.functions.invoke("delete-deposit",{body:{deposit_id:id}});
+  if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
+  activeDeposit=null;
+  toast("Dépôt supprimé");
+  await refreshAll();
+  $("depositDetail").innerHTML="";
 }
 
 async function retryShopify(id){
@@ -671,7 +740,7 @@ function calcPayment(){
  const total=Array.from(document.querySelectorAll(".payItem:checked")).reduce((a,x)=>a+Number(x.dataset.price||0),0),pct=Number($("payPct")?.value||0),amt=total*pct/100;
  if($("paySelectedTotal"))$("paySelectedTotal").textContent=money(total);if($("payAmount"))$("payAmount").textContent=money(amt);if($("payStoreAmount"))$("payStoreAmount").textContent=money(total-amt);
 }
-function clearArticle(){photos=[];if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
+function clearArticle(){photos=[];if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 
 ["depositSearch","depositStatusFilter","depositConsignorFilter"].forEach(id=>{if($(id))$(id).oninput=renderDeposits});
