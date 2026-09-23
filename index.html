@@ -489,9 +489,11 @@ function renderDepositDetail(id){
  '</div></div><div class="panel-body">'+
  (items.length?'<div class="list">'+items.map(i=>{
    const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
-   const actions=!i.shopify_product_id
+   const actions=deletedMilou
+     ? '<span class="badge gray">Conservé pour historique</span>'
+     : (!i.shopify_product_id
      ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
-     : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>'));
+     : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+
      '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
      '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
@@ -905,7 +907,7 @@ function renderStock(){
  const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify","deleted_milou"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>{
-   const deleted=i.status==="deleted_shopify";
+   const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
    const actions=deletedMilou
      ? '<span class="badge gray">Conservé pour historique</span>'
      : (!i.shopify_product_id
