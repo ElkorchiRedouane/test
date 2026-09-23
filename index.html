@@ -60,6 +60,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <strong>Connexion Shopify non vérifiée.</strong><br>
   <button id="testShopify" class="btn green small" style="margin-top:8px">Tester Shopify</button>
 </div>
+<div id="dataHealth" class="notice hidden" style="margin-top:10px"></div>
     <div class="quick">
       <button id="newDepositHome"><span class="ico">🧺</span><b>Nouveau dépôt</b><small>Une personne apporte plusieurs vêtements. Tu crées le dépôt une fois, puis tu enchaînes les articles.</small></button>
       <button id="quickItemHome"><span class="ico">📷</span><b>Article rapide</b><small>Un article acheté, donné ou appartenant à la boutique. Aucun consignateur nécessaire.</small></button>
@@ -256,8 +257,17 @@ async function testShopifyConnection(){
   const {data,error}=await sb.functions.invoke("shopify-health",{body:{}});
   if(btn){btn.disabled=false;btn.textContent="Tester Shopify";}
   if(error){
+    let detail=error.message||"Erreur inconnue";
+    try{
+      const ctx=error.context;
+      if(ctx&&typeof ctx.json==="function"){
+        const body=await ctx.json();
+        detail=body?.error||body?.detail||body?.stage||detail;
+        if(body?.status)detail+=" (HTTP "+body.status+")";
+      }
+    }catch{}
     box.className="notice err";
-    box.innerHTML='❌ Connexion Shopify impossible.<br><small>'+esc(error.message||"Erreur inconnue")+'</small><br><button id="testShopify" class="btn ghost small" style="margin-top:8px">Retester</button>';
+    box.innerHTML='❌ Connexion Shopify impossible.<br><small>'+esc(detail)+'</small><br><button id="testShopify" class="btn ghost small" style="margin-top:8px">Retester</button>';
     const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
     return false;
   }
@@ -274,13 +284,26 @@ async function testShopifyConnection(){
   return false;
 }
 async function refreshAll(){
- await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations()]);
- renderConsignors();renderDeposits();renderStock();renderPayouts();fillDepositSelect();fillFilters();renderStats();
- const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
+ const box=$("dataHealth");
+ try{
+   await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations()]);
+   if(box){box.classList.add("hidden");box.textContent=""}
+   renderConsignors();renderDeposits();renderStock();renderPayouts();fillDepositSelect();fillFilters();renderStats();
+   const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
+   return true;
+ }catch(e){
+   if(box){box.className="notice err";box.innerHTML='❌ Erreur de chargement des données.<br><small>'+esc(e?.message||String(e))+'</small>'}
+   return false;
+ }
 }
-async function loadConsignors(){const{data}=await sb.from("consignors").select("*").order("created_at",{ascending:false});consignors=data||[]}
+async function loadConsignors(){
+ const {data,error}=await sb.from("consignors").select("*").order("created_at",{ascending:false});
+ if(error)throw new Error("Consignateurs : "+error.message);
+ consignors=data||[];
+}
 async function loadDeposits(){
-  const{data}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
+  const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
+  if(error)throw new Error("Dépôts : "+error.message);
   deposits=data||[];
   for(const d of deposits){
     for(const i of (d.items||[])){
@@ -292,9 +315,25 @@ async function loadDeposits(){
     }
   }
 }
-async function loadStock(){const{data}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);stock=data||[];for(const i of stock){const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));if(pics[0]?.storage_path){const{data:s}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);i.photo_url=s?.signedUrl||null}}}
-async function loadSales(){const{data}=await sb.from("sales").select("*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)").order("sold_at",{ascending:false});sales=data||[]}
-async function loadLocations(){const{data}=await sb.from("physical_locations").select("*").eq("active",true).order("size_group").order("code");locations=data||[]}
+async function loadStock(){
+ const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
+ if(error)throw new Error("Stock : "+error.message);
+ stock=data||[];
+ for(const i of stock){
+   const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
+   if(pics[0]?.storage_path){const{data:s}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);i.photo_url=s?.signedUrl||null}
+ }
+}
+async function loadSales(){
+ const {data,error}=await sb.from("sales").select("*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)").order("sold_at",{ascending:false});
+ if(error)throw new Error("Ventes : "+error.message);
+ sales=data||[];
+}
+async function loadLocations(){
+ const {data,error}=await sb.from("physical_locations").select("*").eq("active",true).order("size_group").order("code");
+ if(error)throw new Error("Emplacements : "+error.message);
+ locations=data||[];
+}
 function fillFilters(){const opts=consignors.map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;if($("payConsignor"))$("payConsignor").innerHTML='<option value="">Choisir...</option>'+opts}
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
