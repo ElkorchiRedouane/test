@@ -486,6 +486,7 @@ async function refreshAll(){
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
    const sg=$("syncGoogleSheet");if(sg)sg.onclick=syncGoogleSheetNow;
    await refreshSheetSyncStatus();
+   setTimeout(()=>autoSyncGoogleSheetIfNeeded(),250);
    return true;
  }catch(e){
    if(box){box.className="notice err";box.innerHTML='❌ Erreur de chargement des données.<br><small>'+esc(e?.message||String(e))+'</small>'}
@@ -1441,6 +1442,18 @@ function setupPWA(){
   if(notice)notice.classList.toggle("hidden",standalone||!ios);
   if("serviceWorker" in navigator){
     navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  }
+}
+let googleAutoSyncBusy=false;
+async function autoSyncGoogleSheetIfNeeded(){
+  if(googleAutoSyncBusy)return;
+  try{
+    const {count,error}=await sb.from("sheet_sync_queue").select("id",{count:"exact",head:true}).is("processed_at",null);
+    if(error||!(count>0))return;
+    googleAutoSyncBusy=true;
+    await syncGoogleSheetNow();
+  }finally{
+    googleAutoSyncBusy=false;
   }
 }
 let resumeBusy=false;
