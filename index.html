@@ -54,7 +54,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .camera-thumb span{position:absolute;left:4px;bottom:3px;background:rgba(0,0,0,.68);color:#fff;border-radius:999px;padding:1px 5px;font-size:.62rem;font-weight:800}
 .crop-review{position:fixed;inset:0;z-index:150;background:rgba(15,25,24,.82);display:grid;place-items:center;padding:16px}
 .crop-review.hidden{display:none}
-.crop-review-box{width:min(560px,100%);background:#fffdf9;border-radius:22px;padding:14px;box-shadow:0 26px 80px rgba(0,0,0,.35)}
+.crop-review-box{width:min(560px,100%);max-height:92vh;overflow:auto;background:#fffdf9;border-radius:22px;padding:14px;box-shadow:0 26px 80px rgba(0,0,0,.35)}
 .crop-review-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
 .crop-review-head strong{display:block;font-size:1.05rem;color:var(--ink)}
 .crop-review-head small{display:block;color:var(--muted);margin-top:3px;line-height:1.35}
@@ -65,7 +65,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .crop-adjustments label{display:grid;grid-template-columns:1fr auto;gap:3px 10px;align-items:center;font-size:.76rem;font-weight:800;color:var(--ink)}
 .crop-adjustments label span{color:var(--muted);font-size:.72rem}
 .crop-adjustments input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--pink)}
-.crop-review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.crop-review-actions{position:sticky;bottom:-14px;z-index:5;display:grid;grid-template-columns:1fr 1.2fr;gap:8px;margin:12px -14px -14px;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:rgba(255,253,249,.97);border-top:1px solid var(--line);backdrop-filter:blur(10px)}
 .mic.recording{background:#c84e58;color:white;animation:pulse 1s infinite}
 @keyframes pulse{50%{transform:scale(1.08)}}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:120;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:white;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
@@ -276,7 +276,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     </div>
     <div class="crop-review-actions">
       <button id="cropResetAuto" type="button" class="btn ghost">↺ Recadrage auto</button>
-      <button id="cropUseAuto" type="button" class="btn primary">Utiliser ce cadrage</button>
+      <button id="cropUseAuto" type="button" class="btn primary">✓ Confirmer la photo</button>
     </div>
   </div>
 </div>
@@ -982,7 +982,11 @@ async function reviewCropChoice(source,srcW,srcH,detected){
       resolve(choice);
     };
     $("cropUseAuto").onclick=()=>cropReviewResolver?.({mode:"custom",box:toSourceBox(box),tone:{...tone}});
-    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({mode:"cancel",box:null,tone:null});
+    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({
+      mode:"full",
+      box:{x:0,y:0,w:srcW,h:srcH},
+      tone:{...tone}
+    });
   });
 }
 
@@ -1031,7 +1035,7 @@ async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalByte
 
   return await canvasToPhotoFile(c,name,{
     sourceWidth:srcW,sourceHeight:srcH,sourceBytes:originalBytes,
-    subjectCrop:choice.mode!=="cancel",
+    subjectCrop:choice.mode==="custom",
     tone
   });
 }
