@@ -97,6 +97,15 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <button id="testShopify" class="btn green small" style="margin-top:8px">Tester Shopify</button>
 </div>
 <div id="dataHealth" class="notice hidden" style="margin-top:10px"></div>
+<div id="sheetSyncBox" class="notice warn" style="margin-top:10px">
+  <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+    <div>
+      <strong>Google Sheet</strong><br>
+      <small id="sheetSyncStatus">Vérification…</small>
+    </div>
+    <button id="syncGoogleSheet" class="btn ghost small">↻ Synchroniser</button>
+  </div>
+</div>
 <div id="installNotice" class="install-notice hidden">
   <b>Installer Milou Ops sur l’iPhone</b>
   Ouvre le menu <strong>Partager</strong> de Safari puis choisis <strong>Ajouter à l’écran d’accueil</strong>. Ensuite ouvre Milou Ops depuis son icône.
@@ -391,6 +400,49 @@ async function testShopifyConnection(){
   const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
   return false;
 }
+async function refreshSheetSyncStatus(){
+  const box=$("sheetSyncBox"),status=$("sheetSyncStatus"),btn=$("syncGoogleSheet");
+  if(!box||!status)return;
+  try{
+    const {count,error}=await sb.from("sheet_sync_queue").select("id",{count:"exact",head:true}).is("processed_at",null);
+    if(error)throw error;
+    const {data:setting}=await sb.from("app_settings").select("value").eq("key","google_sheet_last_sync").maybeSingle();
+    const last=setting?.value;
+    const lastText=last?new Date(typeof last==="string"?last:String(last).replace(/^"|"$/g,"")).toLocaleString("fr-CA"):"Jamais";
+    status.textContent=(count||0)+" changement(s) en attente • dernière synchro : "+lastText;
+    box.className="notice "+((count||0)>0?"warn":"");
+    if(btn)btn.disabled=false;
+  }catch(e){
+    box.className="notice warn";
+    status.textContent="Impossible de lire l’état de synchronisation";
+  }
+}
+
+async function syncGoogleSheetNow(){
+  const btn=$("syncGoogleSheet"),box=$("sheetSyncBox"),status=$("sheetSyncStatus");
+  const session=await ensureFreshSession();
+  if(!session){toast("Session expirée");await authState();return}
+  if(btn){btn.disabled=true;btn.textContent="Synchronisation…"}
+  if(status)status.textContent="Envoi du registre vers Google Sheet…";
+  const {data,error}=await sb.functions.invoke("sync-google-sheet",{body:{}});
+  if(btn){btn.disabled=false;btn.textContent="↻ Synchroniser"}
+  if(error||data?.ok===false){
+    let detail=data?.error||error?.message||"Erreur inconnue";
+    try{
+      const ctx=error?.context;
+      if(ctx&&typeof ctx.json==="function"){const body=await ctx.json();detail=body?.error||detail}
+    }catch{}
+    if(box)box.className="notice err";
+    if(status)status.textContent=detail;
+    toast("Synchronisation Google Sheet impossible");
+    return;
+  }
+  if(box)box.className="notice";
+  if(status)status.textContent=(data.processed||0)+" changement(s) synchronisé(s) • "+new Date(data.synced_at).toLocaleString("fr-CA");
+  toast("Google Sheet synchronisé");
+  await refreshSheetSyncStatus();
+}
+
 async function refreshAll(){
  const box=$("dataHealth");
  const session=await ensureFreshSession();
@@ -404,6 +456,8 @@ async function refreshAll(){
    if(box){box.classList.add("hidden");box.textContent=""}
    renderConsignors();renderDeposits();renderStock();renderPayouts();fillDepositSelect();fillFilters();renderStats();
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
+   const sg=$("syncGoogleSheet");if(sg)sg.onclick=syncGoogleSheetNow;
+   await refreshSheetSyncStatus();
    return true;
  }catch(e){
    if(box){box.className="notice err";box.innerHTML='❌ Erreur de chargement des données.<br><small>'+esc(e?.message||String(e))+'</small>'}
