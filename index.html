@@ -1203,6 +1203,8 @@ function fillAnalysis(x){
      .replace(/&amp;/g,"&")
      .replace(/&lt;/g,"<")
      .replace(/&gt;/g,">")
+     .replace(/Pièce unique de seconde main\s*[—-]?\s*disponible en un seul exemplaire\.?/gi,"")
+     .replace(/Disponible en un seul exemplaire\.?/gi,"")
      .replace(/\n{3,}/g,"\n\n")
      .trim();
  }
