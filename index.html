@@ -248,6 +248,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const sb=createClient("https://lgdapxduxmhcixjwzfrq.supabase.co","sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI");
 const $=id=>document.getElementById(id);
 let consignors=[],deposits=[],stock=[],sales=[],locations=[],activeDeposit=null,currentConsignorId=null,photos=[],articleMode="quick";
+const photoMeta=new WeakMap();
+let photoProcessing=0;
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
 function toast(m){$("toast").textContent=m;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),2500)}
@@ -605,14 +607,75 @@ function prepareArticle(){
 }
 $("finishFromArticle").onclick=()=>finishDeposit(activeDeposit?.id);
 
-function addPhotos(files){
-  const incoming=Array.from(files||[]);
-  for(const file of incoming){
-    if(!file.type.startsWith("image/")) continue;
-    const duplicate=photos.some(p=>p.name===file.name&&p.size===file.size&&p.lastModified===file.lastModified);
-    if(!duplicate&&photos.length<8) photos.push(file);
+function setPhotoProcessing(delta){
+  photoProcessing=Math.max(0,photoProcessing+delta);
+  const el=$("photoProcessingStatus");
+  if(el)el.classList.toggle("hidden",photoProcessing===0);
+}
+
+async function loadBitmapOrImage(file){
+  if("createImageBitmap" in window){
+    try{
+      const bitmap=await createImageBitmap(file,{imageOrientation:"from-image"});
+      return {source:bitmap,width:bitmap.width,height:bitmap.height,cleanup:()=>bitmap.close?.()};
+    }catch{}
   }
-  renderPhotos();
+  return await new Promise((resolve,reject)=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>resolve({source:img,width:img.naturalWidth,height:img.naturalHeight,cleanup:()=>URL.revokeObjectURL(url)});
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Image illisible"))};
+    img.src=url;
+  });
+}
+
+async function processPhotoSource(source,srcW,srcH,name="photo.jpg"){
+  const targetW=1200,targetH=1500,targetRatio=targetW/targetH;
+  const srcRatio=srcW/srcH;
+  let sx=0,sy=0,sw=srcW,sh=srcH;
+
+  // Center crop to 4:5. This removes excess background while keeping processing instant.
+  if(srcRatio>targetRatio){
+    sw=Math.round(srcH*targetRatio);
+    sx=Math.round((srcW-sw)/2);
+  }else if(srcRatio<targetRatio){
+    sh=Math.round(srcW/targetRatio);
+    sy=Math.round((srcH-sh)/2);
+  }
+
+  const c=document.createElement("canvas");
+  c.width=targetW;c.height=targetH;
+  const ctx=c.getContext("2d",{alpha:false});
+  ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,targetW,targetH);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  ctx.drawImage(source,sx,sy,sw,sh,0,0,targetW,targetH);
+
+  const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.82));
+  if(!blob)throw new Error("Compression impossible");
+  const base=(name||"photo").replace(/.[^.]+$/,"").replace(/[^a-zA-Z0-9_-]/g,"-").slice(0,50)||"photo";
+  const file=new File([blob],base+"-milou.jpg",{type:"image/jpeg",lastModified:Date.now()});
+  photoMeta.set(file,{width:targetW,height:targetH,ready:true,bytes:blob.size});
+  return file;
+}
+
+async function processPhotoFile(file){
+  const loaded=await loadBitmapOrImage(file);
+  try{return await processPhotoSource(loaded.source,loaded.width,loaded.height,file.name)}
+  finally{loaded.cleanup?.()}
+}
+
+async function addPhotos(files){
+  const incoming=Array.from(files||[]).filter(f=>f.type.startsWith("image/"));
+  for(const original of incoming){
+    if(photos.length>=8){toast("Maximum 8 photos");break}
+    setPhotoProcessing(1);
+    try{
+      const processed=await processPhotoFile(original);
+      photos.push(processed);
+      renderPhotos();updateCameraCount();
+    }catch(e){
+      toast("Une photo n’a pas pu être préparée");
+    }finally{setPhotoProcessing(-1)}
+  }
 }
 function renderPhotos(){
   const el=$("photoPreview");
@@ -624,18 +687,18 @@ function renderPhotos(){
     img.src=URL.createObjectURL(f);
     img.alt="Photo "+(i+1);
     const del=document.createElement("button");
-    del.type="button";
-    del.className="photo-remove";
-    del.textContent="×";
-    del.title="Supprimer cette photo";
+    del.type="button";del.className="photo-remove";del.textContent="×";del.title="Supprimer cette photo";
     del.onclick=()=>{photos.splice(i,1);renderPhotos();updateCameraCount()};
     const idx=document.createElement("span");
-    idx.className="photo-index";
-    idx.textContent=(i+1)+"/"+photos.length;
-    card.appendChild(img);card.appendChild(del);card.appendChild(idx);el.appendChild(card);
+    idx.className="photo-index";idx.textContent=(i+1)+"/"+photos.length;
+    const meta=photoMeta.get(f);
+    const ready=document.createElement("span");
+    ready.className="photo-ready";
+    ready.textContent=meta?.ready?"✓ Prête":"✓ Optimisée";
+    card.append(img,del,idx,ready);el.appendChild(card);
   });
 }
-$("galleryPhotos").onchange=e=>{addPhotos(e.target.files);e.target.value=""};
+$("galleryPhotos").onchange=async e=>{const files=e.target.files;e.target.value="";await addPhotos(files)};
 
 let cameraStream=null;
 async function openCameraSession(){
@@ -670,13 +733,21 @@ function showCameraShotNotice(){
  showCameraShotNotice._t=setTimeout(()=>el.classList.add("hidden"),900);
 }
 $("openCamera").onclick=openCameraSession;$("closeCamera").onclick=closeCameraSession;$("cameraDone").onclick=closeCameraSession;
-$("cameraShutter").onclick=async()=>{const v=$("cameraVideo");if(!v.videoWidth)return;const c=$("cameraCanvas"),max=1600,s=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);c.getContext("2d").drawImage(v,0,0,c.width,c.height);const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.88));if(blob){
+$("cameraShutter").onclick=async()=>{
+  const v=$("cameraVideo");if(!v.videoWidth)return;
   if(photos.length>=8){toast("Maximum 8 photos");return}
-  photos.push(new File([blob],"photo-"+Date.now()+".jpg",{type:"image/jpeg"}));
-  renderPhotos();updateCameraCount();showCameraShotNotice();navigator.vibrate?.(35);
-}};
-async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();img.onload=()=>{const max=900,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL("image/jpeg",.62))};img.onerror=()=>resolve(null);img.src=URL.createObjectURL(file)})}
+  const btn=$("cameraShutter");btn.disabled=true;
+  setPhotoProcessing(1);
+  try{
+    const processed=await processPhotoSource(v,v.videoWidth,v.videoHeight,"camera-"+Date.now()+".jpg");
+    photos.push(processed);
+    renderPhotos();updateCameraCount();showCameraShotNotice();navigator.vibrate?.(35);
+  }catch(e){toast("La photo n’a pas pu être préparée")}
+  finally{setPhotoProcessing(-1);btn.disabled=false}
+};
+async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=720,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c.toDataURL("image/jpeg",.58))};img.onerror=()=>{URL.revokeObjectURL(url);resolve(null)};img.src=url})}
 $("analyzeBtn").onclick=async()=>{
+ if(photoProcessing>0){toast("Attends une seconde, les photos sont encore en préparation");return}
  const text=$("rawText").value.trim();
  if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}
  $("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Préparation…";
@@ -742,6 +813,7 @@ $("micBtn").onclick=async()=>{
 };
 
 async function saveArticle(toShopify){
+ if(photoProcessing>0){toast("Attends la fin de l’optimisation des photos");return}
  const d=activeDeposit,p={deposit_id:d?.id||null,consignor_id:d?.consignor_id||null,acquisition_mode:d?.acquisition_mode||(articleMode==="quick"?"own_stock":null),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
  if(!p.title){toast("Titre requis");return}if(!p.sale_price){toast("Prix requis");return}
  const ins=await sb.from("items").insert(p).select().single();if(ins.error){toast(ins.error.message);return}
@@ -844,7 +916,7 @@ function calcPayment(){
  const total=Array.from(document.querySelectorAll(".payItem:checked")).reduce((a,x)=>a+Number(x.dataset.price||0),0),pct=Number($("payPct")?.value||0),amt=total*pct/100;
  if($("paySelectedTotal"))$("paySelectedTotal").textContent=money(total);if($("payAmount"))$("payAmount").textContent=money(amt);if($("payStoreAmount"))$("payStoreAmount").textContent=money(total-amt);
 }
-function clearArticle(){photos=[];if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
+function clearArticle(){photos=[];photoProcessing=0;if($("photoProcessingStatus"))$("photoProcessingStatus").classList.add("hidden");if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 
 ["depositSearch","depositStatusFilter","depositConsignorFilter"].forEach(id=>{if($(id))$(id).oninput=renderDeposits});
