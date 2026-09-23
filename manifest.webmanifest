@@ -1,0 +1,27 @@
+{
+  "name": "Milou Ops",
+  "short_name": "Milou Ops",
+  "description": "Outil de réception, consignation, stock et synchronisation Shopify de Friperie Milou.",
+  "lang": "fr-CA",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#fbf7ef",
+  "theme_color": "#315f5c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/milou-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/milou-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
