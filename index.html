@@ -101,7 +101,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="page-head"><div><h1>Dépôts</h1><p>Du plus récent au plus ancien. Clique sur un dépôt pour voir ses articles.</p></div><button id="newDepositPage" class="btn primary small">+ Nouveau</button></div>
     <div class="toolbar">
       <input id="depositSearch" class="wide" placeholder="Rechercher dépôt, consignateur, SKU...">
-      <select id="depositStatusFilter"><option value="">Tous statuts</option><option value="open">Ouverts</option><option value="closed">Terminés</option><option value="pending">À envoyer Shopify</option></select>
+      <select id="depositStatusFilter"><option value="">Tous statuts</option><option value="open">Ouverts</option><option value="closed">Terminés</option><option value="pending">À envoyer Shopify</option><option value="deleted">Supprimés</option></select>
       <select id="depositConsignorFilter"><option value="">Tous consignateurs</option></select>
       <button id="exportDeposits" class="btn ghost small">Excel</button>
     </div>
@@ -158,7 +158,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="page-head"><div><h1>Stock</h1><p>État Milou + Shopify, prix, numéro produit et emplacement physique.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
     <div class="toolbar">
       <input id="stockSearch" class="wide" placeholder="SKU, Shopify, titre, marque, emplacement...">
-      <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option></select>
+      <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option><option value="deleted_milou">Supprimé dans Milou Ops</option></select>
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <button id="exportStock" class="btn ghost small">Excel</button>
     </div>
@@ -390,7 +390,7 @@ async function loadDeposits(){
   }
 }
 async function loadStock(){
- const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
+ const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
  if(error)throw new Error("Stock : "+error.message);
  stock=data||[];
  for(const i of stock){
@@ -408,11 +408,11 @@ async function loadLocations(){
  if(error)throw new Error("Emplacements : "+error.message);
  locations=data||[];
 }
-function fillFilters(){const opts=consignors.map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;if($("payConsignor"))$("payConsignor").innerHTML='<option value="">Choisir...</option>'+opts}
+function fillFilters(){const opts=consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;if($("payConsignor"))$("payConsignor").innerHTML='<option value="">Choisir...</option>'+opts}
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
- $("stOpenDep").textContent=deposits.filter(d=>d.status!=="closed").length;
- $("stPending").textContent=stock.filter(i=>!i.shopify_product_id).length;
+ $("stOpenDep").textContent=deposits.filter(d=>!["closed","deleted"].includes(d.status)).length;
+ $("stPending").textContent=stock.filter(i=>!i.shopify_product_id&&i.status!=="deleted_milou").length;
  $("stOnline").textContent=stock.filter(i=>i.status==="online").length;
 }
 function fillDepositSelect(){
@@ -420,7 +420,7 @@ function fillDepositSelect(){
 }
 $("dConsignor").onchange=()=>{const v=$("dConsignor").value;$("newConsignorInline").classList.toggle("hidden",v!=="__new__");if(v&&v!=="__new__"){const c=consignors.find(x=>x.id===v);if(c?.default_commission_pct!=null)$("dCommission").value=c.default_commission_pct}};
 
-function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon Shopify",online:"En ligne",sold:"Vendu",archived:"Archivé",returned:"Retourné",rejected:"Rejeté",deleted_shopify:"Supprimé de Shopify"})[s]||s}
+function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon Shopify",online:"En ligne",sold:"Vendu",archived:"Archivé",returned:"Retourné",rejected:"Rejeté",deleted_shopify:"Supprimé de Shopify",deleted_milou:"Supprimé dans Milou Ops"})[s]||s}
 function shopifyNumber(id){return id?String(id).split("/").pop():"—"}
 function exportXlsx(name,rows){if(!window.XLSX){toast("Module Excel non chargé");return}const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Données");XLSX.writeFile(wb,name+".xlsx")}
 async function syncShopifyNow(){
@@ -451,7 +451,11 @@ function renderDeposits(){
    const items=d.items||[],pending=items.some(i=>!i.shopify_product_id);
    const text=[d.code,d.consignors?.full_name,...items.map(i=>i.sku),...items.map(i=>i.title)].join(" ").toLowerCase();
    const okQ=!q||text.includes(q),okC=!cid||d.consignor_id===cid||d.consignors?.id===cid;
-   const okS=!st||(st==="open"&&d.status!=="closed")||(st==="closed"&&d.status==="closed")||(st==="pending"&&pending);
+   const okS=st==="deleted" ? d.status==="deleted" :
+     (!st ? d.status!=="deleted" :
+      (st==="open"&&!["closed","deleted"].includes(d.status))||
+      (st==="closed"&&d.status==="closed")||
+      (st==="pending"&&pending&&d.status!=="deleted"));
    return okQ&&okC&&okS;
  });
  if($("depositCount"))$("depositCount").textContent=rows.length+" dépôt(s)";
@@ -481,7 +485,7 @@ function renderDepositDetail(id){
    (canDeleteDeposit?'<button id="depDelete" class="btn danger small">Supprimer le dépôt</button>':'')+
  '</div></div><div class="panel-body">'+
  (items.length?'<div class="list">'+items.map(i=>{
-   const deleted=i.status==="deleted_shopify";
+   const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
    const actions=!i.shopify_product_id
      ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>'));
@@ -566,20 +570,25 @@ async function deleteConsignorSafe(id){
   const its=stock.filter(i=>i.consignors?.id===id);
   const ss=sales.filter(s=>s.consignor_id===id);
   if(ds.length||its.length||ss.length){
-    toast("Suppression impossible : ce consignateur a un historique. Désactive-le plutôt.");
+    toast("Ce consignateur a un historique : il sera désactivé plutôt que supprimé.");
+    await deactivateConsignor(id);
     return;
   }
-  if(!confirm("Supprimer définitivement "+c.full_name+" ?"))return;
-  const{error}=await sb.from("consignors").delete().eq("id",id);
+  if(!confirm("Retirer "+c.full_name+" ? Une trace sera conservée dans le registre."))return;
+  const{error}=await sb.from("consignors").update({
+    status:"inactive",
+    deleted_at:new Date().toISOString(),
+    deleted_from:"milou_ops"
+  }).eq("id",id);
   if(error){toast(error.message);return}
   $("consignorDetail").innerHTML="";
-  toast("Consignateur supprimé");
+  toast("Consignateur retiré et conservé dans l’historique");
   await refreshAll();
 }
 async function deactivateConsignor(id){
   const c=consignors.find(x=>x.id===id);if(!c)return;
   if(!confirm("Désactiver "+c.full_name+" ? Son historique sera conservé."))return;
-  const{error}=await sb.from("consignors").update({status:"inactive"}).eq("id",id);
+  const{error}=await sb.from("consignors").update({status:"inactive",deleted_from:"deactivated"}).eq("id",id);
   if(error){toast(error.message);return}
   toast("Consignateur désactivé");
   await refreshAll();
@@ -839,15 +848,17 @@ function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
  const rows=stock.filter(i=>{
    const text=[i.sku,i.title,i.brand,i.size,i.location_code,i.deposits?.code,i.consignors?.full_name,shopifyNumber(i.shopify_product_id)].join(" ").toLowerCase();
-   return (!q||text.includes(q))&&(!st||i.status===st)&&(!sz||i.age_band===sz);
+   return (!q||text.includes(q))&&(st?i.status===st:i.status!=="deleted_milou")&&(!sz||i.age_band===sz);
  });
- const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
+ const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify","deleted_milou"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>{
    const deleted=i.status==="deleted_shopify";
-   const actions=!i.shopify_product_id
+   const actions=deletedMilou
+     ? '<span class="badge gray">Conservé pour historique</span>'
+     : (!i.shopify_product_id
      ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
-     : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':''));
+     : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
    '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small>'+
    '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
@@ -863,10 +874,10 @@ async function deleteItemFlow(id,depositId=null){
     toast("Déjà envoyé à Shopify : supprime-le dans Shopify puis synchronise.");
     return;
   }
-  if(!confirm("Supprimer définitivement "+(item.sku||"cet article")+" de Milou Ops ?"))return;
+  if(!confirm("Retirer "+(item.sku||"cet article")+" de Milou Ops ? Une trace sera conservée dans l’historique et le registre Google Sheets."))return;
   const {data,error}=await sb.functions.invoke("delete-item",{body:{item_id:id}});
   if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
-  toast("Article supprimé");
+  toast("Article retiré et conservé dans l’historique");
   await refreshAll();
   if(depositId)renderDepositDetail(depositId);else go("stock");
 }
@@ -876,11 +887,11 @@ async function deleteDepositFlow(id){
   const sent=(d.items||[]).filter(i=>i.shopify_product_id);
   if(sent.length){toast("Ce dépôt contient des articles déjà envoyés à Shopify : il doit être conservé.");return}
   const n=(d.items||[]).length;
-  if(!confirm("Supprimer définitivement "+d.code+" et ses "+n+" article(s) non envoyés ?"))return;
+  if(!confirm("Retirer "+d.code+" et ses "+n+" article(s) non envoyés ? Une trace restera dans l’historique et le registre Google Sheets."))return;
   const {data,error}=await sb.functions.invoke("delete-deposit",{body:{deposit_id:id}});
   if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
   activeDeposit=null;
-  toast("Dépôt supprimé");
+  toast("Dépôt retiré et conservé dans l’historique");
   await refreshAll();
   $("depositDetail").innerHTML="";
 }
