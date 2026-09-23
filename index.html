@@ -24,7 +24,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}.panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.panel-head h2{font-size:1rem;margin:0}.panel-body{padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .btn{flex:1;min-width:130px}
 .list{display:grid;gap:9px}.row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}.item-thumb{width:64px;height:64px;flex:0 0 64px;border-radius:13px;object-fit:cover;background:#eee;border:1px solid var(--line)}.item-thumb.placeholder{display:grid;place-items:center;font-size:1.3rem;color:var(--muted)}.row-main{min-width:0;flex:1}.row.clickable{cursor:pointer}.row.clickable:hover{border-color:#9bb4b0;background:#fffefa}.toolbar{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:12px}.money-good{color:#2f6d54}.money-due{color:#a55a67}.mini-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.list-title{display:flex;justify-content:space-between;align-items:center;gap:8px}.check-row{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#fff}.check-row input{width:auto}.finance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.finance-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}.finance-card strong{display:block;font-size:1.35rem}.finance-card span{font-size:.78rem;color:var(--muted)}@media(max-width:720px){.toolbar{grid-template-columns:1fr 1fr}.toolbar .wide{grid-column:1/-1}.finance-grid{grid-template-columns:1fr 1fr}}.row b{display:block}.row small{display:block;color:var(--muted);margin-top:2px;line-height:1.35}.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.sendDepShopify{white-space:normal;line-height:1.15}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--sage);font-size:.72rem;font-weight:850}.badge.pink{background:#f2dfe6}.badge.yellow{background:var(--yellow)}.badge.gray{background:#eee9e0}.empty{text-align:center;padding:26px;color:var(--muted)}
 .deposit-banner{position:sticky;top:63px;z-index:15;background:#edf4eb;border:1px solid #d9e6d6;border-radius:18px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}.deposit-banner b{display:block}.deposit-banner small{color:var(--muted);display:block;margin-top:2px}.counter{font-size:1.3rem;font-weight:900}.photo-box{border:2px dashed #d7c9ba;background:#fff9f2;border-radius:20px;padding:17px;text-align:center}.photo-box input{border:0;background:transparent}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.photos .photo-card{position:relative;min-width:0}
-.photos img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:13px;background:#eee;display:block}
+.photos img{width:100%;height:auto;max-height:260px;object-fit:contain;border-radius:13px;background:#f3eee6;display:block}
 
 .photo-tools{display:flex;gap:6px;margin-top:6px}
 .photo-tools button{flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 5px;font-size:.68rem;font-weight:850;color:var(--ink)}
@@ -642,100 +642,141 @@ async function loadBitmapOrImage(file){
   });
 }
 
+function analyzeTone(source,srcW,srcH){
+  try{
+    const max=140,scale=Math.min(max/srcW,max/srcH,1);
+    const w=Math.max(24,Math.round(srcW*scale)),hh=Math.max(24,Math.round(srcH*scale));
+    const c=document.createElement("canvas");c.width=w;c.height=hh;
+    const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(source,0,0,w,hh);
+    const d=ctx.getImageData(0,0,w,hh).data;
+    let lum=0,sat=0,n=0;
+    for(let i=0;i<d.length;i+=16){
+      const r=d[i],g=d[i+1],b=d[i+2];
+      const maxc=Math.max(r,g,b),minc=Math.min(r,g,b);
+      lum+=.2126*r+.7152*g+.0722*b;
+      sat+=maxc?((maxc-minc)/maxc):0;
+      n++;
+    }
+    lum/=Math.max(1,n);sat/=Math.max(1,n);
+    const brightness=Math.max(.88,Math.min(1.16,142/Math.max(70,lum)));
+    const contrast=lum<115?1.07:(lum>185?.97:1.035);
+    const saturation=sat<.18?1.10:(sat>.48?.94:1.035);
+    return {brightness,contrast,saturation};
+  }catch{return {brightness:1,contrast:1.03,saturation:1.03}}
+}
+
 function detectSubjectBox(source,srcW,srcH){
   try{
-    const size=180;
-    const scale=Math.min(size/srcW,size/srcH,1);
-    const w=Math.max(32,Math.round(srcW*scale)),hh=Math.max(32,Math.round(srcH*scale));
+    const max=150,scale=Math.min(max/srcW,max/srcH,1);
+    const w=Math.max(40,Math.round(srcW*scale)),hh=Math.max(40,Math.round(srcH*scale));
     const c=document.createElement("canvas");c.width=w;c.height=hh;
-    const ctx=c.getContext("2d",{willReadFrequently:true});
-    ctx.drawImage(source,0,0,w,hh);
-    const img=ctx.getImageData(0,0,w,hh),d=img.data;
+    const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(source,0,0,w,hh);
+    const d=ctx.getImageData(0,0,w,hh).data;
 
-    // Estimate background from the outer border. Works well for floor/table/wall product shots.
-    let rs=0,gs=0,bs=0,n=0;
-    const edge=Math.max(3,Math.round(Math.min(w,hh)*.06));
+    // Background reference from corners only (more robust on textured floors than the whole border).
+    const samples=[];
+    const cs=Math.max(5,Math.round(Math.min(w,hh)*.12));
+    const add=(x0,y0,x1,y1)=>{
+      for(let y=y0;y<y1;y+=2)for(let x=x0;x<x1;x+=2){
+        const p=(y*w+x)*4;samples.push([d[p],d[p+1],d[p+2]]);
+      }
+    };
+    add(0,0,cs,cs);add(w-cs,0,w,cs);add(0,hh-cs,cs,hh);add(w-cs,hh-cs,w,hh);
+    samples.sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
+    const mid=samples[Math.floor(samples.length/2)]||[220,220,220];
+    const br=mid[0],bg=mid[1],bb=mid[2];
+
+    const mask=new Uint8Array(w*hh);
+    let diffs=[];
     for(let y=0;y<hh;y++){
       for(let x=0;x<w;x++){
-        if(x>=edge&&x<w-edge&&y>=edge&&y<hh-edge)continue;
-        const p=(y*w+x)*4;rs+=d[p];gs+=d[p+1];bs+=d[p+2];n++;
+        const p=(y*w+x)*4,r=d[p],g=d[p+1],b=d[p+2];
+        const dist=Math.sqrt((r-br)**2+(g-bg)**2+(b-bb)**2);
+        diffs.push(dist);
       }
     }
-    const br=rs/n,bg=gs/n,bb=bs/n;
+    diffs.sort((a,b)=>a-b);
+    const q70=diffs[Math.floor(diffs.length*.70)]||35;
+    const threshold=Math.max(34,Math.min(78,q70*1.18));
 
-    const score=new Float32Array(w*hh);
-    let sum=0,sum2=0,count=0;
     for(let y=1;y<hh-1;y++){
       for(let x=1;x<w-1;x++){
         const p=(y*w+x)*4,r=d[p],g=d[p+1],b=d[p+2];
         const dist=Math.sqrt((r-br)**2+(g-bg)**2+(b-bb)**2);
-        const pr=(y*w+x+1)*4, pd=((y+1)*w+x)*4;
-        const grad=(Math.abs(r-d[pr])+Math.abs(g-d[pr+1])+Math.abs(b-d[pr+2])+
-                    Math.abs(r-d[pd])+Math.abs(g-d[pd+1])+Math.abs(b-d[pd+2]))/6;
-        const max=Math.max(r,g,b),min=Math.min(r,g,b),sat=max-min;
-        const sc=dist*.72+grad*.55+sat*.18;
-        score[y*w+x]=sc;sum+=sc;sum2+=sc*sc;count++;
+        if(dist>=threshold)mask[y*w+x]=1;
       }
     }
-    const mean=sum/count,sd=Math.sqrt(Math.max(0,sum2/count-mean*mean));
-    const threshold=mean+sd*.55;
 
-    let minX=w,minY=hh,maxX=-1,maxY=-1,hits=0;
-    for(let y=1;y<hh-1;y++){
-      for(let x=1;x<w-1;x++){
-        if(score[y*w+x]<threshold)continue;
-        // Ignore isolated pixels by requiring nearby activity.
-        let near=0;
-        for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++)if(score[(y+yy)*w+(x+xx)]>=threshold)near++;
-        if(near<4)continue;
-        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);hits++;
+    // Small morphological close to reconnect sleeves/legs and ignore isolated texture.
+    const smooth=new Uint8Array(w*hh);
+    for(let y=1;y<hh-1;y++)for(let x=1;x<w-1;x++){
+      let n=0;
+      for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++)n+=mask[(y+yy)*w+(x+xx)];
+      if(n>=4)smooth[y*w+x]=1;
+    }
+
+    // Connected components. Prefer a large component near the center.
+    const seen=new Uint8Array(w*hh);
+    let best=null;
+    const cx=w/2,cy=hh/2;
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(let sy=1;sy<hh-1;sy++){
+      for(let sx=1;sx<w-1;sx++){
+        const start=sy*w+sx;
+        if(!smooth[start]||seen[start])continue;
+        const q=[start];seen[start]=1;
+        let qi=0,count=0,minX=sx,maxX=sx,minY=sy,maxY=sy,sumX=0,sumY=0;
+        while(qi<q.length){
+          const pos=q[qi++],y=Math.floor(pos/w),x=pos-y*w;
+          count++;sumX+=x;sumY+=y;
+          if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+          for(const [dx,dy] of dirs){
+            const nx=x+dx,ny=y+dy,np=ny*w+nx;
+            if(nx<=0||ny<=0||nx>=w-1||ny>=hh-1||seen[np]||!smooth[np])continue;
+            seen[np]=1;q.push(np);
+          }
+        }
+        if(count<Math.max(25,w*hh*.006))continue;
+        const ccx=sumX/count,ccy=sumY/count;
+        const centerDist=Math.hypot((ccx-cx)/w,(ccy-cy)/hh);
+        const bw=maxX-minX+1,bh=maxY-minY+1;
+        const area=bw*bh;
+        const score=count*1.6+area*.35-centerDist*w*hh*.18;
+        if(!best||score>best.score)best={score,minX,maxX,minY,maxY,count};
       }
     }
-    if(hits<Math.max(40,w*hh*.015)||maxX<=minX||maxY<=minY)return null;
+    if(!best)return null;
 
-    // Convert back to source coordinates and pad around the item.
-    let x=minX/w*srcW,y=minY/hh*srcH,bw=(maxX-minX+1)/w*srcW,bh=(maxY-minY+1)/hh*srcH;
-    const padX=bw*.12,padY=bh*.12;
+    let x=best.minX/w*srcW,y=best.minY/hh*srcH;
+    let bw=(best.maxX-best.minX+1)/w*srcW,bh=(best.maxY-best.minY+1)/hh*srcH;
+
+    // Comfortable product margin around the detected garment.
+    const padX=bw*.16,padY=bh*.16;
     x=Math.max(0,x-padX);y=Math.max(0,y-padY);
     bw=Math.min(srcW-x,bw+padX*2);bh=Math.min(srcH-y,bh+padY*2);
 
-    // Reject obviously bad detections.
-    if(bw*bh<srcW*srcH*.08)return null;
+    const frac=(bw*bh)/(srcW*srcH);
+    if(frac<.10||frac>.94)return null;
     return {x,y,w:bw,h:bh};
   }catch{return null}
 }
 
 function fitBoxToRatio(box,srcW,srcH,ratio){
   let {x,y,w,h}=box;
-  const r=w/h;
-  if(r>ratio){
-    const nh=w/ratio,extra=nh-h;
-    y-=extra/2;h=nh;
-  }else{
-    const nw=h*ratio,extra=nw-w;
-    x-=extra/2;w=nw;
-  }
-  if(x<0){w+=x;x=0}
-  if(y<0){h+=y;y=0}
-  if(x+w>srcW)w=srcW-x;
-  if(y+h>srcH)h=srcH-y;
+  const cx=x+w/2,cy=y+h/2;
+  if(w/h>ratio)h=w/ratio;else w=h*ratio;
+  x=cx-w/2;y=cy-h/2;
 
-  // Refit after bounds adjustment so the subject is never zoomed/cut excessively.
-  const rr=w/h;
-  if(Math.abs(rr-ratio)>.01){
-    if(rr>ratio){
-      const nh=w/ratio;
-      if(nh<=srcH){y=Math.max(0,Math.min(srcH-nh,y-(nh-h)/2));h=nh}
-    }else{
-      const nw=h*ratio;
-      if(nw<=srcW){x=Math.max(0,Math.min(srcW-nw,x-(nw-w)/2));w=nw}
-    }
-  }
+  // If the ideal ratio exceeds bounds, shrink the box rather than clipping the subject.
+  if(w>srcW){const k=srcW/w;w*=k;h*=k}
+  if(h>srcH){const k=srcH/h;w*=k;h*=k}
+  x=Math.max(0,Math.min(srcW-w,x));
+  y=Math.max(0,Math.min(srcH-h,y));
   return {x,y,w,h};
 }
 
 async function canvasToPhotoFile(c,name,meta={}){
-  const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.82));
+  const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.84));
   if(!blob)throw new Error("Compression impossible");
   const base=(name||"photo").replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_-]/g,"-").slice(0,50)||"photo";
   const file=new File([blob],base+"-milou.jpg",{type:"image/jpeg",lastModified:Date.now()});
@@ -748,19 +789,21 @@ async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalByte
   const detected=detectSubjectBox(source,srcW,srcH);
   const initial=detected||{x:0,y:0,w:srcW,h:srcH};
   const box=fitBoxToRatio(initial,srcW,srcH,targetRatio);
+  const tone=analyzeTone(source,srcW,srcH);
 
   const c=document.createElement("canvas");
   c.width=targetW;c.height=targetH;
   const ctx=c.getContext("2d",{alpha:false});
   ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,targetW,targetH);
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
-  ctx.filter="brightness(1.025) contrast(1.04) saturate(1.025)";
+  ctx.filter=`brightness(${tone.brightness}) contrast(${tone.contrast}) saturate(${tone.saturation})`;
   ctx.drawImage(source,box.x,box.y,box.w,box.h,0,0,targetW,targetH);
   ctx.filter="none";
 
   return await canvasToPhotoFile(c,name,{
     sourceWidth:srcW,sourceHeight:srcH,sourceBytes:originalBytes,
-    subjectCrop:!!detected
+    subjectCrop:!!detected,
+    tone
   });
 }
 
@@ -775,23 +818,14 @@ async function rotatePhotoAt(index){
   setPhotoProcessing(1);
   try{
     const loaded=await loadBitmapOrImage(file);
-    const rot=document.createElement("canvas");
-    rot.width=loaded.height;rot.height=loaded.width;
-    const rctx=rot.getContext("2d",{alpha:false});
-    rctx.fillStyle="#fbf7ef";rctx.fillRect(0,0,rot.width,rot.height);
-    rctx.translate(rot.width/2,rot.height/2);
-    rctx.rotate(Math.PI/2);
-    rctx.drawImage(loaded.source,-loaded.width/2,-loaded.height/2);
-    loaded.cleanup?.();
-
-    // Contain the rotated image inside 4:5 instead of cropping it again.
-    const out=document.createElement("canvas");out.width=1200;out.height=1500;
+    const out=document.createElement("canvas");
+    out.width=loaded.height;out.height=loaded.width;
     const ctx=out.getContext("2d",{alpha:false});
     ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,out.width,out.height);
-    const scale=Math.min(out.width/rot.width,out.height/rot.height);
-    const dw=Math.round(rot.width*scale),dh=Math.round(rot.height*scale);
-    const dx=Math.round((out.width-dw)/2),dy=Math.round((out.height-dh)/2);
-    ctx.drawImage(rot,0,0,rot.width,rot.height,dx,dy,dw,dh);
+    ctx.translate(out.width/2,out.height/2);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(loaded.source,-loaded.width/2,-loaded.height/2);
+    loaded.cleanup?.();
 
     const rotated=await canvasToPhotoFile(out,file.name,{rotated:true});
     photos[index]=rotated;
