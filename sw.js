@@ -1,4 +1,4 @@
-const CACHE="milou-ops-v1";
+const CACHE="milou-ops-v2";
 const APP_SHELL=["/","/manifest.webmanifest","/milou-icon.svg","/milou-icon-maskable.svg"];
 
 self.addEventListener("install",event=>{
