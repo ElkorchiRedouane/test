@@ -240,14 +240,28 @@ function toast(m){$("toast").textContent=m;$("toast").classList.remove("hidden")
 function note(el,m,t=""){el.innerHTML='<div class="notice '+t+'">'+m+'</div>'}
 function money(v){return Number(v||0).toLocaleString("fr-CA",{style:"currency",currency:"CAD"})}
 function modeLabel(v){return({consignment:"Consignation",purchase:"Achat",donation:"Don",own_stock:"Stock propre"})[v]||v}
+async function ensureFreshSession(){
+  let {data:{session},error}=await sb.auth.getSession();
+  if(error)return null;
+  if(!session)return null;
+  const expiresAt=Number(session.expires_at||0)*1000;
+  if(!expiresAt||expiresAt-Date.now()<120000){
+    const refreshed=await sb.auth.refreshSession();
+    if(refreshed.error||!refreshed.data?.session)return null;
+    session=refreshed.data.session;
+  }
+  return session;
+}
+
 
 async function authState(){
- const {data:{session}}=await sb.auth.getSession();
+ const session=await ensureFreshSession();
  if(!session){$("login").classList.remove("hidden");$("app").classList.add("hidden");return}
  const {data:allowed}=await sb.rpc("is_milou_user");
  if(!allowed){await sb.auth.signOut();note($("authMsg"),"Compte non autorisé.","err");return}
  $("login").classList.add("hidden");$("app").classList.remove("hidden");$("userEmail").textContent=session.user.email||"";
- await refreshAll();
+ const loaded=await refreshAll();
+ if(!loaded)return;
  const connected=await testShopifyConnection();
  if(connected){
    await sb.functions.invoke("sync-shopify-state",{body:{}}).catch(()=>{});
@@ -284,6 +298,12 @@ document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.datase
 
 async function testShopifyConnection(){
   const box=$("shopifyHealth"),btn=$("testShopify");
+  const session=await ensureFreshSession();
+  if(!session){
+    if(box){box.className="notice warn";box.innerHTML='⚠️ Session expirée. Reconnexion en cours…';}
+    await authState();
+    return false;
+  }
   if(!box)return false;
   if(btn){btn.disabled=true;btn.textContent="Test…";}
   const {data,error}=await sb.functions.invoke("shopify-health",{body:{}});
@@ -317,6 +337,12 @@ async function testShopifyConnection(){
 }
 async function refreshAll(){
  const box=$("dataHealth");
+ const session=await ensureFreshSession();
+ if(!session){
+   if(box){box.className="notice warn";box.innerHTML='⚠️ Session expirée. Merci de te reconnecter.'}
+   $("login").classList.remove("hidden");$("app").classList.add("hidden");
+   return false;
+ }
  try{
    await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations()]);
    if(box){box.classList.add("hidden");box.textContent=""}
@@ -382,6 +408,8 @@ function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon 
 function shopifyNumber(id){return id?String(id).split("/").pop():"—"}
 function exportXlsx(name,rows){if(!window.XLSX){toast("Module Excel non chargé");return}const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Données");XLSX.writeFile(wb,name+".xlsx")}
 async function syncShopifyNow(){
+  const session=await ensureFreshSession();
+  if(!session){toast("Session expirée, reconnecte-toi");await authState();return}
   const connected=await testShopifyConnection();
   if(!connected){toast("Connexion Shopify non disponible");return}
   const btn=$("syncShopifyState");
@@ -815,6 +843,27 @@ if($("exportDeposits"))$("exportDeposits").onclick=()=>exportXlsx("milou-depots"
 if($("exportStock"))$("exportStock").onclick=()=>exportXlsx("milou-stock",stock.map(i=>({SKU:i.sku,Shopify:shopifyNumber(i.shopify_product_id),Titre:i.title,Marque:i.brand,Taille:i.size,Statut:statusLabel(i.status),Prix:i.sale_price,Emplacement:i.location_code,Depot:i.deposits?.code||"",Consignateur:i.consignors?.full_name||""})));
 if($("exportConsignors"))$("exportConsignors").onclick=()=>exportXlsx("milou-consignateurs",consignors.map(c=>({Code:c.code,Nom:c.full_name,Courriel:c.email,Telephone:c.phone,Pourcentage:c.default_commission_pct,Depots:deposits.filter(d=>d.consignor_id===c.id||d.consignors?.id===c.id).length,MontantDu:sales.filter(s=>s.consignor_id===c.id&&s.payout_status!=="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0)})));
 if($("exportSales"))$("exportSales").onclick=()=>exportXlsx("milou-ventes",sales.map(s=>({SKU:s.items?.sku,Produit:s.items?.title,Consignateur:s.consignors?.full_name,Vente:s.gross_amount,Pourcentage:s.commission_pct,MontantConsignateur:s.consignor_amount,PartBoutique:s.store_amount,StatutPaiement:s.payout_status,Date:s.sold_at})));
+let resumeBusy=false;
+async function resumeMilouApp(){
+  if(resumeBusy||document.visibilityState==="hidden")return;
+  resumeBusy=true;
+  try{
+    const session=await ensureFreshSession();
+    if(session){
+      $("login").classList.add("hidden");
+      $("app").classList.remove("hidden");
+      $("userEmail").textContent=session.user.email||"";
+      await refreshAll();
+      await testShopifyConnection();
+    }else{
+      $("login").classList.remove("hidden");
+      $("app").classList.add("hidden");
+    }
+  }finally{resumeBusy=false}
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")resumeMilouApp()});
+window.addEventListener("pageshow",()=>resumeMilouApp());
+window.addEventListener("online",()=>resumeMilouApp());
 authState();
 </script>
 </body></html>
