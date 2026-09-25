@@ -271,7 +271,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <div id="cropReviewModal" class="crop-review hidden">
   <div class="crop-review-box">
     <div class="crop-review-head">
-      <div><strong>Cadrage & lumière</strong><small>Déplace le cadre vert. Tire un coin pour le redimensionner. L’aperçu montre le rendu final.</small></div>
+      <div><strong>Modifier la photo</strong><small>La photo reste brute par défaut. Ajuste le cadrage, la luminosité, le contraste ou les couleurs seulement si nécessaire.</small></div>
       <button id="cropReviewCancel" type="button">✕</button>
     </div>
     <div class="crop-review-stage">
@@ -284,7 +284,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <button id="cropAutoAdjust" type="button" class="btn ghost small">✨ Réglages auto</button>
     </div>
     <div class="crop-review-actions">
-      <button id="cropResetAuto" type="button" class="btn ghost">↺ Recadrage auto</button>
+      <button id="cropResetAuto" type="button" class="btn ghost">↺ Réinitialiser</button>
       <button id="cropUseAuto" type="button" class="btn primary">✓ Confirmer la photo</button>
     </div>
   </div>
@@ -933,15 +933,15 @@ async function reviewCropChoice(source,srcW,srcH,detected){
   const ctx=canvas.getContext("2d");
 
   const targetRatio=.8;
-  const fallbackBox={x:srcW*.18,y:srcH*.16,w:srcW*.64,h:srcH*.68};
-  const detectedFit=fitBoxToRatio(detected||fallbackBox,srcW,srcH,targetRatio);
+  const fullBox={x:0,y:0,w:srcW,h:srcH};
   const toCanvasBox=b=>({x:b.x*scale,y:b.y*scale,w:b.w*scale,h:b.h*scale});
   const toSourceBox=b=>({x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale});
 
-  let box=toCanvasBox(detectedFit);
-  const autoBox={...box};
-  let autoTone=analyzeTone(source,srcW,srcH,detectedFit);
+  let box=toCanvasBox(fullBox);
+  const originalBox={...box};
+  let autoTone={brightness:1,contrast:1,saturation:1};
   let tone={...autoTone};
+  let frameChanged=false;
 
   const bSlider=$("cropBrightness"),cSlider=$("cropContrast"),sSlider=$("cropSaturation");
   const bv=$("cropBrightnessValue"),cv=$("cropContrastValue"),sv=$("cropSaturationValue");
@@ -1004,9 +1004,10 @@ async function reviewCropChoice(source,srcW,srcH,detected){
     tone={...autoTone};toneToSliders();draw();
   };
   $("cropResetAuto").onclick=()=>{
-    box={...autoBox};
-    autoTone=analyzeTone(source,srcW,srcH,toSourceBox(box));
-    tone={...autoTone};toneToSliders();draw();
+    box={...originalBox};
+    frameChanged=false;
+    tone={brightness:1,contrast:1,saturation:1};
+    toneToSliders();draw();
   };
 
   let gesture=null;
@@ -1029,6 +1030,7 @@ async function reviewCropChoice(source,srcW,srcH,detected){
     if(handle)gesture={type:"resize",handle,start:p,box:{...box}};
     else if(p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+box.h)
       gesture={type:"move",start:p,box:{...box}};
+    if(gesture)frameChanged=true;
   };
 
   canvas.onpointermove=e=>{
@@ -1064,12 +1066,12 @@ async function reviewCropChoice(source,srcW,srcH,detected){
       cropReviewResolver=null;
       resolve(choice);
     };
-    $("cropUseAuto").onclick=()=>cropReviewResolver?.({mode:"custom",box:toSourceBox(box),tone:{...tone}});
-    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({
-      mode:"full",
-      box:{x:0,y:0,w:srcW,h:srcH},
+    $("cropUseAuto").onclick=()=>cropReviewResolver?.({
+      mode:frameChanged?"custom":"full",
+      box:frameChanged?toSourceBox(box):{x:0,y:0,w:srcW,h:srcH},
       tone:{...tone}
     });
+    $("cropReviewCancel").onclick=()=>cropReviewResolver?.({mode:"cancel"});
   });
 }
 
@@ -1096,37 +1098,73 @@ async function canvasToPhotoFile(c,name,meta={}){
   return file;
 }
 
-async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalBytes=null,review=true){
-  const targetW=1200,targetH=1500,targetRatio=targetW/targetH;
-  const detected=detectSubjectBox(source,srcW,srcH);
-
-  let choice={mode:"auto",box:detected||{x:0,y:0,w:srcW,h:srcH}};
+async function processPhotoSource(source,srcW,srcH,name="photo.jpg",originalBytes=null,review=true,originalFile=null){
+  const detected=null;
+  let choice={mode:"full",box:{x:0,y:0,w:srcW,h:srcH},tone:{brightness:1,contrast:1,saturation:1}};
   if(review)choice=await reviewCropChoice(source,srcW,srcH,detected);
   if(choice.mode==="cancel")return null;
 
-  const initial=choice.box||{x:0,y:0,w:srcW,h:srcH};
-  const box=fitBoxToRatio(initial,srcW,srcH,targetRatio);
-  const tone=choice.tone||analyzeTone(source,srcW,srcH);
-
+  const tone=choice.tone||{brightness:1,contrast:1,saturation:1};
   const c=document.createElement("canvas");
-  c.width=targetW;c.height=targetH;
   const ctx=c.getContext("2d",{alpha:false});
-  ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,targetW,targetH);
-  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
-  ctx.drawImage(source,box.x,box.y,box.w,box.h,0,0,targetW,targetH);
-  applyTonePixels(ctx,targetW,targetH,tone);
+
+  if(choice.mode==="custom"){
+    const targetW=1200,targetH=1500,targetRatio=targetW/targetH;
+    const initial=choice.box||{x:0,y:0,w:srcW,h:srcH};
+    const box=fitBoxToRatio(initial,srcW,srcH,targetRatio);
+    c.width=targetW;c.height=targetH;
+    ctx.fillStyle="#fbf7ef";ctx.fillRect(0,0,targetW,targetH);
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+    ctx.drawImage(source,box.x,box.y,box.w,box.h,0,0,targetW,targetH);
+  }else{
+    const maxSide=1800,scale=Math.min(1,maxSide/Math.max(srcW,srcH));
+    c.width=Math.max(1,Math.round(srcW*scale));c.height=Math.max(1,Math.round(srcH*scale));
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+    ctx.drawImage(source,0,0,c.width,c.height);
+  }
+
+  applyTonePixels(ctx,c.width,c.height,tone);
 
   return await canvasToPhotoFile(c,name,{
     sourceWidth:srcW,sourceHeight:srcH,sourceBytes:originalBytes,
     subjectCrop:choice.mode==="custom",
-    tone
+    tone,
+    originalFile:originalFile||null
   });
 }
 
 async function processPhotoFile(file){
-  const loaded=await loadBitmapOrImage(file);
-  try{return await processPhotoSource(loaded.source,loaded.width,loaded.height,file.name,file.size)}
+  const original=photoMeta.get(file)?.originalFile||file;
+  const loaded=await loadBitmapOrImage(original);
+  try{return await processPhotoSource(loaded.source,loaded.width,loaded.height,original.name,original.size,true,original)}
   finally{loaded.cleanup?.()}
+}
+
+async function rawCanvasPhotoFile(c,name="camera.jpg"){
+  const blob=await new Promise(res=>c.toBlob(res,"image/jpeg",.95));
+  if(!blob)throw new Error("Capture impossible");
+  const file=new File([blob],name,{type:"image/jpeg",lastModified:Date.now()});
+  photoMeta.set(file,{width:c.width,height:c.height,ready:true,bytes:blob.size,raw:true,originalFile:file});
+  return file;
+}
+
+async function editPhotoAt(index){
+  const current=photos[index];if(!current)return;
+  const original=photoMeta.get(current)?.originalFile||current;
+  setPhotoProcessing(1);
+  try{
+    const loaded=await loadBitmapOrImage(original);
+    const edited=await processPhotoSource(loaded.source,loaded.width,loaded.height,original.name,original.size,true,original);
+    loaded.cleanup?.();
+    if(edited){photos[index]=edited;renderPhotos();updateCameraCount();toast("Modifications appliquées");}
+  }catch(e){toast("Modification impossible")}
+  finally{setPhotoProcessing(-1)}
+}
+
+function restoreOriginalPhotoAt(index){
+  const current=photos[index];if(!current)return;
+  const original=photoMeta.get(current)?.originalFile;
+  if(original&&original!==current){photos[index]=original;renderPhotos();updateCameraCount();toast("Photo originale restaurée");}
 }
 
 async function rotatePhotoAt(index){
@@ -1143,7 +1181,8 @@ async function rotatePhotoAt(index){
     ctx.drawImage(loaded.source,-loaded.width/2,-loaded.height/2);
     loaded.cleanup?.();
 
-    const rotated=await canvasToPhotoFile(out,file.name,{rotated:true});
+    const original=photoMeta.get(file)?.originalFile||file;
+    const rotated=await canvasToPhotoFile(out,file.name,{rotated:true,originalFile:original});
     photos[index]=rotated;
     renderPhotos();updateCameraCount();
     toast("Photo tournée");
@@ -1154,14 +1193,10 @@ async function addPhotos(files){
   const incoming=Array.from(files||[]).filter(f=>f.type.startsWith("image/"));
   for(const original of incoming){
     if(photos.length>=8){toast("Maximum 8 photos");break}
-    setPhotoProcessing(1);
-    try{
-      const processed=await processPhotoFile(original);
-      if(processed){photos.push(processed);renderPhotos();updateCameraCount();}
-    }catch(e){
-      toast("Une photo n’a pas pu être préparée");
-    }finally{setPhotoProcessing(-1)}
+    photoMeta.set(original,{ready:true,bytes:original.size,raw:true,originalFile:original});
+    photos.push(original);
   }
+  renderPhotos();updateCameraCount();
 }
 function renderPhotos(){
   const el=$("photoPreview");
@@ -1183,13 +1218,19 @@ function renderPhotos(){
 
     const tools=document.createElement("div");
     tools.className="photo-tools";
+    const edit=document.createElement("button");
+    edit.type="button";edit.textContent="✎ Modifier";
+    edit.onclick=()=>editPhotoAt(i);
     const rotate=document.createElement("button");
     rotate.type="button";rotate.textContent="↻ Tourner";
     rotate.onclick=()=>rotatePhotoAt(i);
-    const remove=document.createElement("button");
-    remove.type="button";remove.textContent="Supprimer";
-    remove.onclick=()=>{photos.splice(i,1);renderPhotos();updateCameraCount()};
-    tools.append(rotate,remove);
+    const meta=photoMeta.get(f);
+    if(meta?.originalFile&&meta.originalFile!==f){
+      const reset=document.createElement("button");
+      reset.type="button";reset.textContent="↺ Original";
+      reset.onclick=()=>restoreOriginalPhotoAt(i);
+      tools.append(edit,rotate,reset);
+    }else tools.append(edit,rotate);
 
     card.append(img,del,idx,tools);
     el.appendChild(card);
@@ -1239,11 +1280,9 @@ $("cameraShutter").onclick=async()=>{
     const snap=document.createElement("canvas");
     snap.width=v.videoWidth;snap.height=v.videoHeight;
     snap.getContext("2d").drawImage(v,0,0,snap.width,snap.height);
-    const processed=await processPhotoSource(snap,snap.width,snap.height,"camera-"+Date.now()+".jpg",null,true);
-    if(processed){
-      photos.push(processed);
-      renderPhotos();updateCameraCount();showCameraShotNotice();navigator.vibrate?.(35);
-    }
+    const raw=await rawCanvasPhotoFile(snap,"camera-"+Date.now()+".jpg");
+    photos.push(raw);
+    renderPhotos();updateCameraCount();showCameraShotNotice();navigator.vibrate?.(35);
   }catch(e){toast("La photo n’a pas pu être préparée")}
   finally{setPhotoProcessing(-1);btn.disabled=false}
 };
