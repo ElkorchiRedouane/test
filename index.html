@@ -1467,28 +1467,84 @@ function fillAnalysis(x){
      .trim();
  }
 }
-let recorder=null,audioChunks=[],micStream=null;
+let recorder=null,audioChunks=[],micStream=null,micStartedAt=0;
 $("micBtn").onclick=async()=>{
-  if(recorder&&recorder.state==="recording"){recorder.stop();return}
+  if(recorder&&recorder.state==="recording"){
+    try{recorder.requestData?.()}catch{}
+    setTimeout(()=>{try{recorder.stop()}catch{}},120);
+    return;
+  }
   try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
-    const mime=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":(MediaRecorder.isTypeSupported("audio/webm")?"audio/webm":"");
-    recorder=new MediaRecorder(micStream,mime?{mimeType:mime}:undefined);audioChunks=[];
-    recorder.ondataavailable=e=>{if(e.data.size)audioChunks.push(e.data)};
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){
+      toast("La dictée n’est pas prise en charge par ce navigateur.");
+      return;
+    }
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    const candidates=["audio/mp4;codecs=mp4a.40.2","audio/mp4","audio/webm;codecs=opus","audio/webm"];
+    const mime=candidates.find(x=>MediaRecorder.isTypeSupported?.(x))||"";
+    recorder=new MediaRecorder(micStream,mime?{mimeType:mime}:undefined);
+    audioChunks=[];micStartedAt=Date.now();
+
+    recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)audioChunks.push(e.data)};
+    recorder.onerror=()=>toast("Erreur pendant l’enregistrement audio.");
+
     recorder.onstop=async()=>{
-      $("micBtn").classList.remove("recording");$("micBtn").textContent="🎙️";micStream?.getTracks().forEach(t=>t.stop());
-      const blob=new Blob(audioChunks,{type:recorder.mimeType||"audio/webm"});
-      const ext=(blob.type.includes("mp4")?"m4a":"webm"),fd=new FormData();
-      fd.append("file",new File([blob],"note."+ext,{type:blob.type}));
+      $("micBtn").classList.remove("recording");
+      $("micBtn").textContent="🎙️";
+      micStream?.getTracks().forEach(t=>t.stop());
+      micStream=null;
+
+      const finalType=recorder?.mimeType||audioChunks[0]?.type||"audio/mp4";
+      const blob=new Blob(audioChunks,{type:finalType});
+      if(blob.size<1000||Date.now()-micStartedAt<500){
+        toast("Enregistrement trop court. Réessaie en parlant 1 à 2 secondes.");
+        return;
+      }
+
+      const ext=finalType.includes("mp4")?"mp4":finalType.includes("webm")?"webm":"m4a";
+      const fd=new FormData();
+      fd.append("file",new File([blob],"note."+ext,{type:finalType}));
+
+      $("micBtn").disabled=true;
+      $("micBtn").textContent="…";
       toast("Transcription en cours…");
+
       const {data,error}=await sb.functions.invoke("transcribe-audio",{body:fd});
-      if(error||data?.error){toast("La transcription n’a pas fonctionné");return}
+
+      $("micBtn").disabled=false;
+      $("micBtn").textContent="🎙️";
+
+      if(error||data?.error){
+        let detail=data?.detail||data?.error||error?.message||"";
+        try{
+          if(!detail&&error?.context&&typeof error.context.json==="function"){
+            const b=await error.context.json();detail=b?.detail||b?.error||"";
+          }
+        }catch{}
+        console.error("Transcription error",error,data);
+        toast(detail?"Transcription impossible : "+String(detail).slice(0,120):"La transcription n’a pas fonctionné");
+        return;
+      }
+
       const text=String(data?.text||"").trim();
-      if(text)$("rawText").value=($("rawText").value+" "+text).trim();
+      if(text){
+        const current=$("rawText").value.trim();
+        $("rawText").value=(current+(current?" ":"")+text).trim();
+        $("rawText").dispatchEvent(new Event("input",{bubbles:true}));
+      }
       toast(text?"Dictée ajoutée":"Aucun texte détecté");
     };
-    recorder.start();$("micBtn").classList.add("recording");$("micBtn").textContent="■";toast("Parle, puis appuie sur ■ pour arrêter");
-  }catch(e){toast("Impossible d’utiliser le micro. Vérifie l’autorisation micro dans Safari.");}
+
+    recorder.start(500);
+    $("micBtn").classList.add("recording");
+    $("micBtn").textContent="■";
+    toast("Parle, puis appuie sur ■ pour arrêter");
+  }catch(e){
+    console.error("Micro error",e);
+    micStream?.getTracks().forEach(t=>t.stop());
+    micStream=null;
+    toast("Impossible d’utiliser le micro. Vérifie l’autorisation micro dans Safari.");
+  }
 };
 
 async function saveArticle(toShopify){
