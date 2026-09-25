@@ -271,7 +271,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <div id="cropReviewModal" class="crop-review hidden">
   <div class="crop-review-box">
     <div class="crop-review-head">
-      <div><strong>Modifier la photo</strong><small>La photo reste brute par défaut. Ajuste le cadrage, la luminosité, le contraste ou les couleurs seulement si nécessaire.</small></div>
+      <div><strong>Rogner et ajuster</strong><small>Déplace ou redimensionne le cadre pour rogner. Tu peux aussi corriger légèrement la lumière, le contraste et les couleurs.</small></div>
       <button id="cropReviewCancel" type="button">✕</button>
     </div>
     <div class="crop-review-stage">
@@ -285,7 +285,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     </div>
     <div class="crop-review-actions">
       <button id="cropResetAuto" type="button" class="btn ghost">↺ Réinitialiser</button>
-      <button id="cropUseAuto" type="button" class="btn primary">✓ Confirmer la photo</button>
+      <button id="cropUseAuto" type="button" class="btn primary">✓ Appliquer le rognage</button>
     </div>
   </div>
 </div>
@@ -1224,6 +1224,53 @@ function replaceConnectedBackgroundWithWhite(ctx,w,h){
   ctx.putImageData(img,0,0);
 }
 
+async function photoForAiDataUrl(file){
+  const loaded=await loadBitmapOrImage(file);
+  try{
+    const maxSide=1400,scale=Math.min(1,maxSide/Math.max(loaded.width,loaded.height));
+    const out=document.createElement("canvas");
+    out.width=Math.max(1,Math.round(loaded.width*scale));
+    out.height=Math.max(1,Math.round(loaded.height*scale));
+    const ctx=out.getContext("2d",{alpha:false});
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,out.width,out.height);
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+    ctx.drawImage(loaded.source,0,0,out.width,out.height);
+    return out.toDataURL("image/jpeg",.84);
+  }finally{loaded.cleanup?.()}
+}
+
+async function dataUrlToPhotoFile(dataUrl,name="photo.png",originalFile=null){
+  const res=await fetch(dataUrl);
+  if(!res.ok)throw new Error("Image IA invalide");
+  const blob=await res.blob();
+  const base=(name||"photo").replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_-]/g,"-").slice(0,50)||"photo";
+  const file=new File([blob],base+"-retouche-ia.png",{type:blob.type||"image/png",lastModified:Date.now()});
+  photoMeta.set(file,{ready:true,bytes:blob.size,aiRetouched:true,originalFile:originalFile||file});
+  return file;
+}
+
+async function applyAiRetouchAt(index){
+  const current=photos[index];if(!current)return;
+  const original=photoMeta.get(current)?.originalFile||current;
+  setPhotoProcessing(1);
+  toast("Retouche IA en cours…");
+  try{
+    const imageDataUrl=await photoForAiDataUrl(current);
+    const {data,error}=await sb.functions.invoke("retouch-photo",{
+      body:{imageDataUrl,fileName:current.name||"photo.jpg"}
+    });
+    if(error)throw error;
+    if(!data?.imageDataUrl)throw new Error(data?.error||"Aucune image retournée");
+    const result=await dataUrlToPhotoFile(data.imageDataUrl,current.name,original);
+    photos[index]=result;
+    renderPhotos();updateCameraCount();
+    toast("Photo retouchée — vérifie le résultat avant publication");
+  }catch(e){
+    console.error(e);
+    toast("La retouche IA a échoué");
+  }finally{setPhotoProcessing(-1)}
+}
+
 async function applyWhiteBackgroundAt(index){
   const current=photos[index];if(!current)return;
   const original=photoMeta.get(current)?.originalFile||current;
@@ -1304,12 +1351,12 @@ function renderPhotos(){
 
     const tools=document.createElement("div");
     tools.className="photo-tools";
-    const edit=document.createElement("button");
-    edit.type="button";edit.textContent="✎ Modifier";
-    edit.onclick=()=>editPhotoAt(i);
-    const whiteBg=document.createElement("button");
-    whiteBg.type="button";whiteBg.textContent="⬜ Fond blanc";
-    whiteBg.onclick=()=>applyWhiteBackgroundAt(i);
+    const crop=document.createElement("button");
+    crop.type="button";crop.textContent="✂️ Rogner / ajuster";
+    crop.onclick=()=>editPhotoAt(i);
+    const ai=document.createElement("button");
+    ai.type="button";ai.textContent="✨ Retouche IA";
+    ai.onclick=()=>applyAiRetouchAt(i);
     const rotate=document.createElement("button");
     rotate.type="button";rotate.textContent="↻ Tourner";
     rotate.onclick=()=>rotatePhotoAt(i);
@@ -1318,8 +1365,8 @@ function renderPhotos(){
       const reset=document.createElement("button");
       reset.type="button";reset.textContent="↺ Original";
       reset.onclick=()=>restoreOriginalPhotoAt(i);
-      tools.append(edit,whiteBg,rotate,reset);
-    }else tools.append(edit,whiteBg,rotate);
+      tools.append(crop,ai,rotate,reset);
+    }else tools.append(crop,ai,rotate);
 
     card.append(img,del,idx,tools);
     el.appendChild(card);
