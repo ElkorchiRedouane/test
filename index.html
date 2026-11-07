@@ -227,8 +227,8 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="notice warn" id="posSquareSetupNotice"><strong>Square et Milou fonctionnent séparément.</strong> Encaisse le paiement dans l’application Square sur l’iPad, puis reviens dans Milou pour enregistrer la référence de la transaction et imprimer la facture détaillée. Le reçu bancaire doit être imprimé par Square. Les ventes réelles Milou restent désactivées jusqu’à la validation fiscale.</div>
     <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
-      <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
-      <div id="posMessage"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
+      <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posScanPhoto" class="btn ghost">🖼 Lire depuis une photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
+      <div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
         <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Taxes (configuration requise)</span><strong id="posTax">—</strong></div>
@@ -1947,35 +1947,86 @@ $("stockSearch").oninput=renderStock;
 
 
 let posCameraInstance=null;
+function posScannerFormats(){
+ const f=window.Html5QrcodeSupportedFormats;
+ return f?.CODE_128!==undefined?[f.CODE_128]:undefined;
+}
+function posScanFeedback(message,isError=false){
+ const status=$("posScanStatus");
+ if(status){status.textContent=message;status.style.color=isError?"#a33131":"";}
+}
+function posAcceptScannedCode(raw){
+ const code=String(raw||"").trim().toUpperCase();
+ if(!code)return false;
+ $("posSku").value=code;
+ const added=addPosSku(false);
+ if(added){
+  posScanFeedback("✓ Code lu : "+code+" — article ajouté au panier.");
+  if(navigator.vibrate)try{navigator.vibrate(45)}catch(e){}
+ }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier.",true);
+ return added;
+}
 async function stopPosCamera(){
  const scanner=posCameraInstance;posCameraInstance=null;
  if(scanner){try{await scanner.stop()}catch(e){}try{await scanner.clear()}catch(e){}}
  const container=$("posCameraBox");if(container)container.classList.add("hidden");
+ const btn=$("posCamera");if(btn)btn.textContent="📷 Scanner avec la caméra";
 }
 async function startPosCamera(){
  if(posCameraInstance){await stopPosCamera();return}
- if(!window.Html5Qrcode){note($("posMessage"),"Module de lecture indisponible. Vérifie la connexion Internet.","err");return}
+ if(!window.Html5Qrcode){posScanFeedback("Lecteur indisponible : recharge la page avec Internet actif.",true);return}
+ if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra inaccessible ici. Ouvre cette page directement dans Safari sur iPad (HTTPS).",true);return}
  const b=$("posCamera");b.disabled=true;
  try{
   $("posCameraBox").classList.remove("hidden");
-  const scanner=new window.Html5Qrcode("posCameraReader");
+  posScanFeedback("Autorise l'accès à la caméra dans Safari si demandé.");
+  const formats=posScannerFormats();
+  const scanner=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats,verbose:false}:{verbose:false});
   posCameraInstance=scanner;
   let lastCode="",lastAt=0;
-  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:160}},async raw=>{
+  const detected=raw=>{
    if(posCameraInstance!==scanner)return;
-   const code=String(raw||"").trim().toUpperCase();
-   const now=Date.now();
-   if(!code||(code===lastCode&&now-lastAt<1800))return;
+   const code=String(raw||"").trim().toUpperCase(),now=Date.now();
+   if(!code||(code===lastCode&&now-lastAt<2200))return;
    lastCode=code;lastAt=now;
-   $("posSku").value=code;
-   addPosSku();
-   // Keep scanning for multi-item baskets; the same code cannot be added twice.
-  },()=>{});
- }catch(e){await stopPosCamera();note($("posMessage"),"Impossible d'ouvrir la caméra : "+esc(e.message||String(e)),"err")}
- finally{b.disabled=false}
+   posAcceptScannedCode(code);
+  };
+  await scanner.start({facingMode:"environment"},{fps:15,aspectRatio:1.333333,disableFlip:true,
+   videoConstraints:{facingMode:"environment",width:{ideal:1280},height:{ideal:960}}},detected,()=>{});
+  b.textContent="Arrêter la caméra";
+  posScanFeedback("Caméra active : cadre le code-barres complet. Si besoin, essaie une photo.");
+ }catch(e){
+  await stopPosCamera();
+  const err=String(e?.message||e||"");
+  const denied=/NotAllowedError|Permission denied|permission|denied/i.test(err);
+  const missing=/NotFoundError|not found|Overconstrained/i.test(err);
+  posScanFeedback(denied?"Accès caméra refusé. Autorise la caméra dans les réglages du site Safari.":missing?"Caméra arrière introuvable. Vérifie les autorisations Safari.":"Caméra impossible à démarrer : "+err+". Essaie une photo.",true);
+ }finally{b.disabled=false}
+}
+async function scanPosPhoto(file){
+ if(!file)return;
+ if(!window.Html5Qrcode){posScanFeedback("Lecteur indisponible : recharge la page.",true);return}
+ if(posCameraInstance)await stopPosCamera();
+ const b=$("posScanPhoto");b.disabled=true;
+ const host=$("posCameraBox");host.classList.remove("hidden");
+ posScanFeedback("Analyse de l'image en cours…");
+ let reader=null;
+ try{
+  const formats=posScannerFormats();
+  reader=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats,verbose:false}:{verbose:false});
+  const raw=await reader.scanFile(file,false);
+  posAcceptScannedCode(raw);
+ }catch(e){
+  posScanFeedback("Code non reconnu dans la photo. Prends une photo nette et bien éclairée avec le code entier. Détail : "+String(e?.message||e),true);
+ }finally{
+  if(reader)try{await reader.clear()}catch(e){}
+  host.classList.add("hidden");b.disabled=false;$("posScanFile").value="";
+ }
 }
 $("posCamera").onclick=startPosCamera;
 $("posCameraClose").onclick=stopPosCamera;
+$("posScanPhoto").onclick=()=>{$("posScanFile").click()};
+$("posScanFile").onchange=e=>{void scanPosPhoto(e.target.files?.[0])};
 let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false,posSquareManualEnabled=false,posSquareBusy=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
@@ -2266,20 +2317,21 @@ function renderPosCart(){
  renderPosCart();
 });
 }
-function addPosSku(){
+function addPosSku(focusAfter=true){
  const code=$("posSku").value.trim().toUpperCase();
- if(!code)return;
+ if(!code)return false;
  const i=stock.find(i=>String(i.sku||"").toUpperCase()===code);
- if(!i){note($("posMessage"),"SKU introuvable : "+esc(code)+". Actualise le stock si nécessaire.","err");return}
- if(!["validated","shopify_draft","online"].includes(i.status)||i.deleted_at){note($("posMessage"),"Article non disponible : "+esc(code)+".","err");return}
- if(i.sale_price==null||!Number.isFinite(Number(i.sale_price))){note($("posMessage"),"Prix manquant : "+esc(code),"err");return}
- if(posCartIds.includes(i.id)){note($("posMessage"),"Article déjà présent dans le panier.","warn");$("posSku").value="";return}
+ if(!i){note($("posMessage"),"SKU introuvable : "+esc(code)+". Actualise le stock si nécessaire.","err");return false}
+ if(!["validated","shopify_draft","online"].includes(i.status)||i.deleted_at){note($("posMessage"),"Article non disponible : "+esc(code)+".","err");return false}
+ if(i.sale_price==null||!Number.isFinite(Number(i.sale_price))){note($("posMessage"),"Prix manquant : "+esc(code),"err");return false}
+ if(posCartIds.includes(i.id)){note($("posMessage"),"Article déjà présent dans le panier.","warn");$("posSku").value="";return false}
  posCartIds.push(i.id);
  posClearPrepared();
  $("posSku").value="";
  $("posMessage").innerHTML="";
  renderPosCart();
- $("posSku").focus();
+ if(focusAfter)$("posSku").focus();
+ return true;
 }
 async function preparePosDraft(){
  if(posDraftOrderId){note($("posPreparedStatus"),"Ce panier est déjà préparé (référence "+esc(posDraftOrderId)+"). Retire ou ajoute un article pour commencer un nouveau panier.","warn");return}
@@ -2330,7 +2382,7 @@ $("posSquareReceiptDemo").onclick=()=>{
  showPosReceipt({items:lines,total_cents:posCartCents(),payment_method:"square",square_reference:"TEST-SQUARE-NON-VALIDE",tax_mode:posFiscalMode},true,null,"posSquareReceipt");
  note($("posSquareStatus"),"Reçu de TEST généré pour vérifier l’imprimante. Aucun paiement, stock ou commission enregistré.");
 };
-$("posAdd").onclick=addPosSku;
+$("posAdd").onclick=()=>addPosSku();
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
 $("posClear").onclick=()=>{
  posCartIds=[];posClearPrepared();$("posSku").value="";$("posCashReceived").value="";
