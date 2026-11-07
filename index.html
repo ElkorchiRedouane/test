@@ -429,14 +429,10 @@ async function authState(){
    }
    $("userEmail").textContent=session.user.email||"";
    const loaded=await refreshAll();
-   if(loaded){
-    const connected=await testShopifyConnection();
-    if(connected){
-     await sb.functions.invoke("sync-shopify-state",{body:{}}).catch(()=>{});
-     await refreshAll();
-    }
-   }
    $("login").classList.add("hidden");$("app").classList.remove("hidden");
+   // Shopify health checks must not hold the dashboard hostage.
+   // Synchronization is explicit, via "Synchroniser Shopify", not automatic at login.
+   if(loaded)void testShopifyConnection().catch(e=>console.warn("Shopify status:",e));
    if(!window.history.state?.milouPage){
     window.history.replaceState({milouPage:"home"},"",window.location.pathname+window.location.search+"#home");
    }
@@ -603,12 +599,13 @@ async function refreshAll(){
  }
  try{
    await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations(),loadPosConfig()]);
-    await loadPayoutFinancials();
    if(box){box.classList.add("hidden");box.textContent=""}
    renderConsignors();renderDeposits();renderStock();renderPayouts();renderPosCart();fillDepositSelect();fillFilters();renderStats();
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
    const sg=$("syncGoogleSheet");if(sg)sg.onclick=syncGoogleSheetNow;
-   await refreshSheetSyncStatus();
+   // Financial and Google Sheet panels refresh asynchronously; neither blocks the dashboard.
+   void loadPayoutFinancials().catch(e=>console.warn("Payout load:",e));
+   void refreshSheetSyncStatus().catch(e=>console.warn("Sheet status:",e));
    setTimeout(()=>autoSyncGoogleSheetIfNeeded(),250);
    return true;
  }catch(e){
@@ -625,15 +622,7 @@ async function loadDeposits(){
   const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
   if(error)throw new Error("Dépôts : "+error.message);
   deposits=data||[];
-  for(const d of deposits){
-    for(const i of (d.items||[])){
-      const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
-      if(pics[0]?.storage_path){
-        const {data:signed}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);
-        i.photo_url=signed?.signedUrl||null;
-      }
-    }
-  }
+  // Photo URLs are signed after the core data is visible; no sequential network wait here.
 }
 async function fetchMilouPages(table,fields,orderColumn,label){
  const pageSize=500,maxRows=10000,all=[];
@@ -645,20 +634,41 @@ async function fetchMilouPages(table,fields,orderColumn,label){
  }
  throw new Error(label+" : limite de 10 000 lignes atteinte. La synchronisation complète doit être adaptée avant de continuer.");
 }
+let photoHydrationActive=false;
 async function loadStock(){
  stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
- // Concurrency-limited signed URLs: avoids delaying the cash register on large inventories.
- const queue=stock.slice();const workers=Array.from({length:8},async()=>{
-  while(queue.length){
-   const item=queue.shift();
-   const pics=(item.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
-   if(pics[0]?.storage_path){
-    const {data}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);
-    item.photo_url=data?.signedUrl||null;
+ // Cached signed URLs are short-lived and only used within the authenticated session.
+ void hydrateMilouPhotos().catch(e=>console.warn("Photo hydration:",e));
+}
+async function hydrateMilouPhotos(){
+ if(photoHydrationActive)return;
+ photoHydrationActive=true;
+ try{
+  const entries=[...stock,...deposits.flatMap(d=>d.items||[])];
+  const paths=new Map();
+  for(const i of entries){
+   const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
+   const path=pics[0]?.storage_path;
+   if(path){
+    if(!paths.has(path))paths.set(path,[]);
+    paths.get(path).push(i);
    }
   }
- });
- await Promise.all(workers);
+  const queue=[...paths.keys()];
+  const workers=Array.from({length:8},async()=>{
+   while(queue.length){
+    const path=queue.shift();
+    const {data,error}=await sb.storage.from("item-photos").createSignedUrl(path,3600);
+    if(!error && data?.signedUrl)for(const item of paths.get(path))item.photo_url=data.signedUrl;
+   }
+  });
+  await Promise.all(workers);
+  // Preserve user's current filters and view; update images only after they become ready.
+  if(!$("app").classList.contains("hidden")){
+   if($("stock").classList.contains("active"))renderStock();
+   if($("deposits").classList.contains("active"))renderDeposits();
+  }
+ }finally{photoHydrationActive=false}
 }
 async function loadSales(){
  sales=await fetchMilouPages("sales","*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)","sold_at","Ventes");
@@ -1736,7 +1746,7 @@ function renderLabelList(){
   '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
  ).join(""):'<div class="empty">Aucun article imprimable pour ce dépôt ou ce filtre. Les articles supprimés de Shopify ne sont pas automatiquement remis en vente.</div>';
  document.querySelectorAll(".labelPick").forEach(el=>el.onchange=()=>{
- if(el.checked){selectedLabelIds.clear();selectedLabelIds.add(el.dataset.id)}
+ if(el.checked)selectedLabelIds.add(el.dataset.id)
  else selectedLabelIds.delete(el.dataset.id);
  // Print selections may contain multiple articles via "Tout sélectionner"; preview follows the last clicked.
  labelPreviewItemId=el.checked?el.dataset.id:null;
