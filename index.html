@@ -2185,7 +2185,7 @@ async function showPosHistoryDetail(id){
  '<div style="margin-top:12px"><b>Montant : '+money(Number(receipt.total_cents)/100)+'</b></div>'+
  (paid?'<div class="actions"><button class="btn green small" id="posHistoryReceipt">Voir et imprimer le reçu</button></div>':
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
- (order.status==="draft"?'<div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
+ (order.status==="draft"?'<div class="actions"><button id="posHistoryResumeDraft" class="btn green small">Reprendre ce panier en caisse</button></div><div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
  '<div class="notice warn">Le retour est uniquement une demande de vérification : aucun remboursement ni changement de stock ou commission n’est effectué.</div>'+
  '<div id="posHistoryReceiptBox"></div></div></div>';
@@ -2201,6 +2201,18 @@ async function showPosHistoryDetail(id){
   await loadPosReturns();
  };
 
+ if(order.status==="draft")$("posHistoryResumeDraft").onclick=()=>{
+  const eligible=lines.length>0&&lines.every(line=>stock.some(item=>item.id===line.item_id&&["validated","shopify_draft","online"].includes(item.status)&&Math.round(Number(item.sale_price||0)*100)===Number(line.price_cents)));
+  if(!eligible){note($("posHistoryMessage"),"Impossible de reprendre ce panier : un article est absent, vendu ou son prix a changé.","err");return;}
+  posCartIds=lines.map(x=>x.item_id);
+  posDraftOrderId=id;
+  $("posSquareAmount").value=(Number(order.subtotal_cents)/100).toFixed(2);
+  $("posSquareReference").value="";
+  $("posSquareAttest").checked=false;
+  go("cashier");
+  renderPosCart();updateSquareManualButton();
+  note($("posPreparedStatus"),"Panier brouillon repris : "+esc(id)+". Vérifie dans Square la référence et le montant avant confirmation.");
+ };
  if(order.status==="draft")$("posHistoryCancelDraft").onclick=()=>{
   const surface=$("posHistoryCancelConfirm");
   surface.classList.remove("hidden");
@@ -2295,8 +2307,9 @@ async function confirmSquareManual(){
   await refreshAll();
   renderPosCart();
   $("posSquareReference").value="";$("posSquareAmount").value="";$("posSquareAttest").checked=false;
-  note(status,"Vente enregistrée et stock mis à jour. Ouvre l’impression du reçu détaillé ci-dessous. Le reçu bancaire est imprimé depuis Square.");
+  note(status,"Vente enregistrée et stock mis à jour. Imprime le reçu détaillé Milou ci-dessous. Le reçu bancaire est imprimé séparément depuis Square.");
   showPosReceipt(receipt,false,null,"posSquareReceipt");
+  printPosReceipt();
  }catch(e){note(status,"Encaissement Milou NON confirmé : "+esc(e.message||String(e))+". Vérifie l’historique et Square avant de réessayer.","err")}
  finally{posSquareBusy=false;updateSquareManualButton();}
 }
