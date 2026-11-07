@@ -269,6 +269,15 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div id="payoutSummary" class="finance-grid"></div>
       <div id="payoutConsignorBalances" class="list" style="margin-top:12px"></div>
     </div></div>
+    <div class="panel"><div class="panel-head"><h2>🧪 Tester un versement sans vente réelle</h2><span class="badge yellow">Démonstration</span></div><div class="panel-body">
+      <div class="notice warn">Calcul fictif uniquement : aucun versement, aucune commission et aucun solde réel ne seront créés.</div>
+      <div class="grid">
+        <div class="field"><label>Prix de vente fictif ($)</label><input id="demoPayoutGross" type="number" inputmode="decimal" min="0" step="0.01" value="60"></div>
+        <div class="field"><label>Part consignateur (%)</label><input id="demoPayoutPct" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="40"></div>
+        <div class="field"><label>Versement fictif ($)</label><input id="demoPayoutPaid" type="number" inputmode="decimal" min="0" step="0.01" value="10"></div>
+      </div>
+      <div id="demoPayoutResult" class="notice"></div>
+    </div></div>
     <div class="panel"><div class="panel-head"><h2>Préparer un versement</h2><span class="badge yellow">Simulation</span></div><div class="panel-body">
       <div class="notice warn">Aucun versement réel ne sera enregistré. Le solde provient des ventes réellement confirmées, et non du prix affiché ou d'un pourcentage modifiable. Les retours en attente sont exclus des montants préparables.</div>
       <div class="field"><label>Consignateur</label><select id="payConsignor"><option value="">Choisir un consignateur</option></select></div>
@@ -2143,6 +2152,21 @@ $("saleScanCamera").onclick=startSaleScanner;
 $("saleScanStop").onclick=stopSaleScanner;
 
 let payoutHistory=[],payoutReturnHolds=new Set(),payoutLastStatement=null,payoutSelectionDefault="",payoutProposals=[];
+function renderDemoPayout(){
+ const rawGross=posCentsFromInput($("demoPayoutGross")?.value);
+ const pct=Number($("demoPayoutPct")?.value);
+ const paid=posCentsFromInput($("demoPayoutPaid")?.value);
+ const el=$("demoPayoutResult");
+ if(rawGross===null||paid===null||!Number.isFinite(pct)||pct<0||pct>100){
+  el.textContent="Entre un prix, un pourcentage (0 à 100) et un versement valides.";return
+ }
+ const share=Math.round(rawGross*pct/100),store=rawGross-share;
+ if(paid>share){el.textContent="Le versement fictif dépasse la part du consignateur ("+money(share/100)+").";return}
+ el.innerHTML='<b>DEMO — aucun paiement enregistré</b><div>Part consignateur : '+money(share/100)+'</div><div>Part boutique : '+money(store/100)+'</div><div>Versement fictif : '+money(paid/100)+'</div><div><b>Solde restant : '+money((share-paid)/100)+'</b></div>';
+}
+["demoPayoutGross","demoPayoutPct","demoPayoutPaid"].forEach(id=>$(id).oninput=renderDemoPayout);
+renderDemoPayout();
+
 function payoutMoneyCents(x){return Math.round(Number(x||0)*100)}
 function payoutEligibleSale(s,cid){
  return s.consignor_id===cid && s.payout_status==="unpaid" && !s.payout_id && !payoutReturnHolds.has(s.id) &&
