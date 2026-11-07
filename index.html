@@ -201,6 +201,24 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="panel"><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
   </section>
 
+
+  <section id="cashier" class="page">
+    <div class="page-head"><div><h1>🛒 Caisse Milou</h1><p>Ajoute les articles au panier avec un lecteur de codes-barres USB/Bluetooth (mode clavier HID).</p></div></div>
+    <div class="notice warn" id="posSquareStatus"><strong>Square non configuré.</strong> Création du compte Square et appairage d'un Square Terminal requis avant tout paiement par carte.</div>
+    <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
+      <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
+      <div class="actions"><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div>
+      <div id="posMessage"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
+      <div class="summary-card" style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Taxes (configuration requise)</span><strong id="posTax">—</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-top:9px"><b>Total à encaisser</b><strong id="posTotal">—</strong></div>
+      </div>
+      <div class="notice warn" style="margin-top:12px">Le panier est une préparation de caisse. Aucun paiement n'est déclenché et aucun article n'est marqué vendu avant validation serveur du paiement Square. Les taxes doivent être configurées selon le statut fiscal réel de la friperie.</div>
+      <div class="actions"><button id="posSquarePay" class="btn primary" disabled>💳 Encaisser avec Square — configuration requise</button></div>
+    </div></div>
+  </section>
+
   <section id="salescan" class="page">
     <div class="page-head"><div><h1>Scanner une vente</h1><p>Scanne le code-barres SKU de l'étiquette, puis confirme la vente réellement encaissée.</p></div></div>
     <div class="panel"><div class="panel-body">
@@ -233,7 +251,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <button data-page="deposits"><span>🧺</span>Dépôts</button>
   <button data-page="stock"><span>📦</span>Stock</button>
   <button data-page="consignors"><span>👤</span>Consignateurs</button>
-  <button data-page="salescan"><span>▥</span>Vente</button>
+  <button data-page="cashier"><span>🛒</span>Caisse</button>
   <button data-page="payouts"><span>💰</span>Paiements</button>
 </nav>
 </div>
@@ -494,7 +512,7 @@ async function refreshAll(){
  try{
    await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations()]);
    if(box){box.classList.add("hidden");box.textContent=""}
-   renderConsignors();renderDeposits();renderStock();renderPayouts();fillDepositSelect();fillFilters();renderStats();
+   renderConsignors();renderDeposits();renderStock();renderPayouts();renderPosCart();fillDepositSelect();fillFilters();renderStats();
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
    const sg=$("syncGoogleSheet");if(sg)sg.onclick=syncGoogleSheetNow;
    await refreshSheetSyncStatus();
@@ -1649,6 +1667,39 @@ async function retryShopify(id){
   go("stock");
 }
 $("stockSearch").oninput=renderStock;
+
+
+let posCartIds=[];
+function renderPosCart(){
+ const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
+ $("posCartCount").textContent=items.length+" article(s)";
+ $("posCartLines").innerHTML=items.length?items.map(i=>
+  '<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.consignors?.full_name||"Stock boutique")+'</small></div><strong>'+money(i.sale_price)+'</strong><button class="btn danger small posRemove" data-id="'+esc(i.id)+'">✕</button></div>'
+ ).join(""):'<div class="empty">Le panier est vide. Scanne une étiquette pour commencer.</div>';
+ const subCents=items.reduce((sum,i)=>sum+Math.round(Number(i.sale_price||0)*100),0);
+ $("posSubtotal").textContent=money(subCents/100);
+ $("posTax").textContent="À configurer";
+ $("posTotal").textContent="Non calculé";
+ document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);renderPosCart()});
+}
+function addPosSku(){
+ const code=$("posSku").value.trim().toUpperCase();
+ if(!code)return;
+ const i=stock.find(i=>String(i.sku||"").toUpperCase()===code);
+ if(!i){note($("posMessage"),"SKU introuvable : "+esc(code)+". Actualise le stock si nécessaire.","err");return}
+ if(!["validated","shopify_draft","online"].includes(i.status)||i.deleted_at){note($("posMessage"),"Article non disponible : "+esc(code)+".","err");return}
+ if(i.sale_price==null||!Number.isFinite(Number(i.sale_price))){note($("posMessage"),"Prix manquant : "+esc(code),"err");return}
+ if(posCartIds.includes(i.id)){note($("posMessage"),"Article déjà présent dans le panier.","warn");$("posSku").value="";return}
+ posCartIds.push(i.id);
+ $("posSku").value="";
+ $("posMessage").innerHTML="";
+ renderPosCart();
+ $("posSku").focus();
+}
+$("posAdd").onclick=addPosSku;
+$("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
+$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];renderPosCart();$("posSku").focus()};
+renderPosCart();
 
 let saleScannerInstance=null,saleScannerBusy=false,salePendingItem=null;
 async function stopSaleScanner(){
