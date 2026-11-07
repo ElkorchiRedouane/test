@@ -207,7 +207,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="notice warn" id="posSquareStatus"><strong>Square non configuré.</strong> Création du compte Square et appairage d'un Square Terminal requis avant tout paiement par carte.</div>
     <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
-      <div class="actions"><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div>
+      <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
       <div id="posMessage"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
@@ -401,7 +401,7 @@ $("signupBtn").onclick=async()=>{
 };
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(id){if(id!=="salescan")void stopSaleScanner();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
+function go(id){if(id!=="salescan")void stopSaleScanner();if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
 async function testShopifyConnection(){
@@ -1669,6 +1669,36 @@ async function retryShopify(id){
 $("stockSearch").oninput=renderStock;
 
 
+let posCameraInstance=null;
+async function stopPosCamera(){
+ const scanner=posCameraInstance;posCameraInstance=null;
+ if(scanner){try{await scanner.stop()}catch(e){}try{await scanner.clear()}catch(e){}}
+ const container=$("posCameraBox");if(container)container.classList.add("hidden");
+}
+async function startPosCamera(){
+ if(posCameraInstance){await stopPosCamera();return}
+ if(!window.Html5Qrcode){note($("posMessage"),"Module de lecture indisponible. Vérifie la connexion Internet.","err");return}
+ const b=$("posCamera");b.disabled=true;
+ try{
+  $("posCameraBox").classList.remove("hidden");
+  const scanner=new window.Html5Qrcode("posCameraReader");
+  posCameraInstance=scanner;
+  let lastCode="",lastAt=0;
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:160}},async raw=>{
+   if(posCameraInstance!==scanner)return;
+   const code=String(raw||"").trim().toUpperCase();
+   const now=Date.now();
+   if(!code||(code===lastCode&&now-lastAt<1800))return;
+   lastCode=code;lastAt=now;
+   $("posSku").value=code;
+   addPosSku();
+   // Keep scanning for multi-item baskets; the same code cannot be added twice.
+  },()=>{});
+ }catch(e){await stopPosCamera();note($("posMessage"),"Impossible d'ouvrir la caméra : "+esc(e.message||String(e)),"err")}
+ finally{b.disabled=false}
+}
+$("posCamera").onclick=startPosCamera;
+$("posCameraClose").onclick=stopPosCamera;
 let posCartIds=[];
 function renderPosCart(){
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
