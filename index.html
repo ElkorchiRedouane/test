@@ -94,11 +94,11 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </div>
 
 <div id="app" class="app hidden">
-<div id="qaModeNotice" class="notice warn hidden" style="margin:8px 12px"><strong>🧪 MODE QA — Données fictives</strong><div>Les créations sont enregistrées dans Supabase. Les appels Shopify et Google Sheet initiés par cette session sont bloqués. Ce mode ne bloque pas les autres sessions ou automatisations serveur. Paiements réels toujours verrouillés.</div></div>
+<div id="qaModeNotice" class="notice warn hidden" style="margin:8px 12px"><strong>Synchronisations externes suspendues</strong></div>
 <header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout">Déconnexion</button></header>
 <main>
   <section id="home" class="page active">
-    <div class="hero"><h1>Réception rapide</h1><p>Commence un dépôt ou ajoute simplement un vêtement. Le reste se fait en chaîne.</p><small>Les indicateurs « À envoyer Shopify » comptent des articles, et non des dépôts.</small></div>
+    <div class="hero"><h1>Bienvenue chez Milou</h1><p>Que souhaitez-vous faire aujourd’hui ?</p></div>
 <div id="shopifyHealth" class="notice warn" style="margin-top:12px">
   <strong>Connexion Shopify non vérifiée.</strong><br>
   <button id="testShopify" class="btn green small" style="margin-top:8px">Tester Shopify</button>
@@ -118,20 +118,22 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   Ouvre le menu <strong>Partager</strong> de Safari puis choisis <strong>Ajouter à l’écran d’accueil</strong>. Ensuite ouvre Milou Ops depuis son icône.
 </div>
     <div class="quick">
-      <button id="newDepositHome"><span class="ico">🧺</span><b>Nouveau dépôt</b><small>Une personne apporte plusieurs vêtements. Tu crées le dépôt une fois, puis tu enchaînes les articles.</small></button>
-      <button id="quickItemHome"><span class="ico">📷</span><b>Article rapide</b><small>Un article acheté, donné ou appartenant à la boutique. Aucun consignateur nécessaire.</small></button>
+      <button id="homeCashier" type="button"><span class="ico">🛒</span><b>Passer en caisse</b><small>Scanner et préparer une vente</small></button>
+      <button id="newDepositHome"><span class="ico">🧺</span><b>Nouveau dépôt</b><small>Recevoir des vêtements</small></button>
+      <button id="quickItemHome"><span class="ico">📷</span><b>Article rapide</b><small>Ajouter au stock</small></button>
+      <button id="homeLabels" type="button"><span class="ico">🏷️</span><b>Imprimer les étiquettes</b><small>Planche A4 avec QR</small></button>
     </div>
     <div class="stats">
       <div class="stat"><strong id="stCons">0</strong><span>Consignateurs</span></div>
       <div class="stat"><strong id="stOpenDep">0</strong><span>Dépôts ouverts</span></div>
-      <div class="stat"><strong id="stPending">0</strong><span>À envoyer Shopify</span></div>
-      <div class="stat"><strong id="stOnline">0</strong><span>En ligne</span></div>
+      <div class="stat"><strong id="stPending">0</strong><span>À étiqueter</span></div>
+      <div class="stat"><strong id="stOnline">0</strong><span>Stock publié</span></div>
     </div>
-    <div class="panel"><div class="panel-head"><h2>Dépôts récents</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
+    <div class="panel"><div class="panel-head"><h2>Derniers dépôts</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
   </section>
 
   <section id="deposits" class="page">
-    <div class="page-head"><div><h1>Dépôts</h1><p>Du plus récent au plus ancien. Clique sur un dépôt pour voir ses articles.</p></div><button id="newDepositPage" class="btn primary small">+ Nouveau</button></div>
+    <div class="page-head"><div><h1>Dépôts</h1><p>Réception et suivi des vêtements.</p></div><button id="newDepositPage" class="btn primary small">+ Nouveau</button></div>
     <div class="toolbar">
       <input id="depositSearch" class="wide" placeholder="Rechercher dépôt, consignateur, SKU...">
       <select id="depositStatusFilter"><option value="">Tous statuts</option><option value="open">Ouverts</option><option value="closed">Terminés</option><option value="pending">À envoyer Shopify</option><option value="deleted">Supprimés</option></select>
@@ -188,7 +190,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   </section>
 
   <section id="stock" class="page">
-    <div class="page-head"><div><h1>Stock</h1><p>État Milou + Shopify, prix, numéro produit et emplacement physique.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
+    <div class="page-head"><div><h1>Stock</h1><p>Rechercher, étiqueter et retrouver les vêtements.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
     <div class="toolbar">
       <input id="stockSearch" class="wide" placeholder="SKU, Shopify, titre, marque, emplacement...">
       <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option><option value="deleted_milou">Supprimé dans Milou Ops</option></select>
@@ -202,7 +204,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
 
   <section id="labels" class="page">
-    <div class="page-head"><div><h1>▥ Étiquettes Milou</h1><p>Codes-barres Code 128 générés depuis les SKU enregistrés. Imprime une étiquette par article ou tout un dépôt.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Sélectionnez les articles et imprimez une planche A4.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
     <div class="panel"><div class="panel-body">
       <div class="grid">
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
@@ -211,14 +213,14 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div>
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
       <div id="labelsList" class="list" style="max-height:420px;overflow:auto;margin-top:12px"></div>
-      <div class="notice">Chaque étiquette comporte le nom Milou, le titre, la taille, le prix et un vrai code-barres Code 128. Aucune étiquette n'est attachée à un consignateur par son nom ou son pourcentage.</div>
+      
       <div class="actions"><button id="labelsPreviewButton" class="btn ghost">👁 Aperçu code-barres</button><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div><div id="labelsSelectionCount" class="caption" role="status" aria-live="polite">0 étiquette sélectionnée</div><div id="labelsPreview" class="notice hidden"></div>
       <div id="labelsStatus"></div>
     </div></div>
   </section>
 
   <section id="consignors" class="page">
-    <div class="page-head"><div><h1>Consignateurs</h1><p>Clique sur une personne pour voir ses dépôts, ventes et montant dû.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
+    <div class="page-head"><div><h1>Consignateurs</h1><p>Clients déposants et soldes.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
     <div class="toolbar"><input id="consignorSearch" class="wide" placeholder="Rechercher nom, code, courriel..."><span></span><span></span><button id="exportConsignors" class="btn ghost small">Excel</button></div>
     <div id="consignorDetail"></div>
     <div class="panel"><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
@@ -226,56 +228,56 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
 
   <section id="cashier" class="page">
-    <div class="page-head"><div><h1>🛒 Caisse Milou</h1><p>Ajoute les articles avec la caméra ou un lecteur de codes-barres Bluetooth/USB.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
-    <div class="notice warn" id="posSquareSetupNotice"><strong>Square et Milou fonctionnent séparément.</strong> Encaisse le paiement dans l’application Square sur l’iPad, puis reviens dans Milou pour enregistrer la référence de la transaction et imprimer la facture détaillée. Le reçu bancaire doit être imprimé par Square. Les ventes réelles Milou restent désactivées jusqu’à la validation fiscale.</div>
-    <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
-      <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
-      <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posScanPhoto" class="btn ghost">🖼 Lire depuis une photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
-      <div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">🔧 Diagnostiquer le scanner</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
+    <div class="page-head"><div><h1>🛒 Caisse</h1><p>Scannez les vêtements, puis encaissez avec Square.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
+    <div class="notice" id="posSquareSetupNotice">1. Scannez les articles. 2. Encaissez dans Square. 3. Confirmez dans Milou.</div>
+    <div class="panel cashier-primary"><div class="panel-head"><h2>Panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
+      <div class="field"><label>Code de l’article</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
+      <div class="actions"><button id="posCamera" class="btn green">📷 Scanner un article</button><button id="posScanPhoto" class="btn ghost">Photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">Ajouter</button><button id="posClear" class="btn ghost">Vider</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
+      <div id="posScanSuccess" class="scan-success hidden" role="status" aria-live="assertive"></div><div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">Diagnostic du lecteur</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
         <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Taxes (configuration requise)</span><strong id="posTax">—</strong></div>
         <div style="display:flex;justify-content:space-between;margin-top:9px"><b>Total à encaisser</b><strong id="posTotal">—</strong></div>
       </div>
-      <div class="notice warn" style="margin-top:12px">Le panier est une préparation de caisse. Aucun paiement n'est déclenché et aucun article n'est marqué vendu avant validation serveur du paiement Square. Les taxes doivent être configurées selon le statut fiscal réel de la friperie.</div>
-      <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>💵 Paiement comptant</h2><span class="badge yellow">Mode essai</span></div><div class="panel-body">
-  <div class="notice warn">Simulation uniquement : les articles resteront disponibles, aucune vente ni commission réelle ne sera enregistrée. Le mode réel sera activé après validation des taxes et des tests de caisse.</div>
+      
+      <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Comptant</h2></div><div class="panel-body">
+  <div class="notice">Le paiement comptant sera disponible après sa configuration.</div>
   <div class="field"><label>Montant reçu du client ($)</label><input id="posCashReceived" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="Ex. 30,00" aria-describedby="posCashInputError"><div id="posCashInputError" role="status" aria-live="polite"></div></div>
   <div class="actions" id="posCashShortcuts"><button type="button" class="btn ghost small" data-cash="exact">Montant exact</button><button type="button" class="btn ghost small" data-cash="20">20 $</button><button type="button" class="btn ghost small" data-cash="50">50 $</button><button type="button" class="btn ghost small" data-cash="100">100 $</button></div>
   <div class="summary-card"><span>Monnaie à remettre (simulation)</span><strong id="posCashChange">—</strong></div>
-  <div class="actions"><button id="posCashSimulate" class="btn green">✓ Simuler la vente comptant</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
-  <div id="posCashResult"></div><details style="margin-top:10px"><summary>🧪 Tester la monnaie avec des centimes (sans article réel)</summary><div class="grid" style="margin-top:12px"><div class="field"><label>Total fictif ($)</label><input id="centDemoTotal" inputmode="decimal" value="19.99"></div><div class="field"><label>Montant fictif reçu ($)</label><input id="centDemoReceived" inputmode="decimal" value="20.00"></div></div><div id="centDemoResult" class="notice" aria-live="polite"></div></details><div class="actions"><button id="posReturnDemo" class="btn ghost small" disabled>↩ Simuler un retour</button></div><div id="posReturnDemoResult"></div>
+  <div class="actions"><button id="posCashSimulate" class="btn green">Calculer la monnaie</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
+  <div id="posCashResult"></div><details style="margin-top:10px"><summary>Calculatrice</summary><div class="grid" style="margin-top:12px"><div class="field"><label>Total fictif ($)</label><input id="centDemoTotal" inputmode="decimal" value="19.99"></div><div class="field"><label>Montant fictif reçu ($)</label><input id="centDemoReceived" inputmode="decimal" value="20.00"></div></div><div id="centDemoResult" class="notice" aria-live="polite"></div></details><div class="actions"><button id="posReturnDemo" class="btn ghost small" disabled>↩ Aperçu retour</button></div><div id="posReturnDemoResult"></div>
  </div></div>
- <div class="actions"><button id="posPrepare" class="btn ghost">Préparer le panier en base de données</button></div><div id="posPreparedStatus"></div>
-    <div class="panel" style="margin-top:12px"><div class="panel-head"><h2>💳 Rapprochement Square manuel</h2></div><div class="panel-body">
-      <div class="notice warn">Après paiement accepté dans l’application Square, vérifie le montant et la référence de la transaction Square. Ce rapprochement est une attestation manuelle, pas une vérification bancaire automatique. Le mode réel reste verrouillé jusqu’à validation fiscale et des tests.</div>
+ <div class="actions"><button id="posPrepare" class="btn ghost">Préparer la vente</button></div><div id="posPreparedStatus"></div>
+    <div class="panel" style="margin-top:12px"><div class="panel-head"><h2>Encaissement Square</h2></div><div class="panel-body">
+      <div class="caption">Une fois le paiement accepté dans Square, recopiez la référence de la transaction.</div>
       <div class="grid">
        <div class="field"><label for="posSquareReference">Identifiant de la transaction Square</label><input id="posSquareReference" autocomplete="off" placeholder="Référence du paiement Square"></div>
        <div class="field"><label for="posSquareAmount">Montant réellement encaissé dans Square ($)</label><input id="posSquareAmount" type="text" inputmode="decimal" placeholder="Ex. 50,00"></div>
       </div>
       <label class="check-row"><input type="checkbox" id="posSquareAttest"> Je confirme avoir vu dans Square « Paiement accepté » et vérifié la référence et le montant avec la preuve de paiement.</label>
-      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button><button type="button" id="posSquareReceiptDemo" class="btn ghost small">🖨 Tester le reçu détaillé (aucune vente)</button><div class="caption">Après retour de Square, si le panier a disparu, ouvre « Historique » et utilise « Reprendre ce panier en caisse » sur le brouillon non payé. Ne recommence pas le paiement Square.</div>
+      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button><button type="button" id="posSquareReceiptDemo" class="btn ghost small">🖨 Aperçu du reçu</button><div class="caption">Pour retrouver un panier préparé, ouvrez l’historique.</div>
       <div id="posSquareStatus" role="status" aria-live="polite"></div><div id="posSquareReceipt"></div>
     </div></div>
     </div></div>
   </section>
 
   <section id="poshistory" class="page">
-    <div class="page-head"><div><h1>Historique de caisse</h1><p>Commandes préparées et paiements enregistrés dans Milou. Les simulations restent hors de cet historique.</p></div><button id="posHistoryBack" class="btn ghost small">← Caisse</button></div>
-    <div class="notice warn">La caisse réelle reste verrouillée. Une commande « Brouillon » ne signifie pas qu'un client a payé. Les annulations et remboursements réels seront disponibles seulement après validation du workflow comptable.</div>
+    <div class="page-head"><div><h1>Historique</h1><p>Commandes et reçus.</p></div><button id="posHistoryBack" class="btn ghost small">← Caisse</button></div>
+    
     <div class="actions"><button id="posHistoryReload" class="btn green small">↻ Actualiser</button><select id="posHistoryFilter" style="width:auto;flex:1;min-width:150px"><option value="all">Toutes commandes</option><option value="paid">Payées</option><option value="draft">Brouillons</option></select></div>
     <div id="posHistoryMessage"></div><div id="posHistoryList" class="list" style="margin-top:12px"></div>
     <div id="posHistoryDetail"></div><div class="panel"><div class="panel-head"><h2>Demandes de retour</h2></div><div class="panel-body"><div id="posReturnHistoryList" class="list"></div></div></div>
   </section>
   <section id="payouts" class="page">
-    <div class="page-head"><div><h1>💰 Consignation — Finances</h1><p>Solde réel calculé à partir des ventes et des paiements enregistrés. Aucune modification financière en mode essai.</p></div><button id="exportSales" class="btn ghost small">Excel ventes</button></div>
+    <div class="page-head"><div><h1>Versements</h1><p>Soldes et paiements des consignateurs.</p></div><button id="exportSales" class="btn ghost small">Excel ventes</button></div>
     <div id="payoutStatus"></div>
     <div class="panel"><div class="panel-head"><h2>Soldes des consignateurs</h2><button class="btn ghost small" id="payoutReload">↻ Actualiser</button></div><div class="panel-body">
       <div id="payoutSummary" class="finance-grid"></div>
       <div id="payoutConsignorBalances" class="list" style="margin-top:12px"></div>
     </div></div>
-    <div class="panel"><div class="panel-head"><h2>🧪 Tester un versement sans vente réelle</h2><span class="badge yellow">Démonstration</span></div><div class="panel-body">
-      <div class="notice warn">Calcul fictif uniquement : aucun versement, aucune commission et aucun solde réel ne seront créés.</div>
+    <div class="panel"><div class="panel-head"><h2>Calculatrice de commission</h2></div><div class="panel-body">
+      <div class="caption">Estimation seulement. Aucun mouvement n’est enregistré.</div>
       <div class="grid">
         <div class="field"><label>Prix de vente fictif ($)</label><input id="demoPayoutGross" type="number" inputmode="decimal" min="0" step="0.01" value="60"></div>
         <div class="field"><label>Part consignateur (%)</label><input id="demoPayoutPct" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="40"></div>
