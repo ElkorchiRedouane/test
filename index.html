@@ -280,11 +280,12 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       </div>
       <div class="field" style="margin-top:12px"><label>Montant du versement simulé ($)</label><input id="payoutProposedAmount" inputmode="decimal" placeholder="Montant partiel ou complet, par exemple 20.00"></div>
       <div class="field" style="margin-top:10px"><label>Moyen envisagé</label><select id="payoutMethod"><option value="etransfer">Virement Interac</option><option value="cash">Comptant</option><option value="bank">Virement bancaire</option></select></div>
-      <div class="actions"><button id="payoutExact" class="btn ghost">Utiliser le solde sélectionné</button><button id="payoutPreview" class="btn green">Préparer le relevé de versement</button></div>
+      <div class="actions"><button id="payoutExact" class="btn ghost">Utiliser le solde sélectionné</button><button id="payoutPreview" class="btn green">Prévisualiser le relevé</button><button id="payoutSaveDraft" class="btn ghost">Enregistrer une proposition (sans paiement)</button></div>
       <div id="payoutPreviewResult"></div>
     </div></div>
     <div class="panel"><div class="panel-head"><h2>Historique des versements enregistrés</h2></div><div class="panel-body">
-      <div id="payoutHistory" class="list"></div>
+      <div id="payoutHistory" class="list"></div></div></div>
+    <div class="panel"><div class="panel-head"><h2>Propositions de versement (non payées)</h2></div><div class="panel-body"><div class="notice warn">Enregistrer une proposition ne verse aucun argent et ne diminue pas le solde dû. Vérifie les propositions ouvertes avant de créer un paiement réel.</div><div id="payoutProposals" class="list"></div>
     </div></div>
     <div class="panel"><div class="panel-head"><h2>Historique des ventes</h2></div><div class="panel-body">
       <div id="salesList" class="list"></div>
@@ -2141,12 +2142,48 @@ $("saleScanSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();lookupSale
 $("saleScanCamera").onclick=startSaleScanner;
 $("saleScanStop").onclick=stopSaleScanner;
 
-let payoutHistory=[],payoutReturnHolds=new Set(),payoutLastStatement=null,payoutSelectionDefault="";
+let payoutHistory=[],payoutReturnHolds=new Set(),payoutLastStatement=null,payoutSelectionDefault="",payoutProposals=[];
 function payoutMoneyCents(x){return Math.round(Number(x||0)*100)}
 function payoutEligibleSale(s,cid){
  return s.consignor_id===cid && s.payout_status==="unpaid" && !s.payout_id && !payoutReturnHolds.has(s.id) &&
  Number(s.consignor_amount||0)>0;
 }
+async function loadPayoutProposals(){
+ const {data,error}=await sb.from("milou_payout_proposals").select("id,consignor_id,amount_cents,selected_total_cents,payment_method,status,created_at,created_by").order("created_at",{ascending:false}).limit(100);
+ if(error)throw error;
+ payoutProposals=data||[];
+ const box=$("payoutProposals");
+ box.innerHTML=payoutProposals.length?payoutProposals.map(p=>{
+  const c=consignors.find(x=>x.id===p.consignor_id);
+  const method={etransfer:"Interac",cash:"Comptant",bank:"Bancaire"}[p.payment_method]||p.payment_method;
+  return '<div class="row"><div class="row-main"><b>'+esc(c?.full_name||"Consignateur")+'</b><small>'+esc(formatQuebecDateTime(p.created_at))+' • '+esc(method)+' • '+esc(p.status==="draft"?"PROPOSITION — NON PAYÉE":"Annulée")+'</small><small>Montant proposé : '+money(Number(p.amount_cents)/100)+'</small></div>'+ (p.status==="draft"?'<button class="btn danger small payoutCancelDraft" data-id="'+esc(p.id)+'">Annuler</button>':'')+'</div>';
+ }).join(""):'<div class="empty">Aucune proposition enregistrée.</div>';
+ box.querySelectorAll(".payoutCancelDraft").forEach(btn=>btn.onclick=async()=>{
+  if(!confirm("Annuler cette proposition non payée ?"))return;
+  btn.disabled=true;
+  const {error:err}=await sb.rpc("milou_payout_cancel_proposal",{p_proposal_id:btn.dataset.id});
+  if(err){toast("Annulation refusée : "+err.message);btn.disabled=false;return}
+  await loadPayoutProposals();
+ });
+}
+async function savePayoutDraft(){
+ const c=consignors.find(x=>x.id===$("payConsignor").value),selected=selectedPayoutSales();
+ if(!c||!selected.length){note($("payoutPreviewResult"),"Sélectionne des ventes admissibles.","warn");return}
+ const amount=posCentsFromInput($("payoutProposedAmount").value);
+ const max=selected.reduce((n,s)=>n+payoutMoneyCents(s.consignor_amount),0);
+ if(amount===null||amount<=0||amount>max){note($("payoutPreviewResult"),"Montant incorrect : entre 0,01 $ et "+money(max/100)+".","err");return}
+ if(!confirm("Enregistrer une PROPOSITION de "+money(amount/100)+" pour "+c.full_name+" ? Aucun paiement ne sera effectué."))return;
+ const btn=$("payoutSaveDraft");btn.disabled=true;
+ try{
+  const {data,error}=await sb.rpc("milou_payout_prepare_proposal",{p_consignor_id:c.id,p_sale_ids:selected.map(x=>x.id),p_amount_cents:amount,p_method:$("payoutMethod").value});
+  if(error)throw error;
+  note($("payoutPreviewResult"),"Proposition "+esc(data.proposal_id)+" enregistrée. Aucun argent versé. Le solde du consignateur reste inchangé.");
+  await loadPayoutProposals();
+ }catch(e){note($("payoutPreviewResult"),"Proposition non enregistrée : "+esc(e.message||String(e)),"err")}
+ finally{btn.disabled=false}
+}
+$("payoutSaveDraft").onclick=savePayoutDraft;
+
 async function loadPayoutFinancials(){
  try{
   const [{data:payments,error:payErr},{data:returns,error:returnErr}]=await Promise.all([
@@ -2159,6 +2196,7 @@ async function loadPayoutFinancials(){
   // Until refund accounting is implemented, all non-rejected returns hold the related sale.
   payoutReturnHolds=new Set((returns||[]).map(r=>r.sale_id).filter(Boolean));
   renderPayouts();
+  await loadPayoutProposals();
  }catch(e){payoutHistory=[];payoutReturnHolds=new Set();note($("payoutStatus"),"Finances indisponibles : "+esc(e.message||String(e)),"err");$("payoutSummary").innerHTML="";$("payoutConsignorBalances").innerHTML="";$("payoutHistory").innerHTML="";$("payItems").innerHTML="";}
 }
 function renderPayouts(){
