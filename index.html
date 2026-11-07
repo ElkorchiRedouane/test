@@ -1968,9 +1968,19 @@ async function showPosHistoryDetail(id){
  '<div style="margin-top:12px"><b>Montant : '+money(Number(receipt.total_cents)/100)+'</b></div>'+
  (paid?'<div class="actions"><button class="btn green small" id="posHistoryReceipt">Voir et imprimer le reçu</button></div>':
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
+ (order.status==="draft"?'<div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div>':'')+
  '<div class="notice warn">Annulation/remboursement : non activé. Vérifier le paiement et l’état des commissions avant tout retour réel.</div>'+
  '<div id="posHistoryReceiptBox"></div></div></div>';
  if(paid)$("posHistoryReceipt").onclick=()=>showPosReceipt(receipt,false,order.completed_at||order.created_at,"posHistoryReceiptBox");
+ if(order.status==="draft")$("posHistoryCancelDraft").onclick=async()=>{
+  if(!confirm("Annuler ce brouillon sans toucher aux articles ni aux commissions ?"))return;
+  const b=$("posHistoryCancelDraft");b.disabled=true;
+  const {data:result,error}=await sb.rpc("milou_pos_cancel_draft",{p_order_id:id});
+  if(error){note($("posHistoryMessage"),"Annulation impossible : "+esc(error.message),"err");b.disabled=false;return}
+  box.innerHTML="";
+  await loadPosHistory();
+  note($("posHistoryMessage"),"Brouillon annulé. Aucun article ou montant de consignateur modifié.");
+ };
 }
 $("posHistoryOpen").onclick=()=>{go("poshistory");loadPosHistory()};
 $("posHistoryBack").onclick=()=>go("cashier");
