@@ -180,8 +180,8 @@ details.milou-secondary .panel{margin:10px 0 0}
     <div class="stats">
       <div class="stat"><strong id="stCons">0</strong><span>Consignateurs</span></div>
       <div class="stat"><strong id="stOpenDep">0</strong><span>Dépôts ouverts</span></div>
-      <div class="stat"><strong id="stPending">0</strong><span>À étiqueter</span></div>
-      <div class="stat"><strong id="stOnline">0</strong><span>Stock publié</span></div>
+      <div class="stat"><strong id="stPending">0</strong><span>En stock</span></div>
+      <div class="stat"><strong id="stOnline">0</strong><span>Vendus</span></div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Derniers dépôts</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
   </section>
@@ -202,10 +202,10 @@ details.milou-secondary .panel{margin:10px 0 0}
     <div id="savedFlash" class="saved-flash hidden"></div>
     <div id="depositBanner" class="deposit-banner hidden"></div>
     <div class="page-head"><div><h1 id="articleTitle">Nouvel article</h1><p id="articleSub">Photo, note, vérification, suivant.</p></div><button id="finishFromArticle" class="btn ghost small hidden">Terminer dépôt</button></div>
-    <div class="panel"><div class="panel-head"><h2>1. Photo + note</h2><span class="badge pink">IA</span></div><div class="panel-body">
+    <div class="panel"><div class="panel-head"><h2>Photos et description</h2></div><div class="panel-body">
       <div class="photo-box">
   <b>📷 Photos de l’article</b>
-  <div style="font-size:.8rem;color:var(--muted);margin:5px 0 10px">La caméra reste ouverte pour prendre plusieurs photos à la suite.</div>
+  
   <div class="actions" style="margin-top:0">
     <button id="openCamera" type="button" class="btn green">📷 Ouvrir la caméra</button>
     <label class="btn ghost" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
@@ -220,7 +220,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div id="analysisMsg"></div>
     </div></div>
 
-    <div class="panel"><div class="panel-head"><h2>2. Vérifier</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
+    <div class="panel"><div class="panel-head"><h2>Informations de l’article</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
       <div class="field full"><label>Titre</label><input id="fTitle"></div>
       <div class="field"><label>Marque</label><input id="fBrand"></div>
       <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
@@ -239,7 +239,7 @@ details.milou-secondary .panel{margin:10px 0 0}
         <div class="field full"><label>Défauts / particularités</label><textarea id="fDefects"></textarea></div>
         <div class="field full"><label>Description Shopify générée par l’IA</label><textarea id="fDescription"></textarea></div>
       </div></details>
-      <div class="actions full"><button id="saveOnly" class="btn ghost">✓ Enregistrer et suivant</button><button id="saveShopify" class="btn primary">✓ Enregistrer + Shopify</button></div>
+      <div class="actions full"><button id="saveOnly" class="btn primary">✓ Enregistrer l’article</button><button id="saveShopify" class="btn ghost" style="display:none">✓ Enregistrer + Shopify</button></div>
     </div></div>
   </section>
 
@@ -251,14 +251,14 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <button id="exportStock" class="btn ghost small">Excel</button>
     </div>
-    <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small">↻ Synchroniser Shopify</button></div>
+    <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
     <div id="locationSummary" class="notice"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
 
   <section id="labels" class="page">
-    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Sélectionnez les articles et imprimez une planche A4.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Sélectionnez, imprimez, découpez.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
     <div class="panel"><div class="panel-body">
       <div class="grid">
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
@@ -282,12 +282,12 @@ details.milou-secondary .panel{margin:10px 0 0}
 
 
   <section id="cashier" class="page">
-    <div class="page-head"><div><h1>🛒 Caisse</h1><p>Scannez les vêtements, puis encaissez avec Square.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
+    <div class="page-head"><div><h1>🛒 Caisse</h1><p>Scannez les vêtements et préparez le paiement.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
     <div class="notice" id="posSquareSetupNotice">1. Scannez les articles. 2. Encaissez dans Square. 3. Confirmez dans Milou.</div>
     <div class="panel cashier-primary"><div class="panel-head"><h2>Panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Code de l’article</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner un article</button><button id="posScanPhoto" class="btn ghost">Photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">Ajouter</button><button id="posClear" class="btn ghost">Vider</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
-      <div id="posScanSuccess" class="scan-success hidden" role="status" aria-live="assertive"></div><div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">Diagnostic du lecteur</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
+      <div id="posScanSuccess" class="scan-success hidden" role="status" aria-live="assertive"></div><div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">État du lecteur</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
         <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Taxes (configuration requise)</span><strong id="posTax">—</strong></div>
@@ -330,8 +330,8 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div id="payoutSummary" class="finance-grid"></div>
       <div id="payoutConsignorBalances" class="list" style="margin-top:12px"></div>
     </div></div>
-    <div class="panel"><div class="panel-head"><h2>Calculatrice de commission</h2></div><div class="panel-body">
-      <div class="caption">Estimation seulement. Aucun mouvement n’est enregistré.</div>
+    <div class="panel"><div class="panel-head"><h2>Estimation de commission</h2></div><div class="panel-body">
+      <div class="caption">Estimez les parts de chaque consignateur.</div>
       <div class="grid">
         <div class="field"><label>Prix de vente fictif ($)</label><input id="demoPayoutGross" type="number" inputmode="decimal" min="0" step="0.01" value="60"></div>
         <div class="field"><label>Part consignateur (%)</label><input id="demoPayoutPct" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="40"></div>
@@ -763,8 +763,8 @@ function fillFilters(){
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
  $("stOpenDep").textContent=deposits.filter(d=>!["closed","deleted"].includes(d.status)).length;
- $("stPending").textContent=stock.filter(i=>!i.shopify_product_id&&i.status==="validated").length;
- $("stOnline").textContent=stock.filter(i=>i.status==="online").length;
+ $("stPending").textContent=stock.filter(i=>["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at).length;
+ $("stOnline").textContent=stock.filter(i=>i.status==="sold").length;
 }
 function fillDepositSelect(){
  $("dConsignor").innerHTML='<option value="">Sans consignateur</option><option value="__new__">+ Nouveau consignateur…</option>'+consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
@@ -2101,6 +2101,8 @@ async function startPosCamera(){
 }
 async function scanPosPhoto(file){
  if(!file)return;
+ posScanHandled=false;
+ $("posScanSuccess").classList.add("hidden");
  if(posCameraInstance)await stopPosCamera();
  const btn=$("posScanPhoto");btn.disabled=true;
  const url=URL.createObjectURL(file);
@@ -2751,7 +2753,15 @@ function organizeMilouUI(){
  (homeRecent||home).after(tools);
  tools.append($("shopifyHealth"),$("sheetSyncBox"));
  const cashier=$("cashier"),main=cashier.querySelector(".cashier-primary");
- const cashPanel=$("posCashReceived")?.closest(".panel");
+ // Les réglages avancés ne doivent pas interrompre le travail quotidien.
+ const scanDiag=$("posScanDiagnostics");
+ const demoReceipt=$("posSquareReceiptDemo");
+ if(demoReceipt){
+  const demoTools=document.createElement("details");demoTools.className="milou-secondary";
+  demoTools.innerHTML="<summary>Options du reçu</summary>";
+  demoReceipt.before(demoTools);demoTools.appendChild(demoReceipt);
+ }
+  const cashPanel=$("posCashReceived")?.closest(".panel");
  if(cashPanel){
   const more=document.createElement("details");
   more.className="milou-secondary";more.innerHTML="<summary>Autres modes de paiement et calculatrices</summary>";
