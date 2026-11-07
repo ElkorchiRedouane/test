@@ -524,7 +524,7 @@ async function loadDeposits(){
   }
 }
 async function loadStock(){
- const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
+ const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
  if(error)throw new Error("Stock : "+error.message);
  stock=data||[];
  for(const i of stock){
@@ -1669,7 +1669,7 @@ async function lookupSaleScan(){
  const cons=consignors.find(c=>c.id===item.consignors?.id);
  const dep=deposits.find(d=>d.id===item.deposits?.id);
  const percent=item.commission_pct??dep?.commission_pct??cons?.default_commission_pct;
- const isCons=!!item.consignors?.id;
+ const isCons=!!item.consignors?.id&&(item.acquisition_mode||dep?.acquisition_mode)==="consignment";
  const share=isCons&&percent!=null?Number(item.sale_price||0)*Number(percent)/100:0;
  $("saleScanResult").innerHTML='<div class="notice"><b>'+esc(item.title||item.sku)+'</b><div>SKU : '+esc(item.sku)+' • Prix affiché : '+money(item.sale_price)+'</div><div>Consignateur : '+esc(item.consignors?.full_name||"Aucun")+'</div><div>Part estimée du consignateur : '+(isCons&&percent==null?"Pourcentage manquant":money(share))+'</div></div>'+
  '<div class="field"><label>Prix réellement encaissé ($)</label><input id="saleFinalPrice" type="number" min="0" step="0.01" value="'+Number(item.sale_price||0)+'"></div>'+
