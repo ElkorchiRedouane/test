@@ -200,6 +200,16 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="panel"><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
   </section>
 
+  <section id="salescan" class="page">
+    <div class="page-head"><div><h1>Scanner une vente</h1><p>Scanne le code-barres SKU de l'étiquette, puis confirme la vente réellement encaissée.</p></div></div>
+    <div class="panel"><div class="panel-body">
+      <div class="field"><label>Code-barres / SKU</label><input id="saleScanSku" autocomplete="off" autocapitalize="characters" placeholder="Scanner ou saisir un SKU"></div>
+      <div class="actions"><button id="saleScanCamera" class="btn green">📷 Scanner avec la caméra</button><button id="saleScanLookup" class="btn ghost">Rechercher</button></div>
+      <div id="saleScanVideoBox" class="hidden" style="position:relative;margin-top:12px"><video id="saleScanVideo" playsinline muted autoplay style="width:100%;max-height:350px;background:#111;border-radius:16px"></video><button id="saleScanStop" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
+      <div id="saleScanResult" style="margin-top:12px"></div>
+    </div></div>
+  </section>
+
   <section id="payouts" class="page">
     <div class="page-head"><div><h1>Paiements</h1><p>Calcul automatique des ventes et calcul manuel pour préparer un versement.</p></div><button id="exportSales" class="btn ghost small">Excel</button></div>
     <div class="panel"><div class="panel-head"><h2>Calcul manuel</h2></div><div class="panel-body">
@@ -217,11 +227,12 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="panel"><div class="panel-head"><h2>Ventes détectées</h2></div><div class="panel-body"><div id="salesList" class="list"></div></div></div>
   </section>
 </main>
-<nav class="bottom" style="grid-template-columns:repeat(5,1fr)">
+<nav class="bottom" style="grid-template-columns:repeat(6,1fr)">
   <button data-page="home" class="active"><span>⌂</span>Accueil</button>
   <button data-page="deposits"><span>🧺</span>Dépôts</button>
   <button data-page="stock"><span>📦</span>Stock</button>
   <button data-page="consignors"><span>👤</span>Consignateurs</button>
+  <button data-page="salescan"><span>▥</span>Vente</button>
   <button data-page="payouts"><span>💰</span>Paiements</button>
 </nav>
 </div>
@@ -371,7 +382,7 @@ $("signupBtn").onclick=async()=>{
 };
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
+function go(id){if(id!=="salescan")stopSaleScanner();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
 async function testShopifyConnection(){
@@ -1637,6 +1648,72 @@ async function retryShopify(id){
   go("stock");
 }
 $("stockSearch").oninput=renderStock;
+
+let saleScannerStream=null,saleScannerRunning=false,saleScannerBusy=false,salePendingItem=null;
+function stopSaleScanner(){
+ saleScannerRunning=false;
+ if(saleScannerStream){saleScannerStream.getTracks().forEach(t=>t.stop());saleScannerStream=null}
+ const v=$("saleScanVideo");if(v)v.srcObject=null;
+ $("saleScanVideoBox").classList.add("hidden");
+}
+async function lookupSaleScan(){
+ const sku=$("saleScanSku").value.trim().toUpperCase();
+ salePendingItem=null;
+ if(!sku){note($("saleScanResult"),"Scanne ou saisis le SKU.","warn");return}
+ const matches=stock.filter(i=>String(i.sku||"").trim().toUpperCase()===sku);
+ if(matches.length!==1){note($("saleScanResult"),matches.length?"Plusieurs articles avec ce SKU : vente bloquée.":"Article introuvable. Vérifie l’étiquette et synchronise le stock.","err");return}
+ const item=matches[0];
+ if(item.status==="sold"){note($("saleScanResult"),"Cet article est déjà vendu. Aucun nouveau crédit ne sera créé.","warn");return}
+ if(["archived","returned","rejected","deleted_shopify","deleted_milou"].includes(item.status)){note($("saleScanResult"),"Article non vendable (statut : "+esc(statusLabel(item.status))+").","err");return}
+ salePendingItem=item;
+ const cons=consignors.find(c=>c.id===item.consignors?.id);
+ const dep=deposits.find(d=>d.id===item.deposits?.id);
+ const percent=item.commission_pct??dep?.commission_pct??cons?.default_commission_pct;
+ const isCons=!!item.consignors?.id;
+ const share=isCons&&percent!=null?Number(item.sale_price||0)*Number(percent)/100:0;
+ $("saleScanResult").innerHTML='<div class="notice"><b>'+esc(item.title||item.sku)+'</b><div>SKU : '+esc(item.sku)+' • Prix affiché : '+money(item.sale_price)+'</div><div>Consignateur : '+esc(item.consignors?.full_name||"Aucun")+'</div><div>Part estimée du consignateur : '+(isCons&&percent==null?"Pourcentage manquant":money(share))+'</div></div>'+
+ '<div class="field"><label>Prix réellement encaissé ($)</label><input id="saleFinalPrice" type="number" min="0" step="0.01" value="'+Number(item.sale_price||0)+'"></div>'+
+ '<div class="actions"><button id="saleConfirm" class="btn primary">✓ Confirmer la vente encaissée</button></div>';
+ $("saleConfirm").onclick=confirmScannedSale;
+}
+async function confirmScannedSale(){
+ if(saleScannerBusy||!salePendingItem)return;
+ const amount=Number($("saleFinalPrice")?.value);
+ if(!Number.isFinite(amount)||amount<0||$("saleFinalPrice").value===""){note($("saleScanResult"),"Prix de vente invalide.","err");return}
+ const item=salePendingItem;
+ if(!confirm("Confirmer la vente encaissée de "+item.sku+" pour "+money(amount)+" ?"))return;
+ saleScannerBusy=true;$("saleConfirm").disabled=true;
+ try{
+  const {data,error}=await sb.rpc("milou_record_sale",{p_item_id:item.id,p_gross_amount:amount});
+  if(error)throw error;
+  salePendingItem=null;
+  await refreshAll();
+  $("saleScanSku").value="";
+  note($("saleScanResult"),"Vente enregistrée. Part du consignateur : "+money(data?.consignor_amount||0)+" • Part boutique : "+money(data?.store_amount||0)+".",""); 
+  $("saleScanSku").focus();
+ }catch(e){
+  note($("saleScanResult"),"Vente NON enregistrée : "+esc(e.message||String(e))+". Vérifie la connexion à la base et l’activation de la fonction de vente.","err");
+ }finally{saleScannerBusy=false}
+}
+async function startSaleScanner(){
+ stopSaleScanner();
+ if(!("BarcodeDetector" in window)){note($("saleScanResult"),"La caméra de ce navigateur ne permet pas le décodage des codes-barres. Utilise un lecteur Bluetooth ou saisis le SKU.","warn");return}
+ try{
+  const detector=new BarcodeDetector({formats:["code_128","ean_13","ean_8","qr_code"]});
+  saleScannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+  const video=$("saleScanVideo");video.srcObject=saleScannerStream;
+  $("saleScanVideoBox").classList.remove("hidden");await video.play();
+  saleScannerRunning=true;
+  const run=async()=>{if(!saleScannerRunning)return;try{const codes=await detector.detect(video);if(codes.length){$("saleScanSku").value=codes[0].rawValue;stopSaleScanner();lookupSaleScan();return}}catch(_){}
+    if(saleScannerRunning)requestAnimationFrame(run);
+  };requestAnimationFrame(run);
+ }catch(e){stopSaleScanner();note($("saleScanResult"),"Caméra indisponible : "+esc(e.message||String(e)),"err")}
+}
+$("saleScanLookup").onclick=lookupSaleScan;
+$("saleScanSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();lookupSaleScan()}};
+$("saleScanCamera").onclick=startSaleScanner;
+$("saleScanStop").onclick=stopSaleScanner;
+
 function renderPayouts(){
  if(!$("salesList"))return;
  $("salesList").innerHTML=sales.length?sales.map(s=>'<div class="row"><div class="row-main"><b>'+esc(s.items?.title||s.items?.sku||"Vente")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(s.consignors?.full_name||"Sans consignateur")+' • '+new Date(s.sold_at).toLocaleDateString("fr-CA")+'</small></div><div class="row-actions"><strong>'+money(s.gross_amount)+'</strong><span class="badge">'+money(s.consignor_amount)+' à verser</span></div></div>').join(""):'<div class="empty">Aucune vente détectée.</div>';
