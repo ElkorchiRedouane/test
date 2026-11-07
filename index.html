@@ -252,16 +252,6 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div id="posHistoryMessage"></div><div id="posHistoryList" class="list" style="margin-top:12px"></div>
     <div id="posHistoryDetail"></div><div class="panel"><div class="panel-head"><h2>Demandes de retour</h2></div><div class="panel-body"><div id="posReturnHistoryList" class="list"></div></div></div>
   </section>
-  <section id="salescan" class="page">
-    <div class="page-head"><div><h1>Scanner une vente</h1><p>Scanne le code-barres SKU de l'étiquette, puis confirme la vente réellement encaissée.</p></div></div>
-    <div class="panel"><div class="panel-body">
-      <div class="field"><label>Code-barres / SKU</label><input id="saleScanSku" autocomplete="off" autocapitalize="characters" placeholder="Scanner ou saisir un SKU"></div>
-      <div class="actions"><button id="saleScanCamera" class="btn green">📷 Scanner avec la caméra</button><button id="saleScanLookup" class="btn ghost">Rechercher</button></div>
-      <div id="saleScanVideoBox" class="hidden" style="position:relative;margin-top:12px"><div id="saleScanReader" style="width:100%;background:#111;border-radius:16px;overflow:hidden"></div><button id="saleScanStop" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
-      <div id="saleScanResult" style="margin-top:12px"></div>
-    </div></div>
-  </section>
-
   <section id="payouts" class="page">
     <div class="page-head"><div><h1>💰 Consignation — Finances</h1><p>Solde réel calculé à partir des ventes et des paiements enregistrés. Aucune modification financière en mode essai.</p></div><button id="exportSales" class="btn ghost small">Excel ventes</button></div>
     <div id="payoutStatus"></div>
@@ -456,7 +446,7 @@ $("signupBtn").onclick=async()=>{
 };
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(id){if(id!=="salescan")void stopSaleScanner();if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="labels")renderLabelOptions();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
+function go(id){if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="labels")renderLabelOptions();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
 async function testShopifyConnection(){
@@ -2070,6 +2060,7 @@ function addPosSku(){
  $("posSku").focus();
 }
 async function preparePosDraft(){
+ if(posDraftOrderId){note($("posPreparedStatus"),"Ce panier est déjà préparé (référence "+esc(posDraftOrderId)+"). Retire ou ajoute un article pour commencer un nouveau panier.","warn");return}
  if(!posCartIds.length){note($("posPreparedStatus"),"Ajoute au moins un article au panier.","warn");return}
  const b=$("posPrepare");b.disabled=true;b.textContent="Préparation…";
  try{
@@ -2086,70 +2077,7 @@ $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
 $("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];posClearPrepared();renderPosCart();$("posSku").focus()};
 renderPosCart();
 
-let saleScannerInstance=null,saleScannerBusy=false,salePendingItem=null;
-async function stopSaleScanner(){
- const scanner=saleScannerInstance; saleScannerInstance=null;
- if(scanner){try{await scanner.stop()}catch(_){}try{await scanner.clear()}catch(_){}}
- $("saleScanVideoBox").classList.add("hidden");
-}
-async function lookupSaleScan(){
- const sku=$("saleScanSku").value.trim().toUpperCase();
- salePendingItem=null;
- if(!sku){note($("saleScanResult"),"Scanne ou saisis le SKU.","warn");return}
- const matches=stock.filter(i=>String(i.sku||"").trim().toUpperCase()===sku);
- if(matches.length!==1){note($("saleScanResult"),matches.length?"Plusieurs articles avec ce SKU : vente bloquée.":"Article introuvable. Vérifie l’étiquette et synchronise le stock.","err");return}
- const item=matches[0];
- if(item.status==="sold"){note($("saleScanResult"),"Cet article est déjà vendu. Aucun nouveau crédit ne sera créé.","warn");return}
- if(!["validated","shopify_draft","online"].includes(item.status)){note($("saleScanResult"),"Article non vendable (statut : "+esc(statusLabel(item.status))+").","err");return}
- salePendingItem=item;
- const cons=consignors.find(c=>c.id===item.consignors?.id);
- const dep=deposits.find(d=>d.id===item.deposits?.id);
- const percent=item.commission_pct??dep?.commission_pct??cons?.default_commission_pct;
- const isCons=!!(item.consignors?.id||dep?.consignor_id)&&(item.acquisition_mode||dep?.acquisition_mode)==="consignment";
- const share=isCons&&percent!=null?Number(item.sale_price||0)*Number(percent)/100:0;
- $("saleScanResult").innerHTML='<div class="notice"><b>'+esc(item.title||item.sku)+'</b><div>SKU : '+esc(item.sku)+' • Prix affiché : '+money(item.sale_price)+'</div><div>Consignateur : '+esc(item.consignors?.full_name||"Aucun")+'</div><div>Part estimée du consignateur : '+(isCons&&percent==null?"Pourcentage manquant":money(share))+'</div></div>'+
- '<div class="field"><label>Prix réellement encaissé ($)</label><input id="saleFinalPrice" type="number" min="0" step="0.01" value="'+Number(item.sale_price||0)+'"></div>'+
- '<div class="actions"><button id="saleConfirm" class="btn primary">✓ Confirmer la vente encaissée</button></div>';
- $("saleConfirm").onclick=confirmScannedSale;
-}
-async function confirmScannedSale(){
- if(saleScannerBusy||!salePendingItem)return;
- const amount=Number($("saleFinalPrice")?.value);
- if(!Number.isFinite(amount)||amount<0||amount>100000||Math.round(amount*100)!==amount*100||$("saleFinalPrice").value===""){note($("saleScanResult"),"Prix de vente invalide.","err");return}
- const item=salePendingItem;
- if(!confirm("Confirmer la vente encaissée de "+item.sku+" pour "+money(amount)+" ?"))return;
- saleScannerBusy=true;$("saleConfirm").disabled=true;
- try{
-  const {data,error}=await sb.rpc("milou_record_sale",{p_item_id:item.id,p_gross_amount:amount});
-  if(error)throw error;
-  salePendingItem=null;
-  await refreshAll();
-  $("saleScanSku").value="";
-  note($("saleScanResult"),"Vente enregistrée. Part du consignateur : "+money(data?.consignor_amount||0)+" • Part boutique : "+money(data?.store_amount||0)+".",""); 
-  $("saleScanSku").focus();
- }catch(e){
-  note($("saleScanResult"),"Vente NON enregistrée : "+esc(e.message||String(e))+". Vérifie la connexion à la base et l’activation de la fonction de vente.","err");
- }finally{saleScannerBusy=false}
-}
-async function startSaleScanner(){
- await stopSaleScanner();
- if(!window.Html5Qrcode){note($("saleScanResult"),"Module caméra non chargé. Vérifie Internet ou utilise un lecteur Bluetooth.","warn");return}
- try{
-  $("saleScanVideoBox").classList.remove("hidden");
-  const scanner=new window.Html5Qrcode("saleScanReader");
-  saleScannerInstance=scanner;
-  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:160}},async code=>{
-    if(scanner!==saleScannerInstance)return;
-    $("saleScanSku").value=code;
-    await stopSaleScanner();
-    await lookupSaleScan();
-  },()=>{});
- }catch(e){await stopSaleScanner();note($("saleScanResult"),"Caméra indisponible : "+esc(e.message||String(e)),"err")}
-}
-$("saleScanLookup").onclick=lookupSaleScan;
-$("saleScanSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();lookupSaleScan()}};
-$("saleScanCamera").onclick=startSaleScanner;
-$("saleScanStop").onclick=stopSaleScanner;
+
 
 let payoutHistory=[],payoutReturnHolds=new Set(),payoutLastStatement=null,payoutSelectionDefault="",payoutProposals=[];
 function renderDemoPayout(){
