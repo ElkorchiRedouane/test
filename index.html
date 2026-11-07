@@ -2220,28 +2220,28 @@ function posReceiptMarkup(data,isDemo,dateISO){
  const lines=Array.isArray(data.items)?data.items:[];
  const timestamp=formatQuebecDateTime(dateISO||new Date().toISOString());
  const total=Number(data.total_cents||0),received=Number(data.received_cents||0),change=Number(data.change_cents||0);
- const id=isDemo?"SIMULATION — NON VALIDE":String(data.order_id||"");
+ const id=isDemo?"APERÇU — NON VALIDE":String(data.order_id||"");
  const square=data.payment_method==="square"||!!data.square_reference;
  return '<div class="pos-receipt" style="background:white;color:#111;padding:14px;border:1px solid #ddd;border-radius:9px;line-height:1.4">'+
  '<div style="text-align:center;font-weight:800;font-size:18px">FRIPERIE MILOU</div>'+
- '<div style="text-align:center">'+esc(isDemo?"REÇU DE SIMULATION — NE PAS REMETTRE AU CLIENT":"REÇU DE VENTE")+'</div>'+
+ '<div style="text-align:center">'+esc(isDemo?"APERÇU DU REÇU — NON VALIDE":"REÇU DE VENTE")+'</div>'+
  '<div style="font-size:12px;text-align:center">'+esc(timestamp)+'</div>'+
  '<div style="overflow-wrap:anywhere;font-size:11px">Référence : '+esc(id)+'</div><hr>'+
  lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:8px;margin:5px 0"><span style="min-width:0;overflow-wrap:anywhere">'+esc(x.title||x.sku||"Article")+'<div style="font-size:10px">'+esc(x.sku||"")+'</div></span><strong style="white-space:nowrap">'+money(Number(x.price_cents||0)/100)+'</strong></div>').join("")+
  '<hr><div style="display:flex;justify-content:space-between"><b>Total</b><b>'+money(total/100)+'</b></div>'+
  '<div>Paiement : '+esc(square?'Carte — Square (rapproché manuellement)':'Comptant')+'</div>'+ (square?'<div>Référence Square : '+esc(data.square_reference||'')+'</div>':'<div>Espèces reçues : '+money(received/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div>')+
  '<div style="font-size:11px;margin-top:8px">'+esc(isDemo?"Taxes non appliquées : hypothèse de simulation, régime fiscal à valider.":data.tax_mode==="small_supplier_no_tax"?"TPS/TVQ non perçues (petit fournisseur).":"Configuration fiscale à vérifier.")+'</div>'+
- (isDemo?'<div style="font-weight:800;text-align:center;margin-top:12px">TEST — AUCUNE VENTE ENREGISTRÉE</div>':'')+
+ (isDemo?'<div style="font-weight:800;text-align:center;margin-top:12px">APERÇU — AUCUNE VENTE ENREGISTRÉE</div>':'')+
  '</div>';
 }
 function posReceiptText(data,isDemo,dateISO){
- return ['FRIPERIE MILOU',isDemo?"REÇU DE SIMULATION — NON VALIDE":"REÇU DE VENTE",
+ return ['FRIPERIE MILOU',isDemo?"APERÇU DU REÇU — NON VALIDE":"REÇU DE VENTE",
  formatQuebecDateTime(dateISO||new Date().toISOString()),'Référence : '+(isDemo?"TEST":data.order_id||""),
  ...(data.items||[]).map(x=>(x.sku||"")+" "+(x.title||"")+" : "+money(Number(x.price_cents||0)/100)),
  'Total : '+money(Number(data.total_cents||0)/100),
  (data.payment_method==='square'||data.square_reference)?'Paiement Square, référence : '+(data.square_reference||''):'Espèces reçues : '+money(Number(data.received_cents||0)/100),
  (data.payment_method==='square'||data.square_reference)?'Rapprochement manuel effectué':'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
- isDemo?"TEST — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
+ isDemo?"APERÇU — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
 }
 function printPosReceipt(receiptOverride=null){
  const receipt=receiptOverride||posLastReceipt;
@@ -2506,8 +2506,8 @@ $("posSquareReceiptDemo").onclick=()=>{
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
  if(!items.length){note($("posSquareStatus"),"Scanne au moins un article pour tester le reçu.","warn");return;}
  const lines=items.map(i=>({sku:i.sku,title:i.title,price_cents:Math.round(Number(i.sale_price||0)*100)}));
- showPosReceipt({items:lines,total_cents:posCartCents(),payment_method:"square",square_reference:"TEST-SQUARE-NON-VALIDE",tax_mode:posFiscalMode},true,null,"posSquareReceipt");
- note($("posSquareStatus"),"Reçu de TEST généré pour vérifier l’imprimante. Aucun paiement, stock ou commission enregistré.");
+ showPosReceipt({items:lines,total_cents:posCartCents(),payment_method:"square",square_reference:"APERCU-NON-VALIDE",tax_mode:posFiscalMode},true,null,"posSquareReceipt");
+ note($("posSquareStatus"),"Aperçu du reçu prêt à imprimer. Aucun paiement ni mouvement de stock effectué.");
 };
 $("posAdd").onclick=()=>addPosSku();
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
