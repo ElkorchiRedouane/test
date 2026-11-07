@@ -588,19 +588,33 @@ async function loadDeposits(){
     }
   }
 }
-async function loadStock(){
- const {data,error}=await sb.from("items").select("id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)").order("created_at",{ascending:false}).limit(500);
- if(error)throw new Error("Stock : "+error.message);
- stock=data||[];
- for(const i of stock){
-   const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
-   if(pics[0]?.storage_path){const{data:s}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);i.photo_url=s?.signedUrl||null}
+async function fetchMilouPages(table,fields,orderColumn,label){
+ const pageSize=500,maxRows=10000,all=[];
+ for(let offset=0;offset<maxRows;offset+=pageSize){
+  const {data,error}=await sb.from(table).select(fields).order(orderColumn,{ascending:false}).range(offset,offset+pageSize-1);
+  if(error)throw new Error(label+" : "+error.message);
+  all.push(...(data||[]));
+  if(!data||data.length<pageSize)return all;
  }
+ throw new Error(label+" : limite de 10 000 lignes atteinte. La synchronisation complète doit être adaptée avant de continuer.");
+}
+async function loadStock(){
+ stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
+ // Concurrency-limited signed URLs: avoids delaying the cash register on large inventories.
+ const queue=stock.slice();const workers=Array.from({length:8},async()=>{
+  while(queue.length){
+   const item=queue.shift();
+   const pics=(item.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
+   if(pics[0]?.storage_path){
+    const {data}=await sb.storage.from("item-photos").createSignedUrl(pics[0].storage_path,3600);
+    item.photo_url=data?.signedUrl||null;
+   }
+  }
+ });
+ await Promise.all(workers);
 }
 async function loadSales(){
- const {data,error}=await sb.from("sales").select("*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)").order("sold_at",{ascending:false});
- if(error)throw new Error("Ventes : "+error.message);
- sales=data||[];
+ sales=await fetchMilouPages("sales","*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)","sold_at","Ventes");
 }
 async function loadLocations(){
  const {data,error}=await sb.from("physical_locations").select("*").eq("active",true).order("size_group").order("code");
