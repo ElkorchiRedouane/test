@@ -606,6 +606,7 @@ async function refreshAll(){
    // Financial and Google Sheet panels refresh asynchronously; neither blocks the dashboard.
    void loadPayoutFinancials().catch(e=>console.warn("Payout load:",e));
    void refreshSheetSyncStatus().catch(e=>console.warn("Sheet status:",e));
+   setTimeout(()=>{void hydrateMilouPhotos().catch(e=>console.warn("Photo hydration:",e));},100);
    setTimeout(()=>autoSyncGoogleSheetIfNeeded(),250);
    return true;
  }catch(e){
@@ -637,8 +638,7 @@ async function fetchMilouPages(table,fields,orderColumn,label){
 let photoHydrationActive=false;
 async function loadStock(){
  stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
- // Cached signed URLs are short-lived and only used within the authenticated session.
- void hydrateMilouPhotos().catch(e=>console.warn("Photo hydration:",e));
+ // Photo URLs will load after the initial dashboard render to avoid blocking startup.
 }
 async function hydrateMilouPhotos(){
  if(photoHydrationActive)return;
