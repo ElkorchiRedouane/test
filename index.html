@@ -193,7 +193,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     </div>
     <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small">↻ Synchroniser Shopify</button></div>
     <div id="locationSummary" class="notice"></div>
-    <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
+    <div id="stockDetail" class="hidden"></div><div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
 
@@ -240,7 +240,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <div class="actions" id="posCashShortcuts"><button type="button" class="btn ghost small" data-cash="exact">Montant exact</button><button type="button" class="btn ghost small" data-cash="20">20 $</button><button type="button" class="btn ghost small" data-cash="50">50 $</button><button type="button" class="btn ghost small" data-cash="100">100 $</button></div>
   <div class="summary-card"><span>Monnaie à remettre (simulation)</span><strong id="posCashChange">—</strong></div>
   <div class="actions"><button id="posCashSimulate" class="btn green">✓ Simuler la vente comptant</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
-  <div id="posCashResult"></div><div class="actions"><button id="posReturnDemo" class="btn ghost small" disabled>↩ Simuler un retour</button></div><div id="posReturnDemoResult"></div>
+  <div id="posCashResult"></div><details style="margin-top:10px"><summary>🧪 Tester la monnaie avec des centimes (sans article réel)</summary><div class="grid" style="margin-top:12px"><div class="field"><label>Total fictif ($)</label><input id="centDemoTotal" inputmode="decimal" value="19.99"></div><div class="field"><label>Montant fictif reçu ($)</label><input id="centDemoReceived" inputmode="decimal" value="20.00"></div></div><div id="centDemoResult" class="notice" aria-live="polite"></div></details><div class="actions"><button id="posReturnDemo" class="btn ghost small" disabled>↩ Simuler un retour</button></div><div id="posReturnDemoResult"></div>
  </div></div>
  <div class="actions"><button id="posPrepare" class="btn ghost">Préparer le panier en base de données</button><button id="posSquarePay" class="btn primary" disabled>💳 Square — configuration requise</button></div><div id="posPreparedStatus"></div>
     </div></div>
@@ -755,7 +755,7 @@ function renderDepositDetail(id){
      ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+
-     '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
+     '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
      '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join("")+'</div>':'<div class="empty">Aucun article.</div>')+
  '<div class="notice">Taux au dépôt : '+esc(d.commission_pct==null?"non défini (voir les articles)":String(d.commission_pct)+" %")+'. Montants potentiels calculés sur les prix affichés ; le taux final est fixé lors de la vente.</div><div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
@@ -1791,6 +1791,20 @@ function previewMilouLabel(){
 $("labelsPreviewButton").onclick=previewMilouLabel;
 
 
+function showStockItemDetails(id){
+ const i=stock.find(x=>x.id===id),box=$("stockDetail");
+ if(!i){box.classList.add("hidden");return}
+ box.classList.remove("hidden");
+ const show=(label,value)=>'<div class="row"><span>'+esc(label)+'</span><strong>'+esc(value==null||value===""?"Non précisé":String(value))+'</strong></div>';
+ box.innerHTML='<div class="panel"><div class="panel-head"><h2>Fiche article — '+esc(i.sku)+'</h2><button type="button" id="closeStockDetail" class="btn ghost small">Fermer</button></div><div class="panel-body">'+
+ (i.photo_url?'<img style="width:150px;max-width:100%;border-radius:12px" src="'+esc(i.photo_url)+'" alt="Photo de l’article">':'')+
+ show("Titre",i.title)+show("SKU",i.sku)+show("Marque",i.brand)+show("Taille",i.size)+show("Catégorie d’âge",i.age_band)+
+ show("Statut",statusLabel(i.status))+show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
+ show("Dépôt",i.deposits?.code)+show("Consignateur",i.consignors?.full_name)+
+ '<div class="notice warn">Cette fiche est en lecture seule. Les titres incomplets doivent être corrigés à la source, sans invention de descriptions.</div></div></div>';
+ $("closeStockDetail").onclick=()=>{box.innerHTML="";box.classList.add("hidden")};
+ box.scrollIntoView({behavior:"smooth",block:"start"});
+}
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
  const rows=stock.filter(i=>{
@@ -1811,6 +1825,7 @@ function renderStock(){
    '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
    '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join(""):'<div class="empty">Aucun article.</div>';
+ document.querySelectorAll(".stockDetails").forEach(b=>b.onclick=()=>showStockItemDetails(b.dataset.id));
  document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id));
 }
@@ -1921,6 +1936,16 @@ async function loadPosConfig(){
 function posSimulatedTaxNote(){
  return posFiscalMode==="small_supplier_no_tax"?"Taxes non perçues (configuration validée)":"Hypothèse de test : taxes 0 $ ; régime fiscal non validé";
 }
+function renderCentDemo(){
+ const total=posCentsFromInput($("centDemoTotal").value);
+ const received=posCentsFromInput($("centDemoReceived").value);
+ const box=$("centDemoResult");
+ if(total===null||received===null){box.textContent="Saisis deux montants valides (2 décimales maximum).";return}
+ box.textContent=received<total?"Paiement insuffisant : manque "+money((total-received)/100):"Monnaie fictive : "+money((received-total)/100)+". Aucun article et aucune vente modifiés.";
+}
+$("centDemoTotal").oninput=renderCentDemo;
+$("centDemoReceived").oninput=renderCentDemo;
+renderCentDemo();
 function renderPosCash(){
  const total=posCartCents();
  const received=posCentsFromInput($("posCashReceived")?.value);
