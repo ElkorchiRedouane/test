@@ -1797,7 +1797,7 @@ $("posCameraClose").onclick=stopPosCamera;
 let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
- if(!/^\\d{1,7}(?:\\.\\d{1,2})?$/.test(x))return null;
+ if(!/^\d{1,7}(?:\.\d{1,2})?$/.test(x))return null;
  const [whole,fraction=""]=x.split(".");
  return Number(whole)*100+Number((fraction+"00").slice(0,2));
 }
