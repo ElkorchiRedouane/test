@@ -76,6 +76,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.12.3/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body>
 <div id="milouLoading" class="login"><div class="login-card" role="status" aria-live="polite"><div class="logo">Milou <span>Ops</span></div><p>Vérification de la session et chargement des données réelles…</p></div></div>
@@ -230,7 +231,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posScanPhoto" class="btn ghost">🖼 Lire depuis une photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
-      <div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
+      <div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">🔧 Diagnostiquer le scanner</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
         <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Taxes (configuration requise)</span><strong id="posTax">—</strong></div>
@@ -1958,10 +1959,6 @@ $("stockSearch").oninput=renderStock;
 
 let posCameraInstance=null;
 let posCameraStartup=null;
-function posScannerFormats(){
- const f=window.Html5QrcodeSupportedFormats;
- return f?.CODE_128!==undefined?[f.CODE_128]:undefined;
-}
 function posScanFeedback(message,isError=false){
  const status=$("posScanStatus");
  if(status){status.textContent=message;status.style.color=isError?"#a33131":"";}
@@ -1972,91 +1969,123 @@ function posAcceptScannedCode(raw){
  $("posSku").value=code;
  const added=addPosSku(false);
  if(added){
-  posScanFeedback("✓ Code lu : "+code+" — article ajouté au panier.");
+  posScanFeedback("✓ Code reconnu : "+code+" — article ajouté au panier.");
   if(navigator.vibrate)try{navigator.vibrate(45)}catch(e){}
- }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier : article introuvable, indisponible ou déjà au panier.",true);
+ }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier : article indisponible, absent ou déjà présent.",true);
  return added;
 }
 async function stopPosCamera(){
- const scanner=posCameraInstance;posCameraInstance=null;
- // ZXing returns controls.stop(); html5-qrcode exposes stop() and clear().
- if(scanner){try{scanner.stop?.()}catch(e){}try{await scanner.clear?.()}catch(e){}}
- const container=$("posCameraBox");
- if(container){container.classList.add("hidden");$("posCameraReader").replaceChildren()}
- const btn=$("posCamera");if(btn)btn.textContent="📷 Scanner avec la caméra";
+ const current=posCameraInstance;posCameraInstance=null;
+ if(current)try{current.stop()}catch(e){}
+ const box=$("posCameraBox");
+ if(box){box.classList.add("hidden");$("posCameraReader").replaceChildren()}
+ const button=$("posCamera");if(button)button.textContent="📷 Scanner avec la caméra";
 }
 async function startPosCamera(){
  if(posCameraStartup)return;
  if(posCameraInstance){await stopPosCamera();return}
- if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra inaccessible. Ouvre l’app directement dans Safari sur l’iPad, avec HTTPS.",true);return}
- if(!window.ZXingBrowser?.BrowserMultiFormatReader){
-  posScanFeedback("Nouveau moteur de lecture non chargé. Vérifie Internet puis actualise la page Safari.",true);return
- }
- const b=$("posCamera");b.disabled=true;
- let startup=null;
- try{
-  $("posCameraBox").classList.remove("hidden");
-  const host=$("posCameraReader");host.replaceChildren();
-  const video=document.createElement("video");
-  video.setAttribute("playsinline","");video.setAttribute("webkit-playsinline","");
-  video.setAttribute("autoplay","");video.muted=true;
-  video.style.cssText="width:100%;height:auto;min-height:210px;max-height:55vh;object-fit:contain;background:#111";
-  host.appendChild(video);
-  posScanFeedback("Ouverture de la caméra arrière — moteur ZXing Code 128…");
-  const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
-  let lastCode="",lastAt=0,failures=0;
-  startup=reader.decodeFromConstraints({
-   audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
-  },video,(result,error,controls)=>{
-    if(result){
-      const code=typeof result.getText==="function"?result.getText():String(result.text||"");
-      const now=Date.now();
-      if(code && !(code===lastCode && now-lastAt<1800)){
-       lastCode=code;lastAt=now;posAcceptScannedCode(code);
-      }
-    }else if(error){
-      failures++;
-      if(failures%50===0)posScanFeedback("Caméra active (ZXing). "+failures+" images analysées, aucun Code 128 détecté. Essaie de reculer légèrement ou d’éclairer l’étiquette.");
-    }
-  });
-  posCameraStartup=startup;
-  const controls=await startup;
-  if(posCameraStartup!==startup){controls.stop();return}
-  posCameraInstance=controls;
-  b.textContent="Arrêter la caméra";
-  posScanFeedback("Caméra active (ZXing). Vise le QR carré sur la nouvelle étiquette ; les anciens codes-barres restent acceptés.");
- }catch(e){
-  await stopPosCamera();
-  const err=String(e?.message||e||"");
-  const denied=/NotAllowedError|permission|denied/i.test(err);
-  posScanFeedback(denied?"Safari refuse la caméra : autorise-la dans les réglages du site.":"Démarrage ZXing impossible : "+err+". Essaie « Lire depuis une photo ».",true);
- }finally{posCameraStartup=null;b.disabled=false}
+ if(!window.jsQR){posScanFeedback("Module jsQR non chargé. Actualise Safari avec Internet actif et lance le diagnostic.",true);return}
+ if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra Safari indisponible. Ouvre le site directement en HTTPS et autorise la caméra.",true);return}
+ const btn=$("posCamera");btn.disabled=true;
+ $("posCameraBox").classList.remove("hidden");
+ const host=$("posCameraReader");host.replaceChildren();
+ const video=document.createElement("video");
+ video.setAttribute("playsinline","");video.setAttribute("webkit-playsinline","");
+ video.setAttribute("autoplay","");video.muted=true;
+ video.style.cssText="width:100%;height:auto;max-height:55vh;min-height:200px;object-fit:contain;background:#111";
+ host.appendChild(video);
+ const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+ if(!ctx){posScanFeedback("Échec de création du canvas iPad.",true);return}
+ posScanFeedback("Ouverture de la caméra arrière avec le lecteur QR dédié…");
+ let stream=null,active=true,frame=0,lastCode="",lastAt=0,lastScanAt=0;
+ const control={stop(){active=false; if(stream)stream.getTracks().forEach(t=>t.stop());try{video.pause()}catch(e){}video.srcObject=null}};
+ posCameraStartup=(async()=>{
+  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}});
+  if(!active){stream.getTracks().forEach(t=>t.stop());return}
+  video.srcObject=stream;
+  await video.play();
+  posCameraInstance=control;
+  btn.textContent="Arrêter la caméra";
+  posScanFeedback("Caméra active — lecture QR (jsQR). Vise le code carré sur la nouvelle étiquette.");
+  const loop=timestamp=>{
+   if(!active)return;
+   requestAnimationFrame(loop);
+   if(timestamp-lastScanAt<180)return;
+   lastScanAt=timestamp;
+   if(video.readyState<2||!video.videoWidth)return;
+   const w=Math.min(video.videoWidth,960),h=Math.round(w*video.videoHeight/video.videoWidth);
+   canvas.width=w;canvas.height=h;
+   try{
+    ctx.drawImage(video,0,0,w,h);
+    const img=ctx.getImageData(0,0,w,h);
+    const result=window.jsQR(img.data,w,h,{inversionAttempts:"attemptBoth"});
+    frame++;
+    if(result?.data){
+     const code=result.data.trim().toUpperCase(),now=Date.now();
+     if(code!==lastCode||now-lastAt>1800){lastCode=code;lastAt=now;posAcceptScannedCode(code)}
+    }else if(frame%35===0)posScanFeedback("Caméra active — "+frame+" images analysées, aucun QR reconnu. Rapproche le QR carré et évite les reflets.");
+   }catch(e){posScanFeedback("Erreur image Safari : "+String(e?.message||e),true);control.stop()}
+  };
+  requestAnimationFrame(loop);
+ })();
+ try{await posCameraStartup}catch(e){
+  control.stop();posCameraInstance=null;
+  posScanFeedback("Échec caméra : "+String(e?.message||e)+". Essaie le mode photo ou le diagnostic.",true);
+ }finally{posCameraStartup=null;btn.disabled=false}
 }
 async function scanPosPhoto(file){
  if(!file)return;
- if(posCameraInstance||posCameraStartup)await stopPosCamera();
- const b=$("posScanPhoto");b.disabled=true;
- posScanFeedback("Analyse de l’image…");
- const imageUrl=URL.createObjectURL(file);
+ if(posCameraInstance)await stopPosCamera();
+ const btn=$("posScanPhoto");btn.disabled=true;
+ const url=URL.createObjectURL(file);
  try{
-  if(window.ZXingBrowser?.BrowserMultiFormatOneDReader){
-    const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
-    const result=await reader.decodeFromImageUrl(imageUrl);
-    posAcceptScannedCode(result.getText());
-  }else if(window.Html5Qrcode){
-    const host=$("posCameraBox");host.classList.remove("hidden");
-    const formats=posScannerFormats();
-    const reader=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats}:{verbose:false});
-    try{posAcceptScannedCode(await reader.scanFile(file,false))}finally{try{await reader.clear()}catch(e){}host.classList.add("hidden")}
-  }else posScanFeedback("Aucun lecteur disponible. Actualise Safari avec Internet actif.",true);
- }catch(e){
-  posScanFeedback("Code non reconnu dans la photo. Essaie une image nette, de face, avec les marges blanches visibles. Détail : "+String(e?.message||e),true);
- }finally{URL.revokeObjectURL(imageUrl);b.disabled=false;$("posScanFile").value=""}
+  posScanFeedback("Lecture QR depuis la photo…");
+  const img=new Image();
+  img.src=url;
+  await img.decode();
+  const canvas=document.createElement("canvas");
+  const w=Math.min(img.naturalWidth,1800),h=Math.round(w*img.naturalHeight/img.naturalWidth);
+  canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);
+  const data=ctx.getImageData(0,0,w,h);
+  const result=window.jsQR?.(data.data,w,h,{inversionAttempts:"attemptBoth"});
+  if(result?.data){posAcceptScannedCode(result.data);return}
+  if(window.ZXingBrowser?.BrowserMultiFormatReader){
+   const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
+   const r=await reader.decodeFromImageUrl(url);
+   posAcceptScannedCode(r.getText());return;
+  }
+  posScanFeedback("Aucun QR dans la photo. Essaie une photo nette avec le QR entièrement visible.",true);
+ }catch(e){posScanFeedback("Photo non décodée : "+String(e?.message||e),true)}
+ finally{URL.revokeObjectURL(url);btn.disabled=false;$("posScanFile").value=""}
+}
+async function diagnosePosScanner(){
+ const el=$("posScanDiagnosticsResult");el.classList.remove("hidden");
+ const lines=["Diagnostic iPad — "+new Date().toLocaleString("fr-CA"),
+  "Navigateur : "+navigator.userAgent,
+  "HTTPS : "+(window.isSecureContext?"oui":"non"),
+  "Caméra API : "+(!!navigator.mediaDevices?.getUserMedia),
+  "jsQR : "+(typeof window.jsQR),
+  "ZXing : "+(typeof window.ZXingBrowser?.BrowserMultiFormatReader),
+  "Html5Qrcode : "+(typeof window.Html5Qrcode),
+  "QRCode étiquettes : "+(typeof window.QRCode),
+  "JsBarcode : "+(typeof window.JsBarcode)];
+ try{
+  const data=milouQrData("MIL-000059");
+  const img=new Image();img.src=data;await img.decode();
+  const canvas=document.createElement("canvas");canvas.width=160;canvas.height=160;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0);
+  const pixels=ctx.getImageData(0,0,160,160);
+  const decoded=window.jsQR?.(pixels.data,160,160);
+  lines.push("QR généré et relu localement : "+(decoded?.data||"ÉCHEC"));
+ }catch(e){lines.push("Autotest QR : "+String(e?.message||e))}
+ el.textContent=lines.join("\n");
 }
 $("posCamera").onclick=startPosCamera;
 $("posCameraClose").onclick=stopPosCamera;
 $("posScanPhoto").onclick=()=>{$("posScanFile").click()};
 $("posScanFile").onchange=e=>{void scanPosPhoto(e.target.files?.[0])};
+$("posScanDiagnostics").onclick=()=>{void diagnosePosScanner()};
 let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false,posSquareManualEnabled=false,posSquareBusy=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
