@@ -208,7 +208,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
       <div id="labelsList" class="list" style="max-height:420px;overflow:auto;margin-top:12px"></div>
       <div class="notice">Chaque étiquette comporte le nom Milou, le titre, la taille, le prix et un vrai code-barres Code 128. Aucune étiquette n'est attachée à un consignateur par son nom ou son pourcentage.</div>
-      <div class="actions"><button id="labelsPreviewButton" class="btn ghost">👁 Aperçu code-barres</button><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div><div id="labelsPreview" class="notice hidden"></div>
+      <div class="actions"><button id="labelsPreviewButton" class="btn ghost">👁 Aperçu code-barres</button><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div><div id="labelsSelectionCount" class="caption" role="status" aria-live="polite">0 étiquette sélectionnée</div><div id="labelsPreview" class="notice hidden"></div>
       <div id="labelsStatus"></div>
     </div></div>
   </section>
@@ -433,9 +433,11 @@ async function authState(){
    // Shopify health checks must not hold the dashboard hostage.
    // Synchronization is explicit, via "Synchroniser Shopify", not automatic at login.
    if(loaded)void testShopifyConnection().catch(e=>console.warn("Shopify status:",e));
-   if(!window.history.state?.milouPage){
-    window.history.replaceState({milouPage:"home"},"",window.location.pathname+window.location.search+"#home");
-   }
+   // Honor deep links on first load, including #stock and #labels.
+   const requested=decodeURIComponent(window.location.hash.slice(1));
+   const destination=document.getElementById(requested)?.classList.contains("page")?requested:"home";
+   window.history.replaceState({milouPage:destination},"",window.location.pathname+window.location.search+"#"+destination);
+   go(destination,{history:false});
   }catch(e){
    $("app").classList.add("hidden");$("login").classList.remove("hidden");
    note($("authMsg"),"Chargement impossible : "+esc(e.message||String(e)),"err");
@@ -487,7 +489,7 @@ function go(id,options={}){
 }
 window.addEventListener("popstate",event=>{
  if(!firstAuthFinished || $("app").classList.contains("hidden"))return;
- const page=event.state?.milouPage||"home";
+ const page=event.state?.milouPage||decodeURIComponent(window.location.hash.slice(1))||"home";
  go(document.getElementById(page)?.classList.contains("page")?page:"home",{history:false});
 });
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
@@ -1742,6 +1744,8 @@ function renderLabelOptions(){
 }
 function renderLabelList(){
  const visible=labelVisibleItems();
+ const count=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id)).length;
+ $("labelsSelectionCount").textContent=count+" étiquette"+(count===1?"":"s")+" sélectionnée"+(count===1?"":"s")+" pour impression";
  $("labelsList").innerHTML=visible.length?visible.map(i=>
   '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
  ).join(""):'<div class="empty">Aucun article imprimable pour ce dépôt ou ce filtre. Les articles supprimés de Shopify ne sont pas automatiquement remis en vente.</div>';
@@ -1800,18 +1804,32 @@ $("labelsClearSelection").onclick=()=>{selectedLabelIds.clear();labelPreviewItem
 $("labelsPrint").onclick=printMilouLabels;
 function previewMilouLabel(){
  const visible=labelVisibleItems();
- const chosen=visible.find(i=>i.id===labelPreviewItemId)||visible.find(i=>selectedLabelIds.has(i.id))||visible[0];
+ const selected=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id));
+ const items=selected.length?selected:(visible.length?[visible[0]]:[]);
  const box=$("labelsPreview");
- if(!chosen){
+ if(!items.length){
   box.classList.add("hidden");box.innerHTML="";
-  note($("labelsStatus"),"Aucun article imprimable à prévisualiser.","warn");return
+  note($("labelsStatus"),"Aucun article imprimable à prévisualiser.","warn");
+  return;
  }
  $("labelsStatus").innerHTML="";
- if(!window.JsBarcode){note($("labelsStatus"),"Générateur de code-barres indisponible.","err");return}
+ if(!window.JsBarcode){
+  box.classList.add("hidden");box.innerHTML="";
+  note($("labelsStatus"),"Générateur de code-barres indisponible.","err");return;
+ }
  try{
+  // Preview the same selection used by the print button, not just the last clicked item.
+  const cards=items.map(i=>'<div style="width:min(100%,340px);padding:12px;background:white;color:#111;border:1px solid #bbb;border-radius:8px;text-align:center;overflow:hidden">'+
+   '<b>FRIPERIE MILOU</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+' — '+esc(i.size||"")+'</div>'+
+   '<strong>'+money(i.sale_price)+'</strong><div style="max-width:100%;overflow:hidden">'+labelSvg(i.sku)+'</div>'+
+   '<small>APERÇU — '+esc(i.sku)+'</small></div>').join("");
   box.classList.remove("hidden");
-  box.innerHTML='<div style="max-width:340px;margin:auto;padding:14px;background:white;color:#111;border:1px solid #bbb;text-align:center"><b>FRIPERIE MILOU</b><div>'+esc(chosen.title||chosen.sku)+' — '+esc(chosen.size||"")+'</div><strong>'+money(chosen.sale_price)+'</strong><div style="max-width:100%;overflow:hidden">'+labelSvg(chosen.sku)+'</div><small>APERÇU — '+esc(chosen.sku)+'</small></div>';
- }catch(e){note($("labelsStatus"),"Aperçu impossible : "+esc(e.message||String(e)),"err")}
+  box.innerHTML='<div><b>'+items.length+' étiquette(s) en aperçu'+(selected.length?' — sélection pour impression':' — exemple (aucune sélection)')+'</b></div>'+
+   '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:10px">'+cards+'</div>';
+ }catch(e){
+  box.classList.add("hidden");box.innerHTML="";
+  note($("labelsStatus"),"Aperçu impossible : "+esc(e.message||String(e)),"err");
+ }
 }
 $("labelsPreviewButton").onclick=previewMilouLabel;
 
