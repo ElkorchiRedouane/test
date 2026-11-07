@@ -264,6 +264,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
   <section id="payouts" class="page">
     <div class="page-head"><div><h1>💰 Consignation — Finances</h1><p>Solde réel calculé à partir des ventes et des paiements enregistrés. Aucune modification financière en mode essai.</p></div><button id="exportSales" class="btn ghost small">Excel ventes</button></div>
+    <div id="payoutStatus"></div>
     <div class="panel"><div class="panel-head"><h2>Soldes des consignateurs</h2><button class="btn ghost small" id="payoutReload">↻ Actualiser</button></div><div class="panel-body">
       <div id="payoutSummary" class="finance-grid"></div>
       <div id="payoutConsignorBalances" class="list" style="margin-top:12px"></div>
@@ -2153,11 +2154,12 @@ async function loadPayoutFinancials(){
    sb.from("milou_pos_returns").select("sale_id,status").in("status",["pending_review","approved","completed"]).limit(1000)
   ]);
   if(payErr)throw payErr;if(returnErr)throw returnErr;
+  $("payoutStatus").innerHTML="";
   payoutHistory=payments||[];
   // Until refund accounting is implemented, all non-rejected returns hold the related sale.
   payoutReturnHolds=new Set((returns||[]).map(r=>r.sale_id).filter(Boolean));
   renderPayouts();
- }catch(e){note($("payoutStatus"),"Finances indisponibles : "+esc(e.message||String(e)),"err")}
+ }catch(e){payoutHistory=[];payoutReturnHolds=new Set();note($("payoutStatus"),"Finances indisponibles : "+esc(e.message||String(e)),"err");$("payoutSummary").innerHTML="";$("payoutConsignorBalances").innerHTML="";$("payoutHistory").innerHTML="";$("payItems").innerHTML="";}
 }
 function renderPayouts(){
  if(!$("salesList"))return;
