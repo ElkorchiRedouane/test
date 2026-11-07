@@ -243,7 +243,17 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   <div class="actions"><button id="posCashSimulate" class="btn green">✓ Simuler la vente comptant</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
   <div id="posCashResult"></div><details style="margin-top:10px"><summary>🧪 Tester la monnaie avec des centimes (sans article réel)</summary><div class="grid" style="margin-top:12px"><div class="field"><label>Total fictif ($)</label><input id="centDemoTotal" inputmode="decimal" value="19.99"></div><div class="field"><label>Montant fictif reçu ($)</label><input id="centDemoReceived" inputmode="decimal" value="20.00"></div></div><div id="centDemoResult" class="notice" aria-live="polite"></div></details><div class="actions"><button id="posReturnDemo" class="btn ghost small" disabled>↩ Simuler un retour</button></div><div id="posReturnDemoResult"></div>
  </div></div>
- <div class="actions"><button id="posPrepare" class="btn ghost">Préparer le panier en base de données</button><button id="posSquarePay" class="btn primary" disabled>💳 Square — configuration requise</button></div><div id="posPreparedStatus"></div>
+ <div class="actions"><button id="posPrepare" class="btn ghost">Préparer le panier en base de données</button></div><div id="posPreparedStatus"></div>
+    <div class="panel" style="margin-top:12px"><div class="panel-head"><h2>💳 Rapprochement Square manuel</h2></div><div class="panel-body">
+      <div class="notice warn">Après paiement accepté dans l’application Square, vérifie le montant et la référence de la transaction Square. Ce rapprochement est une attestation manuelle, pas une vérification bancaire automatique. Le mode réel reste verrouillé jusqu’à validation fiscale et des tests.</div>
+      <div class="grid">
+       <div class="field"><label for="posSquareReference">Identifiant de la transaction Square</label><input id="posSquareReference" autocomplete="off" placeholder="Référence du paiement Square"></div>
+       <div class="field"><label for="posSquareAmount">Montant réellement encaissé dans Square ($)</label><input id="posSquareAmount" type="text" inputmode="decimal" placeholder="Ex. 50,00"></div>
+      </div>
+      <label class="check-row"><input type="checkbox" id="posSquareAttest"> J’ai vérifié dans Square que le paiement est accepté, et que le montant et la référence correspondent.</label>
+      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button>
+      <div id="posSquareStatus" role="status" aria-live="polite"></div><div id="posSquareReceipt"></div>
+    </div></div>
     </div></div>
   </section>
 
@@ -1966,7 +1976,7 @@ async function startPosCamera(){
 }
 $("posCamera").onclick=startPosCamera;
 $("posCameraClose").onclick=stopPosCamera;
-let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false;
+let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false,posSquareManualEnabled=false,posSquareBusy=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
  if(!/^\d{1,7}(?:\.\d{1,2})?$/.test(x))return null;
@@ -1982,17 +1992,27 @@ function posClearPrepared(){
  if($("posCashResult"))$("posCashResult").textContent="";
  if($("posReturnDemo"))$("posReturnDemo").disabled=true;
  if($("posReturnDemoResult"))$("posReturnDemoResult").textContent="";
+ if($("posSquareStatus"))$("posSquareStatus").textContent="";
+ if($("posSquareAttest"))$("posSquareAttest").checked=false;
+ if($("posSquarePay"))updateSquareManualButton();
+}
+function updateSquareManualButton(){
+ const b=$("posSquarePay");if(!b)return;
+ b.disabled=!posSquareManualEnabled||!posDraftOrderId||posSquareBusy;
+ b.textContent=posSquareManualEnabled?"Confirmer l’encaissement Square (manuel)":"Confirmer l’encaissement Square — verrouillé";
 }
 async function loadPosConfig(){
  try{
-  const {data,error}=await sb.from("milou_pos_config").select("tax_mode,cash_live_enabled").eq("singleton",true).single();
+  const {data,error}=await sb.from("milou_pos_config").select("tax_mode,cash_live_enabled,square_manual_enabled").eq("singleton",true).single();
   if(error)throw error;
   posFiscalMode=data.tax_mode;
+  posSquareManualEnabled=!!data.square_manual_enabled&&data.tax_mode==="small_supplier_no_tax";
+  updateSquareManualButton();
   posLiveCashEnabled=!!data.cash_live_enabled&&data.tax_mode==="small_supplier_no_tax";
   $("posCashLive").disabled=!posLiveCashEnabled;
   $("posCashLive").textContent=posLiveCashEnabled?"Confirmer la vente comptant réelle":"Encaissement réel — verrouillé";
   renderPosCart();
- }catch(e){posLiveCashEnabled=false;$("posCashLive").disabled=true;note($("posCashResult"),"Configuration caisse indisponible : "+esc(e.message||String(e)),"warn")}
+ }catch(e){posLiveCashEnabled=false;posSquareManualEnabled=false;updateSquareManualButton();$("posCashLive").disabled=true;note($("posCashResult"),"Configuration caisse indisponible : "+esc(e.message||String(e)),"warn")}
 }
 function posSimulatedTaxNote(){
  return posFiscalMode==="small_supplier_no_tax"?"Taxes non perçues (configuration validée)":"Hypothèse de test : taxes 0 $ ; régime fiscal non validé";
@@ -2020,6 +2040,7 @@ function posReceiptMarkup(data,isDemo,dateISO){
  const timestamp=formatQuebecDateTime(dateISO||new Date().toISOString());
  const total=Number(data.total_cents||0),received=Number(data.received_cents||0),change=Number(data.change_cents||0);
  const id=isDemo?"SIMULATION — NON VALIDE":String(data.order_id||"");
+ const square= !isDemo&&(data.payment_method==="square"||!!data.square_reference);
  return '<div class="pos-receipt" style="background:white;color:#111;padding:14px;border:1px solid #ddd;border-radius:9px;line-height:1.4">'+
  '<div style="text-align:center;font-weight:800;font-size:18px">FRIPERIE MILOU</div>'+
  '<div style="text-align:center">'+esc(isDemo?"REÇU DE SIMULATION — NE PAS REMETTRE AU CLIENT":"REÇU DE VENTE")+'</div>'+
@@ -2027,8 +2048,7 @@ function posReceiptMarkup(data,isDemo,dateISO){
  '<div style="overflow-wrap:anywhere;font-size:11px">Référence : '+esc(id)+'</div><hr>'+
  lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:8px;margin:5px 0"><span style="min-width:0;overflow-wrap:anywhere">'+esc(x.title||x.sku||"Article")+'<div style="font-size:10px">'+esc(x.sku||"")+'</div></span><strong style="white-space:nowrap">'+money(Number(x.price_cents||0)/100)+'</strong></div>').join("")+
  '<hr><div style="display:flex;justify-content:space-between"><b>Total</b><b>'+money(total/100)+'</b></div>'+
- '<div>Paiement : comptant</div><div>Espèces reçues : '+money(received/100)+'</div>'+
- '<div>Monnaie rendue : '+money(change/100)+'</div>'+
+ '<div>Paiement : '+esc(square?'Carte — Square (rapproché manuellement)':'Comptant')+'</div>'+ (square?'<div>Référence Square : '+esc(data.square_reference||'')+'</div>':'<div>Espèces reçues : '+money(received/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div>')+
  '<div style="font-size:11px;margin-top:8px">'+esc(isDemo?"Taxes non appliquées : hypothèse de simulation, régime fiscal à valider.":data.tax_mode==="small_supplier_no_tax"?"TPS/TVQ non perçues (petit fournisseur).":"Configuration fiscale à vérifier.")+'</div>'+
  (isDemo?'<div style="font-weight:800;text-align:center;margin-top:12px">TEST — AUCUNE VENTE ENREGISTRÉE</div>':'')+
  '</div>';
@@ -2038,8 +2058,8 @@ function posReceiptText(data,isDemo,dateISO){
  formatQuebecDateTime(dateISO||new Date().toISOString()),'Référence : '+(isDemo?"TEST":data.order_id||""),
  ...(data.items||[]).map(x=>(x.sku||"")+" "+(x.title||"")+" : "+money(Number(x.price_cents||0)/100)),
  'Total : '+money(Number(data.total_cents||0)/100),
- 'Espèces reçues : '+money(Number(data.received_cents||0)/100),
- 'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
+ (data.payment_method==='square'||data.square_reference)?'Paiement Square, référence : '+(data.square_reference||''):'Espèces reçues : '+money(Number(data.received_cents||0)/100),
+ (data.payment_method==='square'||data.square_reference)?'Rapprochement manuel effectué':'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
  isDemo?"TEST — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
 }
 function printPosReceipt(){
@@ -2127,7 +2147,7 @@ async function loadPosHistory(){
  const box=$("posHistoryMessage");
  note(box,"Chargement de l’historique…");
  try{
-  const {data,error}=await sb.from("milou_pos_orders").select("id,created_at,status,payment_method,subtotal_cents,tax_cents,total_cents,cash_received_cents,change_cents,tax_mode,completed_at").order("created_at",{ascending:false}).limit(100);
+  const {data,error}=await sb.from("milou_pos_orders").select("id,created_at,status,payment_method,subtotal_cents,tax_cents,total_cents,cash_received_cents,change_cents,tax_mode,square_payment_id,completed_at").order("created_at",{ascending:false}).limit(100);
   if(error)throw error;
   posHistoryOrders=data||[];
   box.innerHTML="";
@@ -2155,10 +2175,10 @@ async function showPosHistoryDetail(id){
  const {data,error}=await sb.from("milou_pos_order_items").select("item_id,sku,item_title,price_cents").eq("order_id",id);
  if(error){note(box,"Impossible de lire les articles : "+esc(error.message),"err");return}
  const lines=data||[];
- const paid=order.status==="paid"&&order.payment_method==="cash";
+ const paid=order.status==="paid"&&["cash","square"].includes(order.payment_method);
  const receipt={order_id:order.id,items:lines.map(x=>({sku:x.sku,title:x.item_title,price_cents:x.price_cents})),
  total_cents:order.total_cents??order.subtotal_cents,received_cents:order.cash_received_cents??0,
- change_cents:order.change_cents??0,tax_mode:order.tax_mode};
+ change_cents:order.change_cents??0,tax_mode:order.tax_mode,payment_method:order.payment_method,square_reference:order.square_payment_id};
  box.innerHTML='<div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Commande '+esc(order.id.slice(0,8))+'</h2></div><div class="panel-body">'+
  '<div class="notice">'+esc(posOrderStatus(order.status))+' • '+esc(formatQuebecDateTime(order.completed_at||order.created_at))+'</div>'+
  lines.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.item_title||x.sku)+'</b><small>'+esc(x.sku)+'</small></div><strong>'+money(Number(x.price_cents)/100)+'</strong></div>').join("")+
@@ -2249,11 +2269,38 @@ async function preparePosDraft(){
   const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
   if(error)throw error;
   posDraftOrderId=data.order_id;
+  updateSquareManualButton();
   note($("posPreparedStatus"),"Panier préparé dans Milou : <b>"+esc(data.order_id)+"</b><div>"+Number(data.item_count)+" article(s), sous-total "+money(Number(data.subtotal_cents)/100)+". Aucune vente ni paiement enregistré. Configuration Square et taxes requise avant l’encaissement.</div>");
  }catch(e){note($("posPreparedStatus"),"Impossible de préparer le panier : "+esc(e.message||String(e)),"err")}
  finally{b.disabled=false;b.textContent="✓ Préparer le panier dans Milou"}
 }
 $("posPrepare").onclick=preparePosDraft;
+async function confirmSquareManual(){
+ const status=$("posSquareStatus");
+ if(!posSquareManualEnabled){note(status,"Rapprochement réel Square verrouillé en attendant la validation fiscale et les tests.","warn");return;}
+ if(!posDraftOrderId){note(status,"Prépare le panier dans Milou avant d’encaisser.","warn");return;}
+ const reference=$("posSquareReference").value.trim(),amount=posCentsFromInput($("posSquareAmount").value);
+ if(!/^[A-Za-z0-9_-]{6,120}$/.test(reference)){note(status,"Saisis l’identifiant Square de la transaction (6 caractères minimum, lettres/chiffres/tirets).","err");return;}
+ if(amount===null||amount!==posCartCents()){note(status,"Le montant Square doit correspondre exactement au total du panier affiché.","err");return;}
+ if(!$("posSquareAttest").checked){note(status,"Vérifie le paiement accepté dans Square puis coche l’attestation.","warn");return;}
+ const button=$("posSquarePay");
+ posSquareBusy=true;updateSquareManualButton();
+ try{
+  const orderId=posDraftOrderId;
+  const {data,error}=await sb.rpc("milou_pos_complete_square_manual",{p_order_id:orderId,p_square_reference:reference,p_amount_cents:amount});
+  if(error)throw error;
+  if(data?.status!=="paid")throw new Error("La vente n’a pas été confirmée par Milou");
+  const receipt={...data,order_id:orderId,payment_method:"square",square_reference:reference};
+  posCartIds=[];posDraftOrderId=null;
+  await refreshAll();
+  renderPosCart();
+  $("posSquareReference").value="";$("posSquareAmount").value="";$("posSquareAttest").checked=false;
+  note(status,"Vente enregistrée et stock mis à jour. Ouvre l’impression du reçu détaillé ci-dessous. Le reçu bancaire est imprimé depuis Square.");
+  showPosReceipt(receipt,false,null,"posSquareReceipt");
+ }catch(e){note(status,"Encaissement Milou NON confirmé : "+esc(e.message||String(e))+". Vérifie l’historique et Square avant de réessayer.","err")}
+ finally{posSquareBusy=false;updateSquareManualButton();}
+}
+$("posSquarePay").onclick=confirmSquareManual;
 $("posAdd").onclick=addPosSku;
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
 $("posClear").onclick=()=>{
