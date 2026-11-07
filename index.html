@@ -221,7 +221,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
 
   <section id="cashier" class="page">
-    <div class="page-head"><div><h1>🛒 Caisse Milou</h1><p>Ajoute les articles au panier avec un lecteur de codes-barres USB/Bluetooth (mode clavier HID).</p></div></div>
+    <div class="page-head"><div><h1>🛒 Caisse Milou</h1><p>Ajoute les articles avec la caméra ou un lecteur de codes-barres Bluetooth/USB.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
     <div class="notice warn" id="posSquareStatus"><strong>Square non configuré.</strong> Création du compte Square et appairage d'un Square Terminal requis avant tout paiement par carte.</div>
     <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
@@ -245,6 +245,13 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     </div></div>
   </section>
 
+  <section id="poshistory" class="page">
+    <div class="page-head"><div><h1>Historique de caisse</h1><p>Commandes préparées et paiements enregistrés dans Milou. Les simulations restent hors de cet historique.</p></div><button id="posHistoryBack" class="btn ghost small">← Caisse</button></div>
+    <div class="notice warn">La caisse réelle reste verrouillée. Une commande « Brouillon » ne signifie pas qu'un client a payé. Les annulations et remboursements réels seront disponibles seulement après validation du workflow comptable.</div>
+    <div class="actions"><button id="posHistoryReload" class="btn green small">↻ Actualiser</button><select id="posHistoryFilter" style="width:auto;flex:1;min-width:150px"><option value="all">Toutes commandes</option><option value="paid">Payées</option><option value="draft">Brouillons</option></select></div>
+    <div id="posHistoryMessage"></div><div id="posHistoryList" class="list" style="margin-top:12px"></div>
+    <div id="posHistoryDetail"></div>
+  </section>
   <section id="salescan" class="page">
     <div class="page-head"><div><h1>Scanner une vente</h1><p>Scanne le code-barres SKU de l'étiquette, puis confirme la vente réellement encaissée.</p></div></div>
     <div class="panel"><div class="panel-body">
@@ -1828,13 +1835,61 @@ function renderPosCash(){
  const received=posCentsFromInput($("posCashReceived")?.value);
  $("posCashChange").textContent=received==null?"—":received<total?"Manque "+money((total-received)/100):money((received-total)/100);
 }
-function showPosReceipt(data,isDemo=true){
- const lines=data.items||[];
- const date=new Date().toLocaleString("fr-CA");
- const total=Number(data.total_cents||0);
- const change=Number(data.change_cents||0);
- const content='<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>'+ (isDemo?"REÇU DE SIMULATION":"REÇU DE VENTE")+'</h2></div><div class="panel-body"><b>FRIPERIE MILOU</b><div>'+esc(date)+'</div><small>'+esc(isDemo?"Test : aucune vente enregistrée":"Transaction : "+data.order_id)+'</small><hr>'+lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:12px"><span>'+esc(x.title||x.sku)+'</span><b>'+money(Number(x.price_cents)/100)+'</b></div>').join("")+'<hr><div>Total : <b>'+money(total/100)+'</b></div><div>Espèces reçues : '+money(Number(data.received_cents)/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div><div>Taxes : '+esc(posSimulatedTaxNote())+'</div></div></div>';
- $("posCashResult").innerHTML=content;
+let posLastReceipt=null;
+function posReceiptMarkup(data,isDemo,dateISO){
+ const lines=Array.isArray(data.items)?data.items:[];
+ const timestamp=formatQuebecDateTime(dateISO||new Date().toISOString());
+ const total=Number(data.total_cents||0),received=Number(data.received_cents||0),change=Number(data.change_cents||0);
+ const id=isDemo?"SIMULATION — NON VALIDE":String(data.order_id||"");
+ return '<div class="pos-receipt" style="background:white;color:#111;padding:14px;border:1px solid #ddd;border-radius:9px;line-height:1.4">'+
+ '<div style="text-align:center;font-weight:800;font-size:18px">FRIPERIE MILOU</div>'+
+ '<div style="text-align:center">'+esc(isDemo?"REÇU DE SIMULATION — NE PAS REMETTRE AU CLIENT":"REÇU DE VENTE")+'</div>'+
+ '<div style="font-size:12px;text-align:center">'+esc(timestamp)+'</div>'+
+ '<div style="overflow-wrap:anywhere;font-size:11px">Référence : '+esc(id)+'</div><hr>'+
+ lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:8px;margin:5px 0"><span style="min-width:0;overflow-wrap:anywhere">'+esc(x.title||x.sku||"Article")+'<div style="font-size:10px">'+esc(x.sku||"")+'</div></span><strong style="white-space:nowrap">'+money(Number(x.price_cents||0)/100)+'</strong></div>').join("")+
+ '<hr><div style="display:flex;justify-content:space-between"><b>Total</b><b>'+money(total/100)+'</b></div>'+
+ '<div>Paiement : comptant</div><div>Espèces reçues : '+money(received/100)+'</div>'+
+ '<div>Monnaie rendue : '+money(change/100)+'</div>'+
+ '<div style="font-size:11px;margin-top:8px">'+esc(isDemo?"Taxes non appliquées : hypothèse de simulation, régime fiscal à valider.":data.tax_mode==="small_supplier_no_tax"?"TPS/TVQ non perçues (petit fournisseur).":"Configuration fiscale à vérifier.")+'</div>'+
+ (isDemo?'<div style="font-weight:800;text-align:center;margin-top:12px">TEST — AUCUNE VENTE ENREGISTRÉE</div>':'')+
+ '</div>';
+}
+function posReceiptText(data,isDemo,dateISO){
+ return ['FRIPERIE MILOU',isDemo?"REÇU DE SIMULATION — NON VALIDE":"REÇU DE VENTE",
+ formatQuebecDateTime(dateISO||new Date().toISOString()),'Référence : '+(isDemo?"TEST":data.order_id||""),
+ ...(data.items||[]).map(x=>(x.sku||"")+" "+(x.title||"")+" : "+money(Number(x.price_cents||0)/100)),
+ 'Total : '+money(Number(data.total_cents||0)/100),
+ 'Espèces reçues : '+money(Number(data.received_cents||0)/100),
+ 'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
+ isDemo?"TEST — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
+}
+function printPosReceipt(){
+ if(!posLastReceipt)return;
+ const {data,isDemo,dateISO}=posLastReceipt;
+ const html=posReceiptMarkup(data,isDemo,dateISO);
+ const win=window.open("","_blank");
+ if(!win){toast("Autorise les fenêtres surgissantes pour imprimer.");return}
+ win.document.open();
+ win.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reçu Milou</title><style>@page{size:80mm auto;margin:3mm}body{font:12px Arial,sans-serif;margin:0 auto;max-width:80mm;padding:8px;color:#111}button{position:fixed;bottom:12px;right:12px;background:#245a59;color:white;border:0;padding:12px 20px;border-radius:10px}@media print{button{display:none!important}.pos-receipt{border:none!important}}</style></head><body>'+html+'<button onclick="window.print()">Imprimer</button></body></html>');
+ win.document.close();win.focus();
+}
+async function sharePosReceipt(){
+ if(!posLastReceipt)return;
+ const {data,isDemo,dateISO}=posLastReceipt,text=posReceiptText(data,isDemo,dateISO);
+ try{
+  if(navigator.share){await navigator.share({title:"Reçu Friperie Milou",text});return}
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);toast("Reçu copié.");return}
+  toast("Partage non disponible sur ce navigateur.");
+ }catch(e){if(e.name!=="AbortError")toast("Impossible de partager le reçu.")}
+}
+function showPosReceipt(data,isDemo=true,dateISO=null,targetId="posCashResult"){
+ const iso=dateISO||new Date().toISOString();
+ posLastReceipt={data,isDemo,dateISO:iso};
+ const target=$(targetId);
+ target.innerHTML='<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>'+(isDemo?"REÇU DE SIMULATION":"REÇU DE VENTE")+'</h2></div><div class="panel-body">'+posReceiptMarkup(data,isDemo,iso)+
+ '<div class="actions"><button class="btn green small posReceiptPrint">🖨 Imprimer</button><button class="btn ghost small posReceiptShare">↗ Partager</button></div></div></div>';
+ target.querySelector(".posReceiptPrint").onclick=printPosReceipt;
+ target.querySelector(".posReceiptShare").onclick=sharePosReceipt;
 }
 function simulatePosCash(){
  const cents=posCentsFromInput($("posCashReceived").value),total=posCartCents();
@@ -1870,6 +1925,58 @@ $("posCashSimulate").onclick=simulatePosCash;
 $("posCashLive").onclick=completePosCash;
 
 let posCartIds=[];
+let posHistoryOrders=[];
+async function loadPosHistory(){
+ const box=$("posHistoryMessage");
+ note(box,"Chargement de l’historique…");
+ try{
+  const {data,error}=await sb.from("milou_pos_orders").select("id,created_at,status,payment_method,subtotal_cents,tax_cents,total_cents,cash_received_cents,change_cents,tax_mode,completed_at").order("created_at",{ascending:false}).limit(100);
+  if(error)throw error;
+  posHistoryOrders=data||[];
+  box.innerHTML="";
+  renderPosHistory();
+ }catch(e){note(box,"Historique inaccessible : "+esc(e.message||String(e)),"err")}
+}
+function posOrderStatus(v){
+ return {draft:"Brouillon (non payé)",paid:"Payée",sent_to_terminal:"Envoyée au terminal — à vérifier",
+ payment_failed:"Paiement échoué",paid_needs_reconciliation:"Paiement à rapprocher",canceled:"Annulée"}[v]||v;
+}
+function renderPosHistory(){
+ const filter=$("posHistoryFilter").value;
+ const orders=posHistoryOrders.filter(x=>filter==="all"||x.status===filter);
+ $("posHistoryList").innerHTML=orders.length?orders.map(o=>
+ '<div class="row" style="align-items:center"><div class="row-main"><b>'+esc(posOrderStatus(o.status))+'</b><small>'+esc(formatQuebecDateTime(o.completed_at||o.created_at))+' • '+esc(o.id.slice(0,8))+'</small></div>'+
+ '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong><button class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
+ ).join(""):'<div class="empty">Aucune commande dans cette catégorie.</div>';
+ document.querySelectorAll(".posHistoryDetails").forEach(b=>b.onclick=()=>showPosHistoryDetail(b.dataset.id));
+}
+async function showPosHistoryDetail(id){
+ const order=posHistoryOrders.find(o=>o.id===id);
+ if(!order)return;
+ const box=$("posHistoryDetail");
+ note(box,"Chargement des articles…");
+ const {data,error}=await sb.from("milou_pos_order_items").select("sku,item_title,price_cents").eq("order_id",id);
+ if(error){note(box,"Impossible de lire les articles : "+esc(error.message),"err");return}
+ const lines=data||[];
+ const paid=order.status==="paid"&&order.payment_method==="cash";
+ const receipt={order_id:order.id,items:lines.map(x=>({sku:x.sku,title:x.item_title,price_cents:x.price_cents})),
+ total_cents:order.total_cents??order.subtotal_cents,received_cents:order.cash_received_cents??0,
+ change_cents:order.change_cents??0,tax_mode:order.tax_mode};
+ box.innerHTML='<div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Commande '+esc(order.id.slice(0,8))+'</h2></div><div class="panel-body">'+
+ '<div class="notice">'+esc(posOrderStatus(order.status))+' • '+esc(formatQuebecDateTime(order.completed_at||order.created_at))+'</div>'+
+ lines.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.item_title||x.sku)+'</b><small>'+esc(x.sku)+'</small></div><strong>'+money(Number(x.price_cents)/100)+'</strong></div>').join("")+
+ '<div style="margin-top:12px"><b>Montant : '+money(Number(receipt.total_cents)/100)+'</b></div>'+
+ (paid?'<div class="actions"><button class="btn green small" id="posHistoryReceipt">Voir et imprimer le reçu</button></div>':
+ '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
+ '<div class="notice warn">Annulation/remboursement : non activé. Vérifier le paiement et l’état des commissions avant tout retour réel.</div>'+
+ '<div id="posHistoryReceiptBox"></div></div></div>';
+ if(paid)$("posHistoryReceipt").onclick=()=>showPosReceipt(receipt,false,order.completed_at||order.created_at,"posHistoryReceiptBox");
+}
+$("posHistoryOpen").onclick=()=>{go("poshistory");loadPosHistory()};
+$("posHistoryBack").onclick=()=>go("cashier");
+$("posHistoryReload").onclick=loadPosHistory;
+$("posHistoryFilter").onchange=renderPosHistory;
+
 function renderPosCart(){
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
  $("posCartCount").textContent=items.length+" article(s)";
