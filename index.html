@@ -70,6 +70,60 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 @keyframes pulse{50%{transform:scale(1.08)}}.switch{display:flex;gap:8px;background:#f4ede3;border-radius:999px;padding:4px;margin-bottom:12px}.switch button{flex:1;border:0;border-radius:999px;background:transparent;padding:9px;font-weight:800;color:var(--muted)}.switch button.active{background:#fff;color:var(--ink);box-shadow:0 4px 12px rgba(0,0,0,.05)}
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fffdf9;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}.bottom button{border:0;background:transparent;padding:9px 4px 8px;color:#718481;font-size:.72rem}.bottom button span{display:block;font-size:1.2rem;margin-bottom:2px}.bottom button.active{color:var(--pink);font-weight:900}.toast{position:fixed;z-index:120;top:72px;left:50%;transform:translateX(-50%);background:#244f4d;color:white;padding:10px 15px;border-radius:999px;box-shadow:var(--shadow);max-width:90%;text-align:center}
 @media(max-width:720px){.quick{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.photos{grid-template-columns:repeat(3,1fr)}.page-head h1{font-size:1.45rem}.row{align-items:flex-start}.row-actions{display:grid}.deposit-banner{top:62px}.hero h1{font-size:1.5rem}}
+
+/* Milou quotidien — interface simplifiée */
+:root{--bg:#f6f7f5;--panel:#ffffff;--ink:#213d39;--muted:#647570;--line:#e1e7e3;--pink:#b56e83;--green:#276b5d;--sage:#e7f2ed;--shadow:0 3px 15px rgba(21,58,48,.045)}
+body{font-size:15px;line-height:1.43}
+.top{background:rgba(255,255,255,.97);padding:10px 16px;box-shadow:0 2px 8px rgba(25,65,56,.035)}
+.mark{background:var(--green);border-radius:13px}
+main{max-width:1060px;padding:18px 16px}
+.page-head{margin:6px 0 18px;align-items:center}.page-head h1{font-size:1.55rem;letter-spacing:-.025em}.page-head p{font-size:.88rem;line-height:1.35}
+.hero{background:#e8f3ee;border:0;border-radius:20px;padding:20px;box-shadow:none}
+.hero h1{font-size:1.6rem}.hero p{color:#526d62}
+.quick{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.quick button{padding:17px;border-radius:17px;box-shadow:none;transition:border-color .15s,background .15s}
+.quick button:hover{background:#f5fbf8;border-color:#87b6a7}
+.quick .ico{font-size:1.65rem;margin-bottom:6px}.quick small{font-size:.78rem}
+.panel{border-radius:18px;box-shadow:none}.panel-head{background:#fbfcfb;padding:13px 16px}.panel-body{padding:16px}
+.btn{border-radius:12px;min-height:42px;padding:11px 16px;line-height:1.2}
+.btn.primary{background:var(--green)}.btn.green{background:var(--green)}.btn.ghost{background:#fff}
+.btn:focus-visible,.bottom button:focus-visible{outline:3px solid #8fcab6;outline-offset:2px}
+input,select,textarea{border-radius:11px;min-height:43px}
+.bottom{box-shadow:0 -4px 22px rgba(0,0,0,.04);background:#fff}
+.bottom button{font-size:.76rem;padding:10px 3px 9px}
+.bottom button.active{color:var(--green);background:#eef6f2;border-radius:12px}
+.bottom button span{font-size:1.26rem}
+.stats{margin-top:10px}.stat{box-shadow:none}
+.notice{font-size:.84rem}
+#cashier .cashier-primary>.panel-body>.actions:first-of-type{margin-top:10px}
+#posCamera{flex:1.4;min-width:160px;font-size:1rem}
+#posCameraReader{border-radius:16px;overflow:hidden}
+#posCartCount{background:#e3f1e9;color:#23694e;font-weight:900}
+#posCartLines .row{background:#fff;padding:13px}
+#cashier .summary-card{background:#eef6f2;border:0;padding:16px}
+#cashier .summary-card strong{font-size:1.45rem;font-variant-numeric:tabular-nums}
+#posPrepare,#posSquarePay{width:100%;min-height:50px;font-size:1.01rem}
+#posScanStatus:empty,#posMessage:empty,#posPreparedStatus:empty,#posSquareStatus:empty{display:none}
+.scan-success{margin:12px 0 6px;background:#def5e8;border:2px solid #39966b;border-radius:17px;color:#174b35;padding:16px 18px;display:flex;gap:14px;align-items:center;animation:scan-pop .25s ease-out}
+.scan-success strong{display:block;font-size:1.18rem}.scan-success small{display:block;margin-top:3px;font-size:.88rem}
+.scan-success .scan-check{background:#23805a;color:#fff;border-radius:50%;width:44px;height:44px;flex-shrink:0;display:grid;place-items:center;font-size:1.5rem;font-weight:900}
+@keyframes scan-pop{from{transform:scale(.975);opacity:.5}to{transform:scale(1);opacity:1}}
+details.milou-secondary{border:1px solid var(--line);border-radius:16px;background:#fff;margin:12px 0;padding:12px 15px}
+details.milou-secondary>summary{cursor:pointer;color:var(--ink);font-weight:800}
+details.milou-secondary[open]>summary{margin-bottom:12px}
+details.milou-secondary .panel{margin:10px 0 0}
+#homeTools{margin-top:18px}
+#cashier .field label{text-transform:none;letter-spacing:0;font-size:.88rem}
+#cashier #posSquareSetupNotice{margin-top:0;margin-bottom:12px;background:#eef6f2;color:#42685b;padding:10px 14px}
+#posScanDiagnosticsResult{font-size:.78rem}
+@media(max-width:720px){
+ .quick{grid-template-columns:1fr 1fr}
+ .page-head h1{font-size:1.4rem}
+ .quick button{padding:14px}
+ .top .brand small{max-width:120px}
+ #posCamera{min-width:130px}
+}
+@media(min-width:721px){.page-head{margin-bottom:20px}.quick button{min-height:124px}}
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -1965,15 +2019,23 @@ function posScanFeedback(message,isError=false){
  const status=$("posScanStatus");
  if(status){status.textContent=message;status.style.color=isError?"#a33131":"";}
 }
+let posScanHandled=false;
 function posAcceptScannedCode(raw){
+ if(posScanHandled)return false;
  const code=String(raw||"").trim().toUpperCase();
  if(!code)return false;
  $("posSku").value=code;
  const added=addPosSku(false);
  if(added){
-  posScanFeedback("✓ Code reconnu : "+code+" — article ajouté au panier.");
-  if(navigator.vibrate)try{navigator.vibrate(45)}catch(e){}
- }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier : article indisponible, absent ou déjà présent.",true);
+  posScanHandled=true;
+  const item=stock.find(x=>x.sku?.toUpperCase()===code);
+  const banner=$("posScanSuccess");
+  banner.innerHTML='<span class="scan-check">✓</span><div><strong>'+esc(item?.title||"Article ajouté")+'</strong><small>'+esc(code)+' · '+money(item?.sale_price||0)+' · '+posCartIds.length+' article(s) au panier</small><small>Lecture réussie. Touchez « Scanner un article » pour continuer.</small></div>';
+  banner.classList.remove("hidden");
+  posScanFeedback("Article ajouté au panier.");
+  if(navigator.vibrate)try{navigator.vibrate([60,40,60])}catch(e){}
+  void stopPosCamera();
+ }else posScanFeedback("Code reconnu : "+code+". Consulte le message affiché au-dessus du panier.",true);
  return added;
 }
 async function stopPosCamera(){
@@ -1986,6 +2048,8 @@ async function stopPosCamera(){
 async function startPosCamera(){
  if(posCameraStartup)return;
  if(posCameraInstance){await stopPosCamera();return}
+ posScanHandled=false;
+ $("posScanSuccess").classList.add("hidden");
  if(!window.jsQR){posScanFeedback("Module jsQR non chargé. Actualise Safari avec Internet actif et lance le diagnostic.",true);return}
  if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra Safari indisponible. Ouvre le site directement en HTTPS et autorise la caméra.",true);return}
  const btn=$("posCamera");btn.disabled=true;
@@ -2369,8 +2433,8 @@ function renderPosCart(){
  ).join(""):'<div class="empty">Le panier est vide. Scanne une étiquette pour commencer.</div>';
  const subCents=items.reduce((sum,i)=>sum+Math.round(Number(i.sale_price||0)*100),0);
  $("posSubtotal").textContent=money(subCents/100);
- $("posTax").textContent="0,00 $ (simulation)";
- $("posTotal").textContent=money(subCents/100)+" (simulation)";
+ $("posTax").textContent=posFiscalMode==="small_supplier_no_tax"?"0,00 $":"À confirmer";
+ $("posTotal").textContent=money(subCents/100)+(posFiscalMode==="small_supplier_no_tax"?"":" hors taxes");
  renderPosCash();
  document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{
  posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);posClearPrepared();
@@ -2447,6 +2511,7 @@ $("posAdd").onclick=()=>addPosSku();
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
 $("posClear").onclick=()=>{
  posCartIds=[];posClearPrepared();$("posSku").value="";$("posCashReceived").value="";
+ $("posScanSuccess").classList.add("hidden");
  $("posMessage").innerHTML="";$("posCashResult").innerHTML="";renderPosCart();
  note($("posMessage"),"Panier vidé. Aucune vente enregistrée.");$("posSku").focus();
 };
@@ -2673,6 +2738,42 @@ async function resumeMilouApp(){
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")resumeMilouApp()});
 window.addEventListener("pageshow",()=>{if(firstAuthFinished)resumeMilouApp()});
 window.addEventListener("online",()=>resumeMilouApp());
+
+function organizeMilouUI(){
+ // Réorganiser sans retirer les contrôles existants : tous leurs identifiants restent stables.
+ const home=$("home");
+ $("homeCashier").onclick=()=>go("cashier");
+ $("homeLabels").onclick=()=>{renderLabelOptions();go("labels")};
+ const tools=document.createElement("details");
+ tools.id="homeTools";tools.className="milou-secondary";
+ tools.innerHTML="<summary>Outils et synchronisations</summary>";
+ const homeRecent=home.querySelector("#homeDepositList")?.closest(".panel");
+ (homeRecent||home).after(tools);
+ tools.append($("shopifyHealth"),$("sheetSyncBox"));
+ const cashier=$("cashier"),main=cashier.querySelector(".cashier-primary");
+ const cashPanel=$("posCashReceived")?.closest(".panel");
+ if(cashPanel){
+  const more=document.createElement("details");
+  more.className="milou-secondary";more.innerHTML="<summary>Autres modes de paiement et calculatrices</summary>";
+  cashier.appendChild(more);more.appendChild(cashPanel);
+ }
+ const diagnostic=document.createElement("details");diagnostic.className="milou-secondary";
+ diagnostic.innerHTML="<summary>Options du scanner</summary>";
+ const posList=$("posCartLines");
+ posList.before(diagnostic);
+ diagnostic.append($("posScanPhoto"),$("posScanDiagnostics"),$("posScanDiagnosticsResult"));
+ // Le champ caché de téléchargement doit rester dans le document.
+ const payDemo=$("payouts").querySelector("#demoPayoutGross")?.closest(".panel");
+ if(payDemo){
+  const more=document.createElement("details");more.className="milou-secondary";
+  more.innerHTML="<summary>Calculatrice de commission</summary>";
+  payDemo.before(more);more.append(payDemo);
+ }
+ // Présentation des étapes de vente plus courte.
+ const p=$("posPrepare");if(p)p.textContent="Préparer la vente";
+ const label=$("labelsFormat");if(label)label.value="a4";
+}
+organizeMilouUI();
 setupPWA();
 authState();
 </script>
