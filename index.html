@@ -73,6 +73,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.12.3/dist/JsBarcode.all.min.js"></script>
 </head>
 <body>
@@ -1947,6 +1948,7 @@ $("stockSearch").oninput=renderStock;
 
 
 let posCameraInstance=null;
+let posCameraStartup=null;
 function posScannerFormats(){
  const f=window.Html5QrcodeSupportedFormats;
  return f?.CODE_128!==undefined?[f.CODE_128]:undefined;
@@ -1963,65 +1965,84 @@ function posAcceptScannedCode(raw){
  if(added){
   posScanFeedback("✓ Code lu : "+code+" — article ajouté au panier.");
   if(navigator.vibrate)try{navigator.vibrate(45)}catch(e){}
- }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier.",true);
+ }else posScanFeedback("Code lu : "+code+". Vérifie le message du panier : article introuvable, indisponible ou déjà au panier.",true);
  return added;
 }
 async function stopPosCamera(){
  const scanner=posCameraInstance;posCameraInstance=null;
- if(scanner){try{await scanner.stop()}catch(e){}try{await scanner.clear()}catch(e){}}
- const container=$("posCameraBox");if(container)container.classList.add("hidden");
+ // ZXing returns controls.stop(); html5-qrcode exposes stop() and clear().
+ if(scanner){try{scanner.stop?.()}catch(e){}try{await scanner.clear?.()}catch(e){}}
+ const container=$("posCameraBox");
+ if(container){container.classList.add("hidden");$("posCameraReader").replaceChildren()}
  const btn=$("posCamera");if(btn)btn.textContent="📷 Scanner avec la caméra";
 }
 async function startPosCamera(){
+ if(posCameraStartup)return;
  if(posCameraInstance){await stopPosCamera();return}
- if(!window.Html5Qrcode){posScanFeedback("Lecteur indisponible : recharge la page avec Internet actif.",true);return}
- if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra inaccessible ici. Ouvre cette page directement dans Safari sur iPad (HTTPS).",true);return}
+ if(!navigator.mediaDevices?.getUserMedia){posScanFeedback("Caméra inaccessible. Ouvre l’app directement dans Safari sur l’iPad, avec HTTPS.",true);return}
+ if(!window.ZXingBrowser?.BrowserMultiFormatOneDReader){
+  posScanFeedback("Nouveau moteur de lecture non chargé. Vérifie Internet puis actualise la page Safari.",true);return
+ }
  const b=$("posCamera");b.disabled=true;
+ let startup=null;
  try{
   $("posCameraBox").classList.remove("hidden");
-  posScanFeedback("Autorise l'accès à la caméra dans Safari si demandé.");
-  const formats=posScannerFormats();
-  const scanner=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats,verbose:false}:{verbose:false});
-  posCameraInstance=scanner;
-  let lastCode="",lastAt=0;
-  const detected=raw=>{
-   if(posCameraInstance!==scanner)return;
-   const code=String(raw||"").trim().toUpperCase(),now=Date.now();
-   if(!code||(code===lastCode&&now-lastAt<2200))return;
-   lastCode=code;lastAt=now;
-   posAcceptScannedCode(code);
-  };
-  await scanner.start({facingMode:"environment"},{fps:15,aspectRatio:1.333333,disableFlip:true,
-   videoConstraints:{facingMode:"environment",width:{ideal:1280},height:{ideal:960}}},detected,()=>{});
+  const host=$("posCameraReader");host.replaceChildren();
+  const video=document.createElement("video");
+  video.setAttribute("playsinline","");video.setAttribute("webkit-playsinline","");
+  video.setAttribute("autoplay","");video.muted=true;
+  video.style.cssText="width:100%;height:auto;min-height:210px;max-height:55vh;object-fit:contain;background:#111";
+  host.appendChild(video);
+  posScanFeedback("Ouverture de la caméra arrière — moteur ZXing Code 128…");
+  const reader=new window.ZXingBrowser.BrowserMultiFormatOneDReader();
+  let lastCode="",lastAt=0,failures=0;
+  startup=reader.decodeFromConstraints({
+   audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
+  },video,(result,error,controls)=>{
+    if(result){
+      const code=typeof result.getText==="function"?result.getText():String(result.text||"");
+      const now=Date.now();
+      if(code && !(code===lastCode && now-lastAt<1800)){
+       lastCode=code;lastAt=now;posAcceptScannedCode(code);
+      }
+    }else if(error){
+      failures++;
+      if(failures%50===0)posScanFeedback("Caméra active (ZXing). "+failures+" images analysées, aucun Code 128 détecté. Essaie de reculer légèrement ou d’éclairer l’étiquette.");
+    }
+  });
+  posCameraStartup=startup;
+  const controls=await startup;
+  if(posCameraStartup!==startup){controls.stop();return}
+  posCameraInstance=controls;
   b.textContent="Arrêter la caméra";
-  posScanFeedback("Caméra active : cadre le code-barres complet. Si besoin, essaie une photo.");
+  posScanFeedback("Caméra active (ZXing). Tiens le code-barres horizontal et complet, sans reflets. Lecture automatique en cours.");
  }catch(e){
   await stopPosCamera();
   const err=String(e?.message||e||"");
-  const denied=/NotAllowedError|Permission denied|permission|denied/i.test(err);
-  const missing=/NotFoundError|not found|Overconstrained/i.test(err);
-  posScanFeedback(denied?"Accès caméra refusé. Autorise la caméra dans les réglages du site Safari.":missing?"Caméra arrière introuvable. Vérifie les autorisations Safari.":"Caméra impossible à démarrer : "+err+". Essaie une photo.",true);
- }finally{b.disabled=false}
+  const denied=/NotAllowedError|permission|denied/i.test(err);
+  posScanFeedback(denied?"Safari refuse la caméra : autorise-la dans les réglages du site.":"Démarrage ZXing impossible : "+err+". Essaie « Lire depuis une photo ».",true);
+ }finally{posCameraStartup=null;b.disabled=false}
 }
 async function scanPosPhoto(file){
  if(!file)return;
- if(!window.Html5Qrcode){posScanFeedback("Lecteur indisponible : recharge la page.",true);return}
- if(posCameraInstance)await stopPosCamera();
+ if(posCameraInstance||posCameraStartup)await stopPosCamera();
  const b=$("posScanPhoto");b.disabled=true;
- const host=$("posCameraBox");host.classList.remove("hidden");
- posScanFeedback("Analyse de l'image en cours…");
- let reader=null;
+ posScanFeedback("Analyse de l’image…");
+ const imageUrl=URL.createObjectURL(file);
  try{
-  const formats=posScannerFormats();
-  reader=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats,verbose:false}:{verbose:false});
-  const raw=await reader.scanFile(file,false);
-  posAcceptScannedCode(raw);
+  if(window.ZXingBrowser?.BrowserMultiFormatOneDReader){
+    const reader=new window.ZXingBrowser.BrowserMultiFormatOneDReader();
+    const result=await reader.decodeFromImageUrl(imageUrl);
+    posAcceptScannedCode(result.getText());
+  }else if(window.Html5Qrcode){
+    const host=$("posCameraBox");host.classList.remove("hidden");
+    const formats=posScannerFormats();
+    const reader=new window.Html5Qrcode("posCameraReader",formats?{formatsToSupport:formats}:{verbose:false});
+    try{posAcceptScannedCode(await reader.scanFile(file,false))}finally{try{await reader.clear()}catch(e){}host.classList.add("hidden")}
+  }else posScanFeedback("Aucun lecteur disponible. Actualise Safari avec Internet actif.",true);
  }catch(e){
-  posScanFeedback("Code non reconnu dans la photo. Prends une photo nette et bien éclairée avec le code entier. Détail : "+String(e?.message||e),true);
- }finally{
-  if(reader)try{await reader.clear()}catch(e){}
-  host.classList.add("hidden");b.disabled=false;$("posScanFile").value="";
- }
+  posScanFeedback("Code non reconnu dans la photo. Essaie une image nette, de face, avec les marges blanches visibles. Détail : "+String(e?.message||e),true);
+ }finally{URL.revokeObjectURL(imageUrl);b.disabled=false;$("posScanFile").value=""}
 }
 $("posCamera").onclick=startPosCamera;
 $("posCameraClose").onclick=stopPosCamera;
