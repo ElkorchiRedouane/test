@@ -93,7 +93,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout">Déconnexion</button></header>
 <main>
   <section id="home" class="page active">
-    <div class="hero"><h1>Réception rapide</h1><p>Commence un dépôt ou ajoute simplement un vêtement. Le reste se fait en chaîne.</p></div>
+    <div class="hero"><h1>Réception rapide</h1><p>Commence un dépôt ou ajoute simplement un vêtement. Le reste se fait en chaîne.</p><small>Les indicateurs « À envoyer Shopify » comptent des articles, et non des dépôts.</small></div>
 <div id="shopifyHealth" class="notice warn" style="margin-top:12px">
   <strong>Connexion Shopify non vérifiée.</strong><br>
   <button id="testShopify" class="btn green small" style="margin-top:8px">Tester Shopify</button>
@@ -621,11 +621,15 @@ async function loadLocations(){
  if(error)throw new Error("Emplacements : "+error.message);
  locations=data||[];
 }
-function fillFilters(){const opts=consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;if($("payConsignor"))$("payConsignor").innerHTML='<option value="">Choisir...</option>'+opts}
+function fillFilters(){
+ const opts=consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
+ if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;
+ // Payout choices are set by renderPayouts; never overwrite them here.
+}
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
  $("stOpenDep").textContent=deposits.filter(d=>!["closed","deleted"].includes(d.status)).length;
- $("stPending").textContent=stock.filter(i=>!i.shopify_product_id&&i.status!=="deleted_milou").length;
+ $("stPending").textContent=stock.filter(i=>!i.shopify_product_id&&i.status==="validated").length;
  $("stOnline").textContent=stock.filter(i=>i.status==="online").length;
 }
 function fillDepositSelect(){
@@ -653,9 +657,9 @@ function renderHomeDeposits(){
  const list=deposits.slice(0,6);$("homeDepositList").innerHTML=list.length?list.map(d=>depRow(d)).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
 }
 function depRow(d){
-  const items=d.items||[],pending=items.filter(i=>!i.shopify_product_id).length;
+  const items=d.items||[],pending=items.filter(i=>!i.shopify_product_id).length,shopifyDrafts=items.filter(i=>i.status==="shopify_draft").length;
   const sold=items.filter(i=>i.status==="sold").length;
-  return '<div class="row clickable depOpen" data-id="'+d.id+'"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+sold+' vendu(s) • '+esc(d.received_on||"")+'</small></div><div class="row-actions">'+(pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer Shopify</button>':'<span class="badge">Shopify OK</span>')+'</div></div>'
+  return '<div class="row clickable depOpen" data-id="'+d.id+'"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+sold+' vendu(s) • '+esc(d.received_on||"")+'</small></div><div class="row-actions">'+(pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer Shopify</button>':'<span class="badge">'+esc(shopifyDrafts?"Shopify : "+shopifyDrafts+" brouillon(s)":"Envoyé Shopify")+'</span>')+'</div></div>'
 }
 function renderDeposits(){
  renderHomeDeposits();
@@ -708,7 +712,7 @@ function renderDepositDetail(id){
      '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
      '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join("")+'</div>':'<div class="empty">Aucun article.</div>')+
- '<div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
+ '<div class="notice">Taux au dépôt : '+esc(d.commission_pct==null?"non défini (voir les articles)":String(d.commission_pct)+" %")+'. Montants potentiels calculés sur les prix affichés ; le taux final est fixé lors de la vente.</div><div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
  const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll"),del=$("depDelete");
  if(a)a.onclick=()=>startDepositSession(id);
  if(f)f.onclick=()=>finishDeposit(id);
@@ -761,7 +765,7 @@ function renderConsignors(){
  $("consignorList").innerHTML=rows.length?rows.map(c=>{
    const ds=deposits.filter(d=>d.consignor_id===c.id||d.consignors?.id===c.id),ss=sales.filter(s=>s.consignor_id===c.id);
    const due=ss.filter(s=>s.payout_status!=="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0);
-   return '<div class="row clickable consignorOpen" data-id="'+c.id+'"><div class="row-main"><b>'+esc(c.full_name)+'</b><small>'+esc(c.code)+' • '+ds.length+' dépôt(s) • '+ss.length+' vente(s)</small></div><div class="row-actions"><strong class="money-due">'+money(due)+'</strong><button class="btn ghost small editCons" data-id="'+c.id+'">Modifier</button></div></div>'
+   return '<div class="row clickable consignorOpen" data-id="'+c.id+'"><div class="row-main"><b>'+esc(c.full_name)+'</b><small>'+esc(c.code)+' • '+ds.length+' dépôt(s) • '+ss.length+' vente(s) • Taux par défaut : '+(c.default_commission_pct==null?"non défini":esc(String(c.default_commission_pct)+" %"))+'</small></div><div class="row-actions"><strong class="money-due">'+money(due)+'</strong><button class="btn ghost small editCons" data-id="'+c.id+'">Modifier</button></div></div>'
  }).join(""):'<div class="empty">Aucun consignateur.</div>';
  document.querySelectorAll(".consignorOpen").forEach(r=>r.onclick=e=>{if(e.target.closest("button"))return;openConsignorDetail(r.dataset.id)});
  document.querySelectorAll(".editCons").forEach(b=>b.onclick=()=>openConsignor(b.dataset.id));
@@ -770,7 +774,7 @@ function openConsignorDetail(id){
  const c=consignors.find(x=>x.id===id);if(!c)return;
  const ds=deposits.filter(d=>d.consignor_id===id||d.consignors?.id===id),ss=sales.filter(s=>s.consignor_id===id);
  const soldTotal=ss.reduce((a,s)=>a+Number(s.gross_amount||0),0),due=ss.filter(s=>s.payout_status!=="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0),paid=ss.filter(s=>s.payout_status==="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0);
- $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+Number(c.default_commission_pct||0)+'% par défaut</small></div><div class="row-actions"><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div><h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
+ $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+(c.default_commission_pct==null?"Taux par défaut non défini — taux propre aux dépôts/articles possible":esc(String(c.default_commission_pct)+" % par défaut"))+'</small></div><div class="row-actions"><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div><h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
  $("closeConsDetail").onclick=()=>{$("consignorDetail").innerHTML=""};
  $("deleteConsDetail").onclick=()=>deleteConsignorSafe(id);
  $("deactivateConsDetail").onclick=()=>deactivateConsignor(id);
@@ -1672,8 +1676,8 @@ function labelVisibleItems(){
 }
 function renderLabelOptions(){
  const select=$("labelsDeposit"),value=select.value;
- const options=deposits.filter(d=>(d.items||[]).some(i=>labelAvailableItems().some(x=>x.id===i.id)));
- select.innerHTML='<option value="">Tous les articles disponibles</option>'+options.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||d.id)+'</option>').join("");
+ const options=deposits.filter(d=>(d.items||[]).length>0);
+ select.innerHTML='<option value="">Tous les articles disponibles</option>'+options.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||d.id)+' — '+(d.items||[]).filter(i=>labelAvailableItems().some(x=>x.id===i.id)).length+' étiquette(s) disponible(s)</option>').join("");
  select.value=options.some(d=>d.id===value)?value:"";
  renderLabelList();
 }
@@ -1681,7 +1685,7 @@ function renderLabelList(){
  const visible=labelVisibleItems();
  $("labelsList").innerHTML=visible.length?visible.map(i=>
   '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
- ).join(""):'<div class="empty">Aucun article disponible pour ce filtre.</div>';
+ ).join(""):'<div class="empty">Aucun article imprimable pour ce dépôt ou ce filtre. Les articles supprimés de Shopify ne sont pas automatiquement remis en vente.</div>';
  document.querySelectorAll(".labelPick").forEach(el=>el.onchange=()=>{if(el.checked)selectedLabelIds.add(el.dataset.id);else selectedLabelIds.delete(el.dataset.id)});
 }
 function labelSvg(sku){
@@ -1736,7 +1740,7 @@ function renderStock(){
    return (!q||text.includes(q))&&(st?i.status===st:i.status!=="deleted_milou")&&(!sz||i.age_band===sz);
  });
  const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify","deleted_milou"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
- if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
+ if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques (stock actif, hors articles supprimés ou archivés) :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>{
    const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
    const actions=deletedMilou
@@ -1862,7 +1866,7 @@ function posSimulatedTaxNote(){
 function renderPosCash(){
  const total=posCartCents();
  const received=posCentsFromInput($("posCashReceived")?.value);
- $("posCashChange").textContent=received==null?"—":received<total?"Manque "+money((total-received)/100):money((received-total)/100);
+ $("posCashChange").textContent=!posCartIds.length||received==null?"—":received<total?"Manque "+money((total-received)/100):money((received-total)/100);
 }
 let posLastReceipt=null;
 function posReceiptMarkup(data,isDemo,dateISO){
@@ -2056,7 +2060,11 @@ function renderPosCart(){
  $("posTax").textContent="0,00 $ (simulation)";
  $("posTotal").textContent=money(subCents/100)+" (simulation)";
  renderPosCash();
- document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);posClearPrepared();renderPosCart()});
+ document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{
+ posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);posClearPrepared();
+ $("posMessage").innerHTML="";if(!posCartIds.length)$("posCashReceived").value="";
+ renderPosCart();
+});
 }
 function addPosSku(){
  const code=$("posSku").value.trim().toUpperCase();
@@ -2088,7 +2096,11 @@ async function preparePosDraft(){
 $("posPrepare").onclick=preparePosDraft;
 $("posAdd").onclick=addPosSku;
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
-$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];posClearPrepared();renderPosCart();$("posSku").focus()};
+$("posClear").onclick=()=>{
+ posCartIds=[];posClearPrepared();$("posSku").value="";$("posCashReceived").value="";
+ $("posMessage").innerHTML="";$("posCashResult").innerHTML="";renderPosCart();
+ note($("posMessage"),"Panier vidé. Aucune vente enregistrée.");$("posSku").focus();
+};
 renderPosCart();
 
 
@@ -2168,8 +2180,8 @@ async function loadPayoutFinancials(){
 function renderPayouts(){
  if(!$("salesList"))return;
  const select=$("payConsignor"),previous=select.value;
- const consWithSales=consignors.filter(c=>sales.some(s=>s.consignor_id===c.id));
- select.innerHTML='<option value="">Choisir un consignateur</option>'+consWithSales.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.full_name||c.code)+'</option>').join("");
+ const consWithSales=consignors.filter(c=>c.status==="active"||sales.some(s=>s.consignor_id===c.id));
+ select.innerHTML='<option value="">Choisir un consignateur</option>'+consWithSales.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.full_name||c.code)+(sales.some(s=>payoutEligibleSale(s,c.id))?'':' (aucun solde payable)')+'</option>').join("");
  select.value=consWithSales.some(c=>c.id===previous)?previous:"";
  const allUnpaid=sales.filter(s=>s.consignor_id&&s.payout_status==="unpaid"&&!s.payout_id);
  const available=allUnpaid.filter(s=>!payoutReturnHolds.has(s.id));
@@ -2202,7 +2214,7 @@ function renderPayCalculator(){
  const eligible=sales.filter(s=>payoutEligibleSale(s,cid));
  $("payItems").innerHTML=cid?(eligible.length?eligible.map(s=>
  '<label class="check-row" style="min-width:0"><input type="checkbox" class="payItem" value="'+esc(s.id)+'" checked><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b>'+esc(s.items?.title||s.items?.sku||"Vente")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(formatQuebecDateTime(s.sold_at))+' • Prix réellement vendu : '+money(s.gross_amount)+'</small></span><strong>'+money(s.consignor_amount)+'</strong></label>'
- ).join(""):'<div class="empty">Aucune vente non payée et admissible. Les ventes litigieuses ou programmées ne sont pas sélectionnables.</div>'):'<div class="empty">Choisis un consignateur.</div>';
+ ).join(""):'<div class="empty">Aucune vente non payée et admissible. Les ventes litigieuses ou programmées ne sont pas sélectionnables.</div>'):'<div class="empty">Choisis un consignateur. Sans vente réelle, aucun versement ne peut être préparé.</div>';
  document.querySelectorAll(".payItem").forEach(el=>el.onchange=calcPayment);
  $("payoutProposedAmount").value="";
  $("payoutPreviewResult").innerHTML="";
