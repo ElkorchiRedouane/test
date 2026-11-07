@@ -91,6 +91,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </div>
 
 <div id="app" class="app hidden">
+<div id="qaModeNotice" class="notice warn hidden" style="margin:8px 12px"><strong>🧪 MODE QA — Données fictives</strong><div>Les créations sont enregistrées dans Supabase. Les appels Shopify et Google Sheet initiés par cette session sont bloqués. Ce mode ne bloque pas les autres sessions ou automatisations serveur. Paiements réels toujours verrouillés.</div></div>
 <header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout">Déconnexion</button></header>
 <main>
   <section id="home" class="page active">
@@ -373,6 +374,9 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const sb=createClient("https://lgdapxduxmhcixjwzfrq.supabase.co","sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI");
 const $=id=>document.getElementById(id);
+const qaMode=new URLSearchParams(window.location.search).get("qa")==="1";
+if(qaMode)$("qaModeNotice").classList.remove("hidden");
+function qaExternalBlocked(){if(!qaMode)return false;toast("Mode QA : synchronisation externe bloquée dans cette session.");return true}
 let consignors=[],deposits=[],stock=[],sales=[],locations=[],activeDeposit=null,currentConsignorId=null,photos=[],articleMode="quick";
 const photoMeta=new WeakMap();
 let photoProcessing=0;
@@ -552,6 +556,7 @@ async function refreshSheetSyncStatus(){
 }
 
 async function syncGoogleSheetNow(){
+ if(qaExternalBlocked())return;
   const btn=$("syncGoogleSheet"),box=$("sheetSyncBox"),status=$("sheetSyncStatus");
   const session=await ensureFreshSession();
   if(!session){toast("Session expirée");await authState();return}
@@ -700,6 +705,7 @@ function statusLabel(s){return({validated:"À envoyer",shopify_draft:"Brouillon 
 function shopifyNumber(id){return id?String(id).split("/").pop():"—"}
 function exportXlsx(name,rows){if(!window.XLSX){toast("Module Excel non chargé");return}const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Données");XLSX.writeFile(wb,name+".xlsx")}
 async function syncShopifyNow(){
+ if(qaExternalBlocked())return;
   const session=await ensureFreshSession();
   if(!session){toast("Session expirée, reconnecte-toi");await authState();return}
   const connected=await testShopifyConnection();
@@ -783,6 +789,7 @@ function renderDepositDetail(id){
 }
 
 async function publishOneFromDeposit(itemId,depositId){
+ if(qaExternalBlocked())return;
   const btn=document.querySelector('.depPublishOne[data-id="'+itemId+'"]');
   if(btn){btn.disabled=true;btn.textContent="Publication…";}
   const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:itemId}});
@@ -798,6 +805,7 @@ async function publishOneFromDeposit(itemId,depositId){
 }
 
 async function publishDeposit(depositId){
+ if(qaExternalBlocked())return;
   const d=deposits.find(x=>x.id===depositId);
   if(!d)return;
   const pending=(d.items||[]).filter(i=>!i.shopify_product_id);
@@ -842,7 +850,7 @@ function openConsignorDetail(id){
 }
 $("newConsignor").onclick=()=>openConsignor(null);
 function openConsignor(id){currentConsignorId=id;const c=id?consignors.find(x=>x.id===id):null;$("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";$("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";$("consignorModal").classList.remove("hidden")}
-$("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll()};
+$("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}if(!qaMode)sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll()};
 async function deleteConsignorSafe(id){
   const c=consignors.find(x=>x.id===id);if(!c)return;
   const ds=deposits.filter(d=>d.consignor_id===id||d.consignors?.id===id);
@@ -878,11 +886,11 @@ function openNewDeposit(){fillDepositSelect();$("dConsignor").value="";$("newCon
 ["newDepositHome","newDepositSmall","newDepositPage"].forEach(id=>$(id).onclick=openNewDeposit);
 $("createDeposit").onclick=async()=>{
  let cid=$("dConsignor").value||null;
- if(cid==="__new__"){const name=$("dnName").value.trim();if(!name){toast("Nom du consignateur requis");return}const c=await sb.from("consignors").insert({full_name:name,email:$("dnEmail").value.trim()||null,phone:$("dnPhone").value.trim()||null,default_commission_pct:$("dnDefaultCommission").value?Number($("dnDefaultCommission").value):null}).select().single();if(c.error){toast(c.error.message);return}cid=c.data.id;sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:cid}}).catch(()=>{})}
+ if(cid==="__new__"){const name=$("dnName").value.trim();if(!name){toast("Nom du consignateur requis");return}const c=await sb.from("consignors").insert({full_name:name,email:$("dnEmail").value.trim()||null,phone:$("dnPhone").value.trim()||null,default_commission_pct:$("dnDefaultCommission").value?Number($("dnDefaultCommission").value):null}).select().single();if(c.error){toast(c.error.message);return}cid=c.data.id;if(!qaMode)sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:cid}}).catch(()=>{})}
  const c=cid?consignors.find(x=>x.id===cid):null;
  const commission=$("dCommission").value?Number($("dCommission").value):(c?.default_commission_pct??($("dnDefaultCommission").value?Number($("dnDefaultCommission").value):null));
  const r=await sb.from("deposits").insert({consignor_id:cid,received_on:$("dDate").value,acquisition_mode:$("dMode").value,commission_pct:commission,notes:$("dNotes").value.trim()||null,status:"processing"}).select().single();
- if(r.error){toast(r.error.message);return}$("depositModal").classList.add("hidden");sb.functions.invoke("sync-shopify-ops",{body:{kind:"deposit",id:r.data.id}}).catch(()=>{});await refreshAll();startDepositSession(r.data.id);
+ if(r.error){toast(r.error.message);return}$("depositModal").classList.add("hidden");if(!qaMode)sb.functions.invoke("sync-shopify-ops",{body:{kind:"deposit",id:r.data.id}}).catch(()=>{});await refreshAll();startDepositSession(r.data.id);
 };
 
 function startDepositSession(id){activeDeposit=deposits.find(x=>x.id===id)||null;if(!activeDeposit)return;articleMode="deposit";prepareArticle();go("article")}
@@ -1702,6 +1710,7 @@ $("micBtn").onclick=async()=>{
 };
 
 async function saveArticle(toShopify){
+ if(qaMode&&toShopify){qaExternalBlocked();return}
  if(photoProcessing>0){toast("Attends la fin de l’optimisation des photos");return}
  const d=activeDeposit,p={deposit_id:d?.id||null,consignor_id:d?.consignor_id||null,acquisition_mode:d?.acquisition_mode||(articleMode==="quick"?"own_stock":null),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
  if(!p.title){toast("Titre requis");return}if(!p.sale_price){toast("Prix requis");return}
@@ -1908,6 +1917,7 @@ async function deleteDepositFlow(id){
 }
 
 async function retryShopify(id){
+ if(qaExternalBlocked())return;
   const btn=document.querySelector('.retryShopify[data-id="'+id+'"]');
   if(btn){btn.disabled=true;btn.textContent="Envoi…"}
   const {data,error}=await sb.functions.invoke("publish-shopify",{body:{item_id:id}});
@@ -2424,6 +2434,7 @@ function setupPWA(){
 }
 let googleAutoSyncBusy=false;
 async function autoSyncGoogleSheetIfNeeded(){
+ if(qaMode)return;
   if(googleAutoSyncBusy)return;
   try{
     const {count,error}=await sb.from("sheet_sync_queue").select("id",{count:"exact",head:true}).is("processed_at",null);
