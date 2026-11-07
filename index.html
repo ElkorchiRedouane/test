@@ -193,7 +193,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
     </div>
     <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small">↻ Synchroniser Shopify</button></div>
     <div id="locationSummary" class="notice"></div>
-    <div id="stockDetail" class="hidden"></div><div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
+    <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
 
@@ -302,6 +302,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </nav>
 </div>
 
+<div id="articleInfoModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Détails de l’article"><div class="modal-box"><div class="modal-head"><h2 id="articleInfoTitle">Fiche article</h2><button type="button" id="articleInfoClose" aria-label="Fermer">×</button></div><div id="articleInfoContent"></div></div></div>
 <div id="depositModal" class="modal hidden"><div class="modal-box">
   <div class="modal-head"><h2>Nouveau dépôt</h2><button data-close="depositModal">×</button></div>
   <div class="field"><label>Consignateur</label><select id="dConsignor"></select></div>
@@ -764,6 +765,7 @@ function renderDepositDetail(id){
  if(f)f.onclick=()=>finishDeposit(id);
  if(all)all.onclick=()=>publishDeposit(id);
  if(del)del.onclick=()=>deleteDepositFlow(id);
+ document.querySelectorAll("#depositDetail .stockDetails").forEach(b=>b.onclick=()=>showStockItemDetails(b.dataset.id));
  document.querySelectorAll(".depPublishOne").forEach(b=>b.onclick=()=>publishOneFromDeposit(b.dataset.id,id));
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id,id));
 }
@@ -1792,19 +1794,25 @@ $("labelsPreviewButton").onclick=previewMilouLabel;
 
 
 function showStockItemDetails(id){
- const i=stock.find(x=>x.id===id),box=$("stockDetail");
- if(!i){box.classList.add("hidden");return}
- box.classList.remove("hidden");
- const show=(label,value)=>'<div class="row"><span>'+esc(label)+'</span><strong>'+esc(value==null||value===""?"Non précisé":String(value))+'</strong></div>';
- box.innerHTML='<div class="panel"><div class="panel-head"><h2>Fiche article — '+esc(i.sku)+'</h2><button type="button" id="closeStockDetail" class="btn ghost small">Fermer</button></div><div class="panel-body">'+
- (i.photo_url?'<img style="width:150px;max-width:100%;border-radius:12px" src="'+esc(i.photo_url)+'" alt="Photo de l’article">':'')+
- show("Titre",i.title)+show("SKU",i.sku)+show("Marque",i.brand)+show("Taille",i.size)+show("Catégorie d’âge",i.age_band)+
- show("Statut",statusLabel(i.status))+show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
- show("Dépôt",i.deposits?.code)+show("Consignateur",i.consignors?.full_name)+
- '<div class="notice warn">Cette fiche est en lecture seule. Les titres incomplets doivent être corrigés à la source, sans invention de descriptions.</div></div></div>';
- $("closeStockDetail").onclick=()=>{box.innerHTML="";box.classList.add("hidden")};
- box.scrollIntoView({behavior:"smooth",block:"start"});
+ const i=stock.find(x=>x.id===id)||deposits.flatMap(d=>d.items||[]).find(x=>x.id===id);
+ if(!i){toast("Fiche article introuvable. Actualise le stock.");return}
+ const d=deposits.find(d=>d.id===i.deposits?.id||(d.items||[]).some(item=>item.id===id));
+ const c=consignors.find(c=>c.id===(i.consignors?.id||d?.consignor_id));
+ const modal=$("articleInfoModal"),box=$("articleInfoContent");
+ $("articleInfoTitle").textContent="Fiche article — "+i.sku;
+ const show=(label,value)=>'<div class="row"><span>'+esc(label)+'</span><strong style="overflow-wrap:anywhere;text-align:right">'+esc(value==null||value===""?"Non précisé":String(value))+'</strong></div>';
+ box.innerHTML=(i.photo_url?'<img style="width:150px;max-width:100%;border-radius:12px" src="'+esc(i.photo_url)+'" alt="Photo de l’article">':'')+
+ show("Titre",i.title)+show("SKU",i.sku)+show("Marque",i.brand)+show("Taille",i.size)+
+ show("Tranche d’âge",i.age_band)+show("Statut",statusLabel(i.status))+
+ show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
+ show("Dépôt",i.deposits?.code||d?.code)+show("Consignateur",i.consignors?.full_name||c?.full_name)+
+ '<div class="notice">Fiche en lecture seule. Un brouillon Shopify peut être disponible à la caisse physique.</div>';
+ modal.classList.remove("hidden");$("articleInfoClose").focus();
 }
+function closeStockItemDetails(){$("articleInfoModal").classList.add("hidden")}
+$("articleInfoClose").onclick=closeStockItemDetails;
+$("articleInfoModal").addEventListener("click",e=>{if(e.target===$("articleInfoModal"))closeStockItemDetails()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("articleInfoModal").classList.contains("hidden"))closeStockItemDetails()});
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
  const rows=stock.filter(i=>{
@@ -1821,7 +1829,7 @@ function renderStock(){
      ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
-   '<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small>'+
+   '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — Détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small>'+
    '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
    '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join(""):'<div class="empty">Aucun article.</div>';
