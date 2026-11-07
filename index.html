@@ -76,7 +76,8 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.12.3/dist/JsBarcode.all.min.js"></script>
 </head>
 <body>
-<div id="login" class="login">
+<div id="milouLoading" class="login"><div class="login-card" role="status" aria-live="polite"><div class="logo">Milou <span>Ops</span></div><p>Vérification de la session et chargement des données réelles…</p></div></div>
+<div id="login" class="login hidden">
   <div class="login-card">
     <div class="logo">Milou <span>Ops</span></div>
     <p>L’outil de réception de Friperie Milou.</p>
@@ -207,7 +208,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
       <div id="labelsList" class="list" style="max-height:420px;overflow:auto;margin-top:12px"></div>
       <div class="notice">Chaque étiquette comporte le nom Milou, le titre, la taille, le prix et un vrai code-barres Code 128. Aucune étiquette n'est attachée à un consignateur par son nom ou son pourcentage.</div>
-      <div class="actions"><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div>
+      <div class="actions"><button id="labelsPreviewButton" class="btn ghost">👁 Aperçu code-barres</button><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div><div id="labelsPreview" class="notice hidden"></div>
       <div id="labelsStatus"></div>
     </div></div>
   </section>
@@ -407,19 +408,46 @@ async function ensureFreshSession(){
 }
 
 
+let firstAuthFinished=false;
+let authCheckPromise=null;
 async function authState(){
- const session=await ensureFreshSession();
- if(!session){$("login").classList.remove("hidden");$("app").classList.add("hidden");return}
- const {data:allowed}=await sb.rpc("is_milou_user");
- if(!allowed){await sb.auth.signOut();note($("authMsg"),"Compte non autorisé.","err");return}
- $("login").classList.add("hidden");$("app").classList.remove("hidden");$("userEmail").textContent=session.user.email||"";
- const loaded=await refreshAll();
- if(!loaded)return;
- const connected=await testShopifyConnection();
- if(connected){
-   await sb.functions.invoke("sync-shopify-state",{body:{}}).catch(()=>{});
-   await refreshAll();
- }
+ if(authCheckPromise)return authCheckPromise;
+ authCheckPromise=(async()=>{
+  try{
+   const session=await ensureFreshSession();
+   if(!session){
+    $("app").classList.add("hidden");$("login").classList.remove("hidden");
+    return;
+   }
+   const {data:allowed,error:accessError}=await sb.rpc("is_milou_user");
+   if(accessError||!allowed){
+    await sb.auth.signOut();
+    $("app").classList.add("hidden");$("login").classList.remove("hidden");
+    note($("authMsg"),"Compte non autorisé ou vérification impossible.","err");
+    return;
+   }
+   $("userEmail").textContent=session.user.email||"";
+   const loaded=await refreshAll();
+   if(loaded){
+    const connected=await testShopifyConnection();
+    if(connected){
+     await sb.functions.invoke("sync-shopify-state",{body:{}}).catch(()=>{});
+     await refreshAll();
+    }
+   }
+   $("login").classList.add("hidden");$("app").classList.remove("hidden");
+   if(!window.history.state?.milouPage){
+    window.history.replaceState({milouPage:"home"},"",window.location.pathname+window.location.search+"#home");
+   }
+  }catch(e){
+   $("app").classList.add("hidden");$("login").classList.remove("hidden");
+   note($("authMsg"),"Chargement impossible : "+esc(e.message||String(e)),"err");
+  }finally{
+   $("milouLoading").classList.add("hidden");
+   firstAuthFinished=true;
+  }
+ })();
+ try{return await authCheckPromise}finally{authCheckPromise=null}
 }
 $("authBtn").onclick=async()=>{const email=$("authEmail").value.trim(),password=$("authPassword").value;if(!email||!password){note($("authMsg"),"Entre ton courriel et ton mot de passe.","err");return}$("authBtn").disabled=true;$("authBtn").textContent="Connexion…";const{error}=await sb.auth.signInWithPassword({email,password});$("authBtn").disabled=false;$("authBtn").textContent="Se connecter";if(error){note($("authMsg"),esc(error.message),"err");return}await authState()};
 $("signupBtn").onclick=async()=>{
@@ -446,7 +474,25 @@ $("signupBtn").onclick=async()=>{
 };
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(id){if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="labels")renderLabelOptions();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
+function go(id,options={}){
+ if(!document.getElementById(id)?.classList.contains("page"))return;
+ if(id!=="cashier")void stopPosCamera();
+ document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));
+ document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
+ if(id==="stock")renderStock();
+ if(id==="labels")renderLabelOptions();
+ if(id==="deposits")renderDeposits();
+ if(id==="consignors")renderConsignors();
+ if(id==="payouts")renderPayouts();
+ if(options.history!==false && window.history.state?.milouPage!==id){
+  window.history.pushState({milouPage:id},"","#"+id);
+ }
+}
+window.addEventListener("popstate",event=>{
+ if(!firstAuthFinished || $("app").classList.contains("hidden"))return;
+ const page=event.state?.milouPage||"home";
+ go(document.getElementById(page)?.classList.contains("page")?page:"home",{history:false});
+});
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
 async function testShopifyConnection(){
@@ -1732,6 +1778,18 @@ $("labelsFilter").oninput=renderLabelList;
 $("labelsSelectVisible").onclick=()=>{labelVisibleItems().forEach(i=>selectedLabelIds.add(i.id));renderLabelList()};
 $("labelsClearSelection").onclick=()=>{selectedLabelIds.clear();renderLabelList()};
 $("labelsPrint").onclick=printMilouLabels;
+function previewMilouLabel(){
+ const chosen=labelVisibleItems().find(i=>selectedLabelIds.has(i.id))||labelVisibleItems()[0];
+ const box=$("labelsPreview");
+ if(!chosen){note($("labelsStatus"),"Aucun article imprimable à prévisualiser.","warn");return}
+ if(!window.JsBarcode){note($("labelsStatus"),"Générateur de code-barres indisponible.","err");return}
+ try{
+  box.classList.remove("hidden");
+  box.innerHTML='<div style="max-width:340px;margin:auto;padding:14px;background:white;color:#111;border:1px solid #bbb;text-align:center"><b>FRIPERIE MILOU</b><div>'+esc(chosen.title||chosen.sku)+' — '+esc(chosen.size||"")+'</div><strong>'+money(chosen.sale_price)+'</strong><div style="max-width:100%;overflow:hidden">'+labelSvg(chosen.sku)+'</div><small>APERÇU — '+esc(chosen.sku)+'</small></div>';
+ }catch(e){note($("labelsStatus"),"Aperçu impossible : "+esc(e.message||String(e)),"err")}
+}
+$("labelsPreviewButton").onclick=previewMilouLabel;
+
 
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
@@ -2304,7 +2362,7 @@ async function autoSyncGoogleSheetIfNeeded(){
 }
 let resumeBusy=false;
 async function resumeMilouApp(){
-  if(resumeBusy||document.visibilityState==="hidden")return;
+  if(!firstAuthFinished||authCheckPromise||resumeBusy||document.visibilityState==="hidden")return;
   resumeBusy=true;
   try{
     const session=await ensureFreshSession();
@@ -2321,7 +2379,7 @@ async function resumeMilouApp(){
   }finally{resumeBusy=false}
 }
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")resumeMilouApp()});
-window.addEventListener("pageshow",()=>resumeMilouApp());
+window.addEventListener("pageshow",()=>{if(firstAuthFinished)resumeMilouApp()});
 window.addEventListener("online",()=>resumeMilouApp());
 setupPWA();
 authState();
