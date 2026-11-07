@@ -224,7 +224,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 
   <section id="cashier" class="page">
     <div class="page-head"><div><h1>🛒 Caisse Milou</h1><p>Ajoute les articles avec la caméra ou un lecteur de codes-barres Bluetooth/USB.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
-    <div class="notice warn" id="posSquareStatus"><strong>Square non configuré.</strong> Création du compte Square et appairage d'un Square Terminal requis avant tout paiement par carte.</div>
+    <div class="notice warn" id="posSquareSetupNotice"><strong>Square et Milou fonctionnent séparément.</strong> Encaisse le paiement dans l’application Square sur l’iPad, puis reviens dans Milou pour enregistrer la référence de la transaction et imprimer la facture détaillée. Le reçu bancaire doit être imprimé par Square. Les ventes réelles Milou restent désactivées jusqu’à la validation fiscale.</div>
     <div class="panel"><div class="panel-head"><h2>Articles du panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Scanne le code-barres / SKU</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner avec la caméra</button><button id="posAdd" class="btn green">+ Ajouter au panier</button><button id="posClear" class="btn ghost">Vider le panier</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
@@ -250,8 +250,8 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
        <div class="field"><label for="posSquareReference">Identifiant de la transaction Square</label><input id="posSquareReference" autocomplete="off" placeholder="Référence du paiement Square"></div>
        <div class="field"><label for="posSquareAmount">Montant réellement encaissé dans Square ($)</label><input id="posSquareAmount" type="text" inputmode="decimal" placeholder="Ex. 50,00"></div>
       </div>
-      <label class="check-row"><input type="checkbox" id="posSquareAttest"> J’ai vérifié dans Square que le paiement est accepté, et que le montant et la référence correspondent.</label>
-      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button>
+      <label class="check-row"><input type="checkbox" id="posSquareAttest"> Je confirme avoir vu dans Square « Paiement accepté » et vérifié la référence et le montant avec la preuve de paiement.</label>
+      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button><div class="caption">Après retour de Square, si le panier a disparu, ouvre « Historique » et utilise « Reprendre ce panier en caisse » sur le brouillon non payé. Ne recommence pas le paiement Square.</div>
       <div id="posSquareStatus" role="status" aria-live="polite"></div><div id="posSquareReceipt"></div>
     </div></div>
     </div></div>
@@ -1994,6 +1994,9 @@ function posClearPrepared(){
  if($("posReturnDemoResult"))$("posReturnDemoResult").textContent="";
  if($("posSquareStatus"))$("posSquareStatus").textContent="";
  if($("posSquareAttest"))$("posSquareAttest").checked=false;
+ if($("posSquareReceipt"))$("posSquareReceipt").innerHTML="";
+ if($("posSquareReference"))$("posSquareReference").value="";
+ if($("posSquareAmount"))$("posSquareAmount").value="";
  if($("posSquarePay"))updateSquareManualButton();
 }
 function updateSquareManualButton(){
@@ -2206,6 +2209,8 @@ async function showPosHistoryDetail(id){
   if(!eligible){note($("posHistoryMessage"),"Impossible de reprendre ce panier : un article est absent, vendu ou son prix a changé.","err");return;}
   posCartIds=lines.map(x=>x.item_id);
   posDraftOrderId=id;
+  $("posSquareReceipt").innerHTML="";
+  $("posSquareStatus").textContent="";
   $("posSquareAmount").value=(Number(order.subtotal_cents)/100).toFixed(2);
   $("posSquareReference").value="";
   $("posSquareAttest").checked=false;
@@ -2281,6 +2286,7 @@ async function preparePosDraft(){
   const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
   if(error)throw error;
   posDraftOrderId=data.order_id;
+  $("posSquareAmount").value=(Number(data.subtotal_cents)/100).toFixed(2);
   updateSquareManualButton();
   note($("posPreparedStatus"),"Panier préparé dans Milou : <b>"+esc(data.order_id)+"</b><div>"+Number(data.item_count)+" article(s), sous-total "+money(Number(data.subtotal_cents)/100)+". Aucune vente ni paiement enregistré. Configuration Square et taxes requise avant l’encaissement.</div>");
  }catch(e){note($("posPreparedStatus"),"Impossible de préparer le panier : "+esc(e.message||String(e)),"err")}
