@@ -233,7 +233,15 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
         <div style="display:flex;justify-content:space-between;margin-top:9px"><b>Total à encaisser</b><strong id="posTotal">—</strong></div>
       </div>
       <div class="notice warn" style="margin-top:12px">Le panier est une préparation de caisse. Aucun paiement n'est déclenché et aucun article n'est marqué vendu avant validation serveur du paiement Square. Les taxes doivent être configurées selon le statut fiscal réel de la friperie.</div>
-      <div class="actions"><button id="posPrepare" class="btn green">✓ Préparer le panier dans Milou</button><button id="posSquarePay" class="btn primary" disabled>💳 Encaisser avec Square — configuration requise</button></div><div id="posPreparedStatus"></div>
+      <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>💵 Paiement comptant</h2><span class="badge yellow">Mode essai</span></div><div class="panel-body">
+  <div class="notice warn">Simulation uniquement : les articles resteront disponibles, aucune vente ni commission réelle ne sera enregistrée. Le mode réel sera activé après validation des taxes et des tests de caisse.</div>
+  <div class="field"><label>Montant reçu du client ($)</label><input id="posCashReceived" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex. 30.00"></div>
+  <div class="actions" id="posCashShortcuts"><button type="button" class="btn ghost small" data-cash="exact">Montant exact</button><button type="button" class="btn ghost small" data-cash="20">20 $</button><button type="button" class="btn ghost small" data-cash="50">50 $</button><button type="button" class="btn ghost small" data-cash="100">100 $</button></div>
+  <div class="summary-card"><span>Monnaie à remettre (simulation)</span><strong id="posCashChange">—</strong></div>
+  <div class="actions"><button id="posCashSimulate" class="btn green">✓ Simuler la vente comptant</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
+  <div id="posCashResult"></div>
+ </div></div>
+ <div class="actions"><button id="posPrepare" class="btn ghost">Préparer le panier en base de données</button><button id="posSquarePay" class="btn primary" disabled>💳 Square — configuration requise</button></div><div id="posPreparedStatus"></div>
     </div></div>
   </section>
 
@@ -528,7 +536,7 @@ async function refreshAll(){
    return false;
  }
  try{
-   await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations()]);
+   await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations(),loadPosConfig()]);
    if(box){box.classList.add("hidden");box.textContent=""}
    renderConsignors();renderDeposits();renderStock();renderPayouts();renderPosCart();fillDepositSelect();fillFilters();renderStats();
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
@@ -1786,6 +1794,81 @@ async function startPosCamera(){
 }
 $("posCamera").onclick=startPosCamera;
 $("posCameraClose").onclick=stopPosCamera;
+let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false;
+function posCentsFromInput(raw){
+ const x=String(raw??"").trim().replace(",",".");
+ if(!/^\\d{1,7}(?:\\.\\d{1,2})?$/.test(x))return null;
+ const [whole,fraction=""]=x.split(".");
+ return Number(whole)*100+Number((fraction+"00").slice(0,2));
+}
+function posCartCents(){
+ return posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean).reduce((sum,i)=>sum+Math.round(Number(i.sale_price||0)*100),0);
+}
+function posClearPrepared(){
+ posDraftOrderId=null;
+ if($("posPreparedStatus"))$("posPreparedStatus").textContent="";
+ if($("posCashResult"))$("posCashResult").textContent="";
+}
+async function loadPosConfig(){
+ try{
+  const {data,error}=await sb.from("milou_pos_config").select("tax_mode,cash_live_enabled").eq("singleton",true).single();
+  if(error)throw error;
+  posFiscalMode=data.tax_mode;
+  posLiveCashEnabled=!!data.cash_live_enabled&&data.tax_mode==="small_supplier_no_tax";
+  $("posCashLive").disabled=!posLiveCashEnabled;
+  $("posCashLive").textContent=posLiveCashEnabled?"Confirmer la vente comptant réelle":"Encaissement réel — verrouillé";
+  renderPosCart();
+ }catch(e){posLiveCashEnabled=false;$("posCashLive").disabled=true;note($("posCashResult"),"Configuration caisse indisponible : "+esc(e.message||String(e)),"warn")}
+}
+function posSimulatedTaxNote(){
+ return posFiscalMode==="small_supplier_no_tax"?"Taxes non perçues (configuration validée)":"Hypothèse de test : taxes 0 $ ; régime fiscal non validé";
+}
+function renderPosCash(){
+ const total=posCartCents();
+ const received=posCentsFromInput($("posCashReceived")?.value);
+ $("posCashChange").textContent=received==null?"—":received<total?"Manque "+money((total-received)/100):money((received-total)/100);
+}
+function showPosReceipt(data,isDemo=true){
+ const lines=data.items||[];
+ const date=new Date().toLocaleString("fr-CA");
+ const total=Number(data.total_cents||0);
+ const change=Number(data.change_cents||0);
+ const content='<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>'+ (isDemo?"REÇU DE SIMULATION":"REÇU DE VENTE")+'</h2></div><div class="panel-body"><b>FRIPERIE MILOU</b><div>'+esc(date)+'</div><small>'+esc(isDemo?"Test : aucune vente enregistrée":"Transaction : "+data.order_id)+'</small><hr>'+lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:12px"><span>'+esc(x.title||x.sku)+'</span><b>'+money(Number(x.price_cents)/100)+'</b></div>').join("")+'<hr><div>Total : <b>'+money(total/100)+'</b></div><div>Espèces reçues : '+money(Number(data.received_cents)/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div><div>Taxes : '+esc(posSimulatedTaxNote())+'</div></div></div>';
+ $("posCashResult").innerHTML=content;
+}
+function simulatePosCash(){
+ const cents=posCentsFromInput($("posCashReceived").value),total=posCartCents();
+ if(!posCartIds.length){note($("posCashResult"),"Panier vide.","warn");return}
+ if(cents===null||cents<total){note($("posCashResult"),"Montant reçu invalide ou insuffisant.","err");return}
+ const items=posCartIds.map(id=>stock.find(i=>i.id===id)).filter(Boolean).map(i=>({sku:i.sku,title:i.title,price_cents:Math.round(Number(i.sale_price)*100)}));
+ showPosReceipt({items,total_cents:total,received_cents:cents,change_cents:cents-total},true);
+}
+async function completePosCash(){
+ if(!posLiveCashEnabled||posCashBusy)return;
+ if(!posDraftOrderId){note($("posCashResult"),"Prépare d'abord ce panier en base de données.","warn");return}
+ const cents=posCentsFromInput($("posCashReceived").value);
+ if(cents===null||cents<posCartCents()){note($("posCashResult"),"Montant reçu invalide ou insuffisant.","err");return}
+ if(!confirm("Vente RÉELLE : as-tu reçu "+money(cents/100)+" en espèces ? Les articles seront marqués vendus et les commissions enregistrées."))return;
+ posCashBusy=true;$("posCashLive").disabled=true;
+ try{
+  const {data,error}=await sb.rpc("milou_pos_complete_cash",{p_order_id:posDraftOrderId,p_received_cents:cents});
+  if(error)throw error;
+  showPosReceipt(data,false);
+  posCartIds=[];posDraftOrderId=null;
+  await refreshAll();
+  renderPosCart();
+ }catch(e){note($("posCashResult"),"Vente non confirmée : "+esc(e.message||String(e))+". Vérifie l'historique avant toute nouvelle tentative.","err")}
+ finally{posCashBusy=false;$("posCashLive").disabled=!posLiveCashEnabled}
+}
+$("posCashReceived").oninput=renderPosCash;
+document.querySelectorAll("#posCashShortcuts [data-cash]").forEach(b=>b.onclick=()=>{
+ const total=posCartCents();
+ $("posCashReceived").value=b.dataset.cash==="exact"?(total/100).toFixed(2):b.dataset.cash;
+ renderPosCash();
+});
+$("posCashSimulate").onclick=simulatePosCash;
+$("posCashLive").onclick=completePosCash;
+
 let posCartIds=[];
 function renderPosCart(){
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
@@ -1795,9 +1878,10 @@ function renderPosCart(){
  ).join(""):'<div class="empty">Le panier est vide. Scanne une étiquette pour commencer.</div>';
  const subCents=items.reduce((sum,i)=>sum+Math.round(Number(i.sale_price||0)*100),0);
  $("posSubtotal").textContent=money(subCents/100);
- $("posTax").textContent="À configurer";
- $("posTotal").textContent="Non calculé";
- document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);renderPosCart()});
+ $("posTax").textContent="0,00 $ (simulation)";
+ $("posTotal").textContent=money(subCents/100)+" (simulation)";
+ renderPosCash();
+ document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);posClearPrepared();renderPosCart()});
 }
 function addPosSku(){
  const code=$("posSku").value.trim().toUpperCase();
@@ -1808,7 +1892,7 @@ function addPosSku(){
  if(i.sale_price==null||!Number.isFinite(Number(i.sale_price))){note($("posMessage"),"Prix manquant : "+esc(code),"err");return}
  if(posCartIds.includes(i.id)){note($("posMessage"),"Article déjà présent dans le panier.","warn");$("posSku").value="";return}
  posCartIds.push(i.id);
- $("posPreparedStatus").innerHTML="";
+ posClearPrepared();
  $("posSku").value="";
  $("posMessage").innerHTML="";
  renderPosCart();
@@ -1820,6 +1904,7 @@ async function preparePosDraft(){
  try{
   const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
   if(error)throw error;
+  posDraftOrderId=data.order_id;
   note($("posPreparedStatus"),"Panier préparé dans Milou : <b>"+esc(data.order_id)+"</b><div>"+Number(data.item_count)+" article(s), sous-total "+money(Number(data.subtotal_cents)/100)+". Aucune vente ni paiement enregistré. Configuration Square et taxes requise avant l’encaissement.</div>");
  }catch(e){note($("posPreparedStatus"),"Impossible de préparer le panier : "+esc(e.message||String(e)),"err")}
  finally{b.disabled=false;b.textContent="✓ Préparer le panier dans Milou"}
@@ -1827,7 +1912,7 @@ async function preparePosDraft(){
 $("posPrepare").onclick=preparePosDraft;
 $("posAdd").onclick=addPosSku;
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
-$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];$("posPreparedStatus").innerHTML="";renderPosCart();$("posSku").focus()};
+$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];posClearPrepared();renderPosCart();$("posSku").focus()};
 renderPosCart();
 
 let saleScannerInstance=null,saleScannerBusy=false,salePendingItem=null;
