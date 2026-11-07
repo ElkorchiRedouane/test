@@ -263,20 +263,31 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
   </section>
 
   <section id="payouts" class="page">
-    <div class="page-head"><div><h1>Paiements</h1><p>Calcul automatique des ventes et calcul manuel pour préparer un versement.</p></div><button id="exportSales" class="btn ghost small">Excel</button></div>
-    <div class="panel"><div class="panel-head"><h2>Calcul manuel</h2></div><div class="panel-body">
-      <div class="grid">
-        <div class="field"><label>Consignateur</label><select id="payConsignor"></select></div>
-        <div class="field"><label>Pourcentage (%)</label><input id="payPct" type="number" min="0" max="100" step=".01"></div>
-      </div>
+    <div class="page-head"><div><h1>💰 Consignation — Finances</h1><p>Solde réel calculé à partir des ventes et des paiements enregistrés. Aucune modification financière en mode essai.</p></div><button id="exportSales" class="btn ghost small">Excel ventes</button></div>
+    <div class="panel"><div class="panel-head"><h2>Soldes des consignateurs</h2><button class="btn ghost small" id="payoutReload">↻ Actualiser</button></div><div class="panel-body">
+      <div id="payoutSummary" class="finance-grid"></div>
+      <div id="payoutConsignorBalances" class="list" style="margin-top:12px"></div>
+    </div></div>
+    <div class="panel"><div class="panel-head"><h2>Préparer un versement</h2><span class="badge yellow">Simulation</span></div><div class="panel-body">
+      <div class="notice warn">Aucun versement réel ne sera enregistré. Le solde provient des ventes réellement confirmées, et non du prix affiché ou d'un pourcentage modifiable. Les retours en attente sont exclus des montants préparables.</div>
+      <div class="field"><label>Consignateur</label><select id="payConsignor"><option value="">Choisir un consignateur</option></select></div>
       <div id="payItems" class="list" style="margin-top:12px"></div>
       <div class="finance-grid" style="margin-top:12px">
-        <div class="finance-card"><strong id="paySelectedTotal">0,00 $</strong><span>Total produits sélectionnés</span></div>
-        <div class="finance-card"><strong id="payAmount">0,00 $</strong><span>Montant consignateur</span></div>
-        <div class="finance-card"><strong id="payStoreAmount">0,00 $</strong><span>Part boutique</span></div>
+        <div class="finance-card"><strong id="paySelectedTotal">0,00 $</strong><span>Ventes correspondantes</span></div>
+        <div class="finance-card"><strong id="payAmount">0,00 $</strong><span>Montant sélectionné à verser</span></div>
+        <div class="finance-card"><strong id="payStoreAmount">0,00 $</strong><span>Part boutique sur ces ventes</span></div>
       </div>
+      <div class="field" style="margin-top:12px"><label>Montant du versement simulé ($)</label><input id="payoutProposedAmount" inputmode="decimal" placeholder="Montant partiel ou complet, par exemple 20.00"></div>
+      <div class="field" style="margin-top:10px"><label>Moyen envisagé</label><select id="payoutMethod"><option value="etransfer">Virement Interac</option><option value="cash">Comptant</option><option value="bank">Virement bancaire</option></select></div>
+      <div class="actions"><button id="payoutExact" class="btn ghost">Utiliser le solde sélectionné</button><button id="payoutPreview" class="btn green">Préparer le relevé de versement</button></div>
+      <div id="payoutPreviewResult"></div>
     </div></div>
-    <div class="panel"><div class="panel-head"><h2>Ventes détectées</h2></div><div class="panel-body"><div id="salesList" class="list"></div></div></div>
+    <div class="panel"><div class="panel-head"><h2>Historique des versements enregistrés</h2></div><div class="panel-body">
+      <div id="payoutHistory" class="list"></div>
+    </div></div>
+    <div class="panel"><div class="panel-head"><h2>Historique des ventes</h2></div><div class="panel-body">
+      <div id="salesList" class="list"></div>
+    </div></div>
   </section>
 </main>
 <nav class="bottom" style="grid-template-columns:repeat(6,1fr)">
@@ -544,6 +555,7 @@ async function refreshAll(){
  }
  try{
    await Promise.all([loadConsignors(),loadDeposits(),loadStock(),loadSales(),loadLocations(),loadPosConfig()]);
+    await loadPayoutFinancials();
    if(box){box.classList.add("hidden");box.textContent=""}
    renderConsignors();renderDeposits();renderStock();renderPayouts();renderPosCart();fillDepositSelect();fillFilters();renderStats();
    const b=$("testShopify");if(b)b.onclick=testShopifyConnection;
@@ -2128,22 +2140,116 @@ $("saleScanSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();lookupSale
 $("saleScanCamera").onclick=startSaleScanner;
 $("saleScanStop").onclick=stopSaleScanner;
 
+let payoutHistory=[],payoutReturnHolds=new Set(),payoutLastStatement=null,payoutSelectionDefault="";
+function payoutMoneyCents(x){return Math.round(Number(x||0)*100)}
+function payoutEligibleSale(s,cid){
+ return s.consignor_id===cid && s.payout_status==="unpaid" && !s.payout_id && !payoutReturnHolds.has(s.id) &&
+ Number(s.consignor_amount||0)>0;
+}
+async function loadPayoutFinancials(){
+ try{
+  const [{data:payments,error:payErr},{data:returns,error:returnErr}]=await Promise.all([
+   sb.from("payouts").select("id,consignor_id,amount,status,paid_on,payment_method,reference,created_at").order("created_at",{ascending:false}).limit(500),
+   sb.from("milou_pos_returns").select("sale_id,status").in("status",["pending_review","approved","completed"]).limit(1000)
+  ]);
+  if(payErr)throw payErr;if(returnErr)throw returnErr;
+  payoutHistory=payments||[];
+  // Until refund accounting is implemented, all non-rejected returns hold the related sale.
+  payoutReturnHolds=new Set((returns||[]).map(r=>r.sale_id).filter(Boolean));
+  renderPayouts();
+ }catch(e){note($("payoutStatus"),"Finances indisponibles : "+esc(e.message||String(e)),"err")}
+}
 function renderPayouts(){
  if(!$("salesList"))return;
- $("salesList").innerHTML=sales.length?sales.map(s=>'<div class="row"><div class="row-main"><b>'+esc(s.items?.title||s.items?.sku||"Vente")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(s.consignors?.full_name||"Sans consignateur")+' • '+new Date(s.sold_at).toLocaleDateString("fr-CA")+'</small></div><div class="row-actions"><strong>'+money(s.gross_amount)+'</strong><span class="badge">'+money(s.consignor_amount)+' à verser</span></div></div>').join(""):'<div class="empty">Aucune vente détectée.</div>';
+ const select=$("payConsignor"),previous=select.value;
+ const consWithSales=consignors.filter(c=>sales.some(s=>s.consignor_id===c.id));
+ select.innerHTML='<option value="">Choisir un consignateur</option>'+consWithSales.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.full_name||c.code)+'</option>').join("");
+ select.value=consWithSales.some(c=>c.id===previous)?previous:"";
+ const allUnpaid=sales.filter(s=>s.consignor_id&&s.payout_status==="unpaid"&&!s.payout_id);
+ const available=allUnpaid.filter(s=>!payoutReturnHolds.has(s.id));
+ const sum=rows=>rows.reduce((n,s)=>n+payoutMoneyCents(s.consignor_amount),0);
+ $("payoutSummary").innerHTML='<div class="finance-card"><strong>'+money(sum(available)/100)+'</strong><span>À verser (hors litiges)</span></div>'+
+ '<div class="finance-card"><strong>'+money(sum(allUnpaid.filter(s=>payoutReturnHolds.has(s.id)))/100)+'</strong><span>Bloqué par retours</span></div>'+
+ '<div class="finance-card"><strong>'+money(payoutHistory.filter(p=>p.status==="paid").reduce((n,p)=>n+payoutMoneyCents(p.amount),0)/100)+'</strong><span>Versements payés enregistrés</span></div>';
+ const summary=consignors.map(c=>{
+  const cSales=available.filter(s=>s.consignor_id===c.id);
+  const amount=sum(cSales);
+  const hold=sum(allUnpaid.filter(s=>s.consignor_id===c.id&&payoutReturnHolds.has(s.id)));
+  return {c,amount,hold,count:cSales.length};
+ }).filter(x=>x.amount||x.hold).sort((a,b)=>b.amount-a.amount);
+ $("payoutConsignorBalances").innerHTML=summary.length?summary.map(({c,amount,hold,count})=>
+ '<div class="row"><div class="row-main"><b>'+esc(c.full_name||c.code)+'</b><small>'+count+' vente(s) admissible(s)'+(hold?' • Retours en vérification : '+money(hold/100):'')+'</small></div><strong>'+money(amount/100)+'</strong></div>').join(""):'<div class="empty">Aucun solde dû à ce stade.</div>';
+ $("salesList").innerHTML=sales.length?sales.slice(0,100).map(s=>'<div class="row"><div class="row-main"><b>'+esc(s.items?.title||s.items?.sku||"Article")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(s.consignors?.full_name||"Stock boutique")+' • '+esc(formatQuebecDateTime(s.sold_at))+'</small></div><div class="row-actions"><strong>'+money(s.gross_amount)+'</strong><span class="badge">'+esc(s.payout_status==="paid"?"Versé":s.payout_status==="scheduled"?"Programmé":s.payout_status==="not_applicable"?"Sans commission":payoutReturnHolds.has(s.id)?"Retour à traiter":"À verser")+' : '+money(s.consignor_amount)+'</span></div></div>').join(""):'<div class="empty">Aucune vente enregistrée.</div>';
+ $("payoutHistory").innerHTML=payoutHistory.length?payoutHistory.map(p=>{
+  const c=consignors.find(x=>x.id===p.consignor_id);
+  return '<div class="row"><div class="row-main"><b>'+esc(c?.full_name||"Consignateur")+'</b><small>'+esc(p.status==="paid"?"Payé":p.status==="draft"?"Brouillon":p.status==="scheduled"?"Programmé":"Annulé")+' • '+esc(p.paid_on||formatQuebecDateTime(p.created_at))+' • '+esc(p.payment_method||"Méthode non précisée")+'</small></div><strong>'+money(p.amount)+'</strong></div>';
+ }).join(""):'<div class="empty">Aucun versement enregistré.</div>';
  renderPayCalculator();
 }
+function selectedPayoutSales(){
+ const ids=new Set(Array.from(document.querySelectorAll(".payItem:checked")).map(x=>x.value));
+ const cid=$("payConsignor").value;
+ return sales.filter(s=>ids.has(s.id)&&payoutEligibleSale(s,cid));
+}
 function renderPayCalculator(){
- const cid=$("payConsignor")?.value||"";if(!$("payItems"))return;
- const c=consignors.find(x=>x.id===cid);if(c&&(!$("payPct").value))$("payPct").value=c.default_commission_pct??"";
- const sold=stock.filter(i=>i.consignors?.id===cid&&i.status==="sold");
- $("payItems").innerHTML=cid?(sold.length?sold.map(i=>'<label class="check-row"><input type="checkbox" class="payItem" value="'+i.id+'" data-price="'+Number(i.sale_price||0)+'" checked><span style="flex:1"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+'</small></span><strong>'+money(i.sale_price)+'</strong></label>').join(""):'<div class="empty">Aucun article vendu.</div>'):'<div class="empty">Choisis un consignateur.</div>';
- document.querySelectorAll(".payItem").forEach(x=>x.onchange=calcPayment);calcPayment();
+ const cid=$("payConsignor").value;
+ const eligible=sales.filter(s=>payoutEligibleSale(s,cid));
+ $("payItems").innerHTML=cid?(eligible.length?eligible.map(s=>
+ '<label class="check-row" style="min-width:0"><input type="checkbox" class="payItem" value="'+esc(s.id)+'" checked><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b>'+esc(s.items?.title||s.items?.sku||"Vente")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(formatQuebecDateTime(s.sold_at))+' • Prix réellement vendu : '+money(s.gross_amount)+'</small></span><strong>'+money(s.consignor_amount)+'</strong></label>'
+ ).join(""):'<div class="empty">Aucune vente non payée et admissible. Les ventes litigieuses ou programmées ne sont pas sélectionnables.</div>'):'<div class="empty">Choisis un consignateur.</div>';
+ document.querySelectorAll(".payItem").forEach(el=>el.onchange=calcPayment);
+ $("payoutProposedAmount").value="";
+ $("payoutPreviewResult").innerHTML="";
+ calcPayment();
 }
 function calcPayment(){
- const total=Array.from(document.querySelectorAll(".payItem:checked")).reduce((a,x)=>a+Number(x.dataset.price||0),0),pct=Number($("payPct")?.value||0),amt=total*pct/100;
- if($("paySelectedTotal"))$("paySelectedTotal").textContent=money(total);if($("payAmount"))$("payAmount").textContent=money(amt);if($("payStoreAmount"))$("payStoreAmount").textContent=money(total-amt);
+ const selected=selectedPayoutSales();
+ const cents=selected.reduce((n,s)=>n+payoutMoneyCents(s.consignor_amount),0);
+ const gross=selected.reduce((n,s)=>n+payoutMoneyCents(s.gross_amount),0);
+ $("paySelectedTotal").textContent=money(gross/100);
+ $("payAmount").textContent=money(cents/100);
+ $("payStoreAmount").textContent=money((gross-cents)/100);
 }
+function preparePayoutStatement(){
+ const c=consignors.find(x=>x.id===$("payConsignor").value),selected=selectedPayoutSales();
+ if(!c||!selected.length){note($("payoutPreviewResult"),"Sélectionne un consignateur avec des ventes admissibles.","warn");return}
+ const max=selected.reduce((n,s)=>n+payoutMoneyCents(s.consignor_amount),0);
+ const raw=$("payoutProposedAmount").value;
+ const requested=posCentsFromInput(raw);
+ if(requested===null||requested<=0||requested>max){
+  note($("payoutPreviewResult"),"Montant invalide. Entre un montant supérieur à 0 et inférieur ou égal à "+money(max/100)+".","err");return;
+ }
+ const method=$("payoutMethod").value;
+ const methodLabel={etransfer:"Virement Interac",cash:"Comptant",bank:"Virement bancaire"}[method]||method;
+ const date=formatQuebecDateTime(new Date().toISOString());
+ const remainder=max-requested;
+ const lines=selected.map(s=>({sku:s.items?.sku||"",title:s.items?.title||"Article",price:s.gross_amount,share:s.consignor_amount,status:s.payout_status}));
+ const textBody=['FRIPERIE MILOU','PROPOSITION DE VERSEMENT — SIMULATION',date,
+ 'Consignateur : '+c.full_name+' ('+c.code+')',
+ ...lines.map(x=>x.sku+' — '+x.title+' : vente '+money(x.price)+' ; part '+money(x.share)),
+ 'Total des parts sélectionnées : '+money(max/100),
+ 'Versement envisagé : '+money(requested/100),
+ 'Solde restant sur ces ventes : '+money(remainder/100),
+ 'Moyen envisagé : '+methodLabel,
+ 'AUCUN PAIEMENT ENREGISTRÉ — DOCUMENT DE SIMULATION'].join("\n");
+ payoutLastStatement=textBody;
+ $("payoutPreviewResult").innerHTML='<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>Relevé prévisionnel</h2></div><div class="panel-body"><div class="notice warn"><b>SIMULATION — Aucun versement effectué ni enregistré.</b></div>'+
+ '<b>'+esc(c.full_name)+'</b><div>'+esc(date)+'</div><div>Ventes sélectionnées : '+selected.length+'</div><div>Part totale : <b>'+money(max/100)+'</b></div><div>Versement proposé : <b>'+money(requested/100)+'</b></div><div>Solde restant : <b>'+money(remainder/100)+'</b></div><div>Moyen : '+esc(methodLabel)+'</div>'+
+ '<div class="actions"><button id="payoutShare" class="btn green small">Partager le relevé</button><button id="payoutCopy" class="btn ghost small">Copier</button><button id="payoutPrint" class="btn ghost small">Imprimer</button></div></div></div>';
+ $("payoutShare").onclick=async()=>{try{if(navigator.share)await navigator.share({title:"Relevé prévisionnel Milou",text:payoutLastStatement});else if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(payoutLastStatement);toast("Relevé copié.")}else toast("Partage indisponible")}catch(e){if(e.name!=="AbortError")toast("Partage indisponible")}};
+ $("payoutCopy").onclick=async()=>{try{await navigator.clipboard.writeText(payoutLastStatement);toast("Relevé copié")}catch(e){toast("Impossible de copier.")}};
+ $("payoutPrint").onclick=()=>{
+  const w=window.open("","_blank");if(!w){toast("Autorise les fenêtres surgissantes.");return}
+  w.document.open();w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Relevé Milou — simulation</title><style>body{font:14px Arial,sans-serif;max-width:750px;margin:25px auto;padding:15px}pre{white-space:pre-wrap;overflow-wrap:anywhere}@media print{button{display:none}}</style></head><body><pre>'+esc(payoutLastStatement)+'</pre><button onclick="window.print()">Imprimer</button></body></html>');w.document.close();w.focus();
+ };
+}
+$("payConsignor").onchange=renderPayCalculator;
+$("payoutExact").onclick=()=>{
+ const total=selectedPayoutSales().reduce((n,s)=>n+payoutMoneyCents(s.consignor_amount),0);
+ $("payoutProposedAmount").value=total?(total/100).toFixed(2):"";calcPayment();
+};
+$("payoutPreview").onclick=preparePayoutStatement;
+$("payoutReload").onclick=async()=>{await refreshAll();toast("Finances actualisées")};
 function clearArticle(){photos=[];photoProcessing=0;if($("photoProcessingStatus"))$("photoProcessingStatus").classList.add("hidden");if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 
@@ -2151,8 +2257,8 @@ document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.c
 ["stockStatusFilter","stockSizeFilter"].forEach(id=>{if($(id))$(id).onchange=renderStock});
 if($("consignorSearch"))$("consignorSearch").oninput=renderConsignors;
 if($("syncShopifyState"))$("syncShopifyState").onclick=syncShopifyNow;
-if($("payConsignor"))$("payConsignor").onchange=renderPayCalculator;
-if($("payPct"))$("payPct").oninput=calcPayment;
+
+
 if($("exportDeposits"))$("exportDeposits").onclick=()=>exportXlsx("milou-depots",deposits.map(d=>({Depot:d.code,Date:d.received_on,Consignateur:d.consignors?.full_name||"",Mode:modeLabel(d.acquisition_mode),Statut:d.status,Articles:(d.items||[]).length,Valeur:(d.items||[]).reduce((a,i)=>a+Number(i.sale_price||0),0)})));
 if($("exportStock"))$("exportStock").onclick=()=>exportXlsx("milou-stock",stock.map(i=>({SKU:i.sku,Shopify:shopifyNumber(i.shopify_product_id),Titre:i.title,Marque:i.brand,Taille:i.size,Statut:statusLabel(i.status),Prix:i.sale_price,Emplacement:i.location_code,Depot:i.deposits?.code||"",Consignateur:i.consignors?.full_name||""})));
 if($("exportConsignors"))$("exportConsignors").onclick=()=>exportXlsx("milou-consignateurs",consignors.map(c=>({Code:c.code,Nom:c.full_name,Courriel:c.email,Telephone:c.phone,Pourcentage:c.default_commission_pct,Depots:deposits.filter(d=>d.consignor_id===c.id||d.consignors?.id===c.id).length,MontantDu:sales.filter(s=>s.consignor_id===c.id&&s.payout_status!=="paid").reduce((a,s)=>a+Number(s.consignor_amount||0),0)})));
