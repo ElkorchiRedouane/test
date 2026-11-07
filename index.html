@@ -237,7 +237,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <div class="notice warn" style="margin-top:12px">Le panier est une préparation de caisse. Aucun paiement n'est déclenché et aucun article n'est marqué vendu avant validation serveur du paiement Square. Les taxes doivent être configurées selon le statut fiscal réel de la friperie.</div>
       <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>💵 Paiement comptant</h2><span class="badge yellow">Mode essai</span></div><div class="panel-body">
   <div class="notice warn">Simulation uniquement : les articles resteront disponibles, aucune vente ni commission réelle ne sera enregistrée. Le mode réel sera activé après validation des taxes et des tests de caisse.</div>
-  <div class="field"><label>Montant reçu du client ($)</label><input id="posCashReceived" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Ex. 30.00"></div>
+  <div class="field"><label>Montant reçu du client ($)</label><input id="posCashReceived" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="Ex. 30,00" aria-describedby="posCashInputError"><div id="posCashInputError" role="status" aria-live="polite"></div></div>
   <div class="actions" id="posCashShortcuts"><button type="button" class="btn ghost small" data-cash="exact">Montant exact</button><button type="button" class="btn ghost small" data-cash="20">20 $</button><button type="button" class="btn ghost small" data-cash="50">50 $</button><button type="button" class="btn ghost small" data-cash="100">100 $</button></div>
   <div class="summary-card"><span>Monnaie à remettre (simulation)</span><strong id="posCashChange">—</strong></div>
   <div class="actions"><button id="posCashSimulate" class="btn green">✓ Simuler la vente comptant</button><button id="posCashLive" class="btn primary" disabled>Encaissement réel — verrouillé</button></div>
@@ -487,6 +487,7 @@ function go(id,options={}){
  if(id==="deposits")renderDeposits();
  if(id==="consignors")renderConsignors();
  if(id==="payouts")renderPayouts();
+ if(id==="poshistory"){void loadPosHistory();void loadPosReturns()}
  if(options.history!==false && window.history.state?.milouPage!==id){
   window.history.pushState({milouPage:id},"","#"+id);
  }
@@ -2007,7 +2008,9 @@ $("centDemoReceived").oninput=renderCentDemo;
 renderCentDemo();
 function renderPosCash(){
  const total=posCartCents();
- const received=posCentsFromInput($("posCashReceived")?.value);
+ const raw=$("posCashReceived")?.value?.trim()||"";
+ const received=posCentsFromInput(raw);
+ $("posCashInputError").textContent=raw!==""&&received===null?"Montant invalide : utilise au maximum deux décimales (ex. 60,00).":"";
  $("posCashChange").textContent=!posCartIds.length||received==null?"—":received<total?"Manque "+money((total-received)/100):money((received-total)/100);
 }
 let posLastReceipt=null;
@@ -2100,6 +2103,7 @@ async function completePosCash(){
  finally{posCashBusy=false;$("posCashLive").disabled=!posLiveCashEnabled}
 }
 $("posCashReceived").oninput=renderPosCash;
+$("posCashReceived").onblur=()=>{const cents=posCentsFromInput($("posCashReceived").value);if(cents!==null)$("posCashReceived").value=(cents/100).toFixed(2);renderPosCash()};
 document.querySelectorAll("#posCashShortcuts [data-cash]").forEach(b=>b.onclick=()=>{
  const total=posCartCents();
  $("posCashReceived").value=b.dataset.cash==="exact"?(total/100).toFixed(2):b.dataset.cash;
@@ -2160,7 +2164,7 @@ async function showPosHistoryDetail(id){
  '<div style="margin-top:12px"><b>Montant : '+money(Number(receipt.total_cents)/100)+'</b></div>'+
  (paid?'<div class="actions"><button class="btn green small" id="posHistoryReceipt">Voir et imprimer le reçu</button></div>':
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
- (order.status==="draft"?'<div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div>':'')+
+ (order.status==="draft"?'<div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
  '<div class="notice warn">Le retour est uniquement une demande de vérification : aucun remboursement ni changement de stock ou commission n’est effectué.</div>'+
  '<div id="posHistoryReceiptBox"></div></div></div>';
@@ -2176,17 +2180,30 @@ async function showPosHistoryDetail(id){
   await loadPosReturns();
  };
 
- if(order.status==="draft")$("posHistoryCancelDraft").onclick=async()=>{
-  if(!confirm("Annuler ce brouillon sans toucher aux articles ni aux commissions ?"))return;
-  const b=$("posHistoryCancelDraft");b.disabled=true;
-  const {data:result,error}=await sb.rpc("milou_pos_cancel_draft",{p_order_id:id});
-  if(error){note($("posHistoryMessage"),"Annulation impossible : "+esc(error.message),"err");b.disabled=false;return}
-  box.innerHTML="";
-  await loadPosHistory();
-  note($("posHistoryMessage"),"Brouillon annulé. Aucun article ou montant de consignateur modifié.");
+ if(order.status==="draft")$("posHistoryCancelDraft").onclick=()=>{
+  const surface=$("posHistoryCancelConfirm");
+  surface.classList.remove("hidden");
+  surface.innerHTML='<div class="notice warn"><b>Confirmer l’annulation du brouillon '+esc(id.slice(0,8))+' ?</b><p>Aucune vente ni commission ne sera modifiée.</p><div class="actions"><button type="button" id="posHistoryCancelYes" class="btn danger small">Oui, annuler ce brouillon</button><button type="button" id="posHistoryCancelNo" class="btn ghost small">Conserver le brouillon</button></div><div id="posHistoryCancelFeedback"></div></div>';
+  $("posHistoryCancelNo").onclick=()=>{surface.classList.add("hidden");surface.innerHTML=""};
+  $("posHistoryCancelYes").onclick=async()=>{
+   const btn=$("posHistoryCancelYes");
+   btn.disabled=true;btn.textContent="Annulation en cours…";
+   try{
+    const {data:result,error}=await sb.rpc("milou_pos_cancel_draft",{p_order_id:id});
+    if(error)throw error;
+    if(result?.status!=="canceled")throw new Error("Réponse d’annulation inattendue");
+    box.innerHTML="";
+    await loadPosHistory();
+    note($("posHistoryMessage"),"Brouillon annulé. Aucun article ni montant de consignateur modifié.");
+    if(posDraftOrderId===id)posClearPrepared();
+   }catch(e){
+    note($("posHistoryCancelFeedback"),"Annulation impossible : "+esc(e.message||String(e)),"err");
+    btn.disabled=false;btn.textContent="Réessayer l’annulation";
+   }
+  };
  };
 }
-$("posHistoryOpen").onclick=()=>{go("poshistory");loadPosHistory();loadPosReturns()};
+$("posHistoryOpen").onclick=()=>go("poshistory");
 $("posHistoryBack").onclick=()=>go("cashier");
 $("posHistoryReload").onclick=()=>{loadPosHistory();loadPosReturns()};
 $("posHistoryFilter").onchange=renderPosHistory;
