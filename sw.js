@@ -1,4 +1,4 @@
-const CACHE="milou-ops-v12";
+const CACHE="milou-ops-v13";
 const APP_SHELL=["/","/manifest.webmanifest","/milou-icon.svg","/milou-icon-maskable.svg"];
 
 self.addEventListener("install",event=>{
@@ -25,7 +25,7 @@ self.addEventListener("fetch",event=>{
     event.respondWith(
       fetch(req).then(res=>{
         const copy=res.clone();
-        caches.open(CACHE).then(cache=>cache.put("/",copy));
+        if(res.ok) caches.open(CACHE).then(cache=>cache.put("/",copy));
         return res;
       }).catch(()=>caches.match("/"))
     );
