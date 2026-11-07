@@ -628,7 +628,7 @@ async function loadConsignors(){
  consignors=data||[];
 }
 async function loadDeposits(){
-  const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
+  const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,brand,size,age_band,condition,acquisition_mode,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
   if(error)throw new Error("Dépôts : "+error.message);
   deposits=data||[];
   // Photo URLs are signed after the core data is visible; no sequential network wait here.
@@ -645,7 +645,7 @@ async function fetchMilouPages(table,fields,orderColumn,label){
 }
 let photoHydrationActive=false;
 async function loadStock(){
- stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
+ stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,condition,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
  // Photo URLs will load after the initial dashboard render to avoid blocking startup.
 }
 async function hydrateMilouPhotos(){
@@ -1854,7 +1854,8 @@ function showStockItemDetails(id){
  const show=(label,value)=>'<div class="row"><span>'+esc(label)+'</span><strong style="overflow-wrap:anywhere;text-align:right">'+esc(value==null||value===""?"Non précisé":String(value))+'</strong></div>';
  box.innerHTML=(i.photo_url?'<img style="width:150px;max-width:100%;border-radius:12px" src="'+esc(i.photo_url)+'" alt="Photo de l’article">':'')+
  show("Titre",i.title)+show("SKU",i.sku)+show("Marque",i.brand)+show("Taille",i.size)+
- show("Tranche d’âge",i.age_band)+show("Statut",statusLabel(i.status))+
+ show("Tranche d’âge",i.age_band||("Non renseignée"+(i.size?" (taille saisie : "+i.size+")":"")))+show("État",i.condition)+
+ show("Commission article",i.commission_pct!=null?String(i.commission_pct)+" %":d?.commission_pct!=null?"Héritée du dépôt : "+d.commission_pct+" %":c?.default_commission_pct!=null?"Par défaut consignateur : "+c.default_commission_pct+" %":"Non définie")+show("Statut",statusLabel(i.status))+
  show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
  show("Dépôt",i.deposits?.code||d?.code)+show("Consignateur",i.consignors?.full_name||c?.full_name)+
  '<div class="notice">Fiche en lecture seule. Un brouillon Shopify peut être disponible à la caisse physique.</div>';
