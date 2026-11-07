@@ -251,7 +251,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
        <div class="field"><label for="posSquareAmount">Montant réellement encaissé dans Square ($)</label><input id="posSquareAmount" type="text" inputmode="decimal" placeholder="Ex. 50,00"></div>
       </div>
       <label class="check-row"><input type="checkbox" id="posSquareAttest"> Je confirme avoir vu dans Square « Paiement accepté » et vérifié la référence et le montant avec la preuve de paiement.</label>
-      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button><div class="caption">Après retour de Square, si le panier a disparu, ouvre « Historique » et utilise « Reprendre ce panier en caisse » sur le brouillon non payé. Ne recommence pas le paiement Square.</div>
+      <button id="posSquarePay" class="btn primary" disabled>Confirmer l’encaissement Square — verrouillé</button><button type="button" id="posSquareReceiptDemo" class="btn ghost small">🖨 Tester le reçu détaillé (aucune vente)</button><div class="caption">Après retour de Square, si le panier a disparu, ouvre « Historique » et utilise « Reprendre ce panier en caisse » sur le brouillon non payé. Ne recommence pas le paiement Square.</div>
       <div id="posSquareStatus" role="status" aria-live="polite"></div><div id="posSquareReceipt"></div>
     </div></div>
     </div></div>
@@ -2043,7 +2043,7 @@ function posReceiptMarkup(data,isDemo,dateISO){
  const timestamp=formatQuebecDateTime(dateISO||new Date().toISOString());
  const total=Number(data.total_cents||0),received=Number(data.received_cents||0),change=Number(data.change_cents||0);
  const id=isDemo?"SIMULATION — NON VALIDE":String(data.order_id||"");
- const square= !isDemo&&(data.payment_method==="square"||!!data.square_reference);
+ const square=data.payment_method==="square"||!!data.square_reference;
  return '<div class="pos-receipt" style="background:white;color:#111;padding:14px;border:1px solid #ddd;border-radius:9px;line-height:1.4">'+
  '<div style="text-align:center;font-weight:800;font-size:18px">FRIPERIE MILOU</div>'+
  '<div style="text-align:center">'+esc(isDemo?"REÇU DE SIMULATION — NE PAS REMETTRE AU CLIENT":"REÇU DE VENTE")+'</div>'+
@@ -2065,9 +2065,10 @@ function posReceiptText(data,isDemo,dateISO){
  (data.payment_method==='square'||data.square_reference)?'Rapprochement manuel effectué':'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
  isDemo?"TEST — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
 }
-function printPosReceipt(){
- if(!posLastReceipt)return;
- const {data,isDemo,dateISO}=posLastReceipt;
+function printPosReceipt(receiptOverride=null){
+ const receipt=receiptOverride||posLastReceipt;
+ if(!receipt)return;
+ const {data,isDemo,dateISO}=receipt;
  const html=posReceiptMarkup(data,isDemo,dateISO);
  const win=window.open("","_blank");
  if(!win){toast("Autorise les fenêtres surgissantes pour imprimer.");return}
@@ -2075,9 +2076,10 @@ function printPosReceipt(){
  win.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reçu Milou</title><style>@page{size:80mm auto;margin:3mm}body{font:12px Arial,sans-serif;margin:0 auto;max-width:80mm;padding:8px;color:#111}button{position:fixed;bottom:12px;right:12px;background:#245a59;color:white;border:0;padding:12px 20px;border-radius:10px}@media print{button{display:none!important}.pos-receipt{border:none!important}}</style></head><body>'+html+'<button onclick="window.print()">Imprimer</button></body></html>');
  win.document.close();win.focus();
 }
-async function sharePosReceipt(){
- if(!posLastReceipt)return;
- const {data,isDemo,dateISO}=posLastReceipt,text=posReceiptText(data,isDemo,dateISO);
+async function sharePosReceipt(receiptOverride=null){
+ const receipt=receiptOverride||posLastReceipt;
+ if(!receipt)return;
+ const {data,isDemo,dateISO}=receipt,text=posReceiptText(data,isDemo,dateISO);
  try{
   if(navigator.share){await navigator.share({title:"Reçu Friperie Milou",text});return}
   if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);toast("Reçu copié.");return}
@@ -2086,12 +2088,13 @@ async function sharePosReceipt(){
 }
 function showPosReceipt(data,isDemo=true,dateISO=null,targetId="posCashResult"){
  const iso=dateISO||new Date().toISOString();
- posLastReceipt={data,isDemo,dateISO:iso};
+ const receipt={data,isDemo,dateISO:iso};
+ posLastReceipt=receipt;
  const target=$(targetId);
  target.innerHTML='<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>'+(isDemo?"REÇU DE SIMULATION":"REÇU DE VENTE")+'</h2></div><div class="panel-body">'+posReceiptMarkup(data,isDemo,iso)+
- '<div class="actions"><button class="btn green small posReceiptPrint">🖨 Imprimer</button><button class="btn ghost small posReceiptShare">↗ Partager</button></div></div></div>';
- target.querySelector(".posReceiptPrint").onclick=printPosReceipt;
- target.querySelector(".posReceiptShare").onclick=sharePosReceipt;
+ '<div class="actions"><button type="button" class="btn green small posReceiptPrint">🖨 Imprimer le reçu détaillé</button><button class="btn ghost small posReceiptShare">↗ Partager</button></div></div></div>';
+ target.querySelector(".posReceiptPrint").onclick=()=>printPosReceipt(receipt);
+ target.querySelector(".posReceiptShare").onclick=()=>sharePosReceipt(receipt);
 }
 function simulatePosRefund(){
  const receipt=posLastReceipt;
@@ -2315,11 +2318,18 @@ async function confirmSquareManual(){
   $("posSquareReference").value="";$("posSquareAmount").value="";$("posSquareAttest").checked=false;
   note(status,"Vente enregistrée et stock mis à jour. Imprime le reçu détaillé Milou ci-dessous. Le reçu bancaire est imprimé séparément depuis Square.");
   showPosReceipt(receipt,false,null,"posSquareReceipt");
-  printPosReceipt();
+  note(status,"Vente enregistrée. Appuie sur « Imprimer le reçu détaillé » : Safari affichera l’impression du reçu Milou. Le reçu de paiement Square est distinct.");
  }catch(e){note(status,"Encaissement Milou NON confirmé : "+esc(e.message||String(e))+". Vérifie l’historique et Square avant de réessayer.","err")}
  finally{posSquareBusy=false;updateSquareManualButton();}
 }
 $("posSquarePay").onclick=confirmSquareManual;
+$("posSquareReceiptDemo").onclick=()=>{
+ const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
+ if(!items.length){note($("posSquareStatus"),"Scanne au moins un article pour tester le reçu.","warn");return;}
+ const lines=items.map(i=>({sku:i.sku,title:i.title,price_cents:Math.round(Number(i.sale_price||0)*100)}));
+ showPosReceipt({items:lines,total_cents:posCartCents(),payment_method:"square",square_reference:"TEST-SQUARE-NON-VALIDE",tax_mode:posFiscalMode},true,null,"posSquareReceipt");
+ note($("posSquareStatus"),"Reçu de TEST généré pour vérifier l’imprimante. Aucun paiement, stock ou commission enregistré.");
+};
 $("posAdd").onclick=addPosSku;
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
 $("posClear").onclick=()=>{
