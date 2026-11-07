@@ -215,7 +215,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
         <div style="display:flex;justify-content:space-between;margin-top:9px"><b>Total à encaisser</b><strong id="posTotal">—</strong></div>
       </div>
       <div class="notice warn" style="margin-top:12px">Le panier est une préparation de caisse. Aucun paiement n'est déclenché et aucun article n'est marqué vendu avant validation serveur du paiement Square. Les taxes doivent être configurées selon le statut fiscal réel de la friperie.</div>
-      <div class="actions"><button id="posSquarePay" class="btn primary" disabled>💳 Encaisser avec Square — configuration requise</button></div>
+      <div class="actions"><button id="posPrepare" class="btn green">✓ Préparer le panier dans Milou</button><button id="posSquarePay" class="btn primary" disabled>💳 Encaisser avec Square — configuration requise</button></div><div id="posPreparedStatus"></div>
     </div></div>
   </section>
 
@@ -1691,14 +1691,26 @@ function addPosSku(){
  if(i.sale_price==null||!Number.isFinite(Number(i.sale_price))){note($("posMessage"),"Prix manquant : "+esc(code),"err");return}
  if(posCartIds.includes(i.id)){note($("posMessage"),"Article déjà présent dans le panier.","warn");$("posSku").value="";return}
  posCartIds.push(i.id);
+ $("posPreparedStatus").innerHTML="";
  $("posSku").value="";
  $("posMessage").innerHTML="";
  renderPosCart();
  $("posSku").focus();
 }
+async function preparePosDraft(){
+ if(!posCartIds.length){note($("posPreparedStatus"),"Ajoute au moins un article au panier.","warn");return}
+ const b=$("posPrepare");b.disabled=true;b.textContent="Préparation…";
+ try{
+  const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
+  if(error)throw error;
+  note($("posPreparedStatus"),"Panier préparé dans Milou : <b>"+esc(data.order_id)+"</b><div>"+Number(data.item_count)+" article(s), sous-total "+money(Number(data.subtotal_cents)/100)+". Aucune vente ni paiement enregistré. Configuration Square et taxes requise avant l’encaissement.</div>");
+ }catch(e){note($("posPreparedStatus"),"Impossible de préparer le panier : "+esc(e.message||String(e)),"err")}
+ finally{b.disabled=false;b.textContent="✓ Préparer le panier dans Milou"}
+}
+$("posPrepare").onclick=preparePosDraft;
 $("posAdd").onclick=addPosSku;
 $("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
-$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];renderPosCart();$("posSku").focus()};
+$("posClear").onclick=()=>{if(posCartIds.length&&!confirm("Vider le panier ?"))return;posCartIds=[];$("posPreparedStatus").innerHTML="";renderPosCart();$("posSku").focus()};
 renderPosCart();
 
 let saleScannerInstance=null,saleScannerBusy=false,salePendingItem=null;
