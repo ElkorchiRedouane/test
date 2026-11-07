@@ -73,6 +73,7 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.12.3/dist/JsBarcode.code128.min.js"></script>
 </head>
 <body>
 <div id="login" class="login">
@@ -189,9 +190,26 @@ main{max-width:980px;margin:auto;padding:16px 14px}.page{display:none}.page.acti
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <button id="exportStock" class="btn ghost small">Excel</button>
     </div>
-    <div class="actions" style="margin:0 0 12px"><button id="syncShopifyState" class="btn green small">↻ Synchroniser Shopify</button></div>
+    <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small">↻ Synchroniser Shopify</button></div>
     <div id="locationSummary" class="notice"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
+  </section>
+
+
+  <section id="labels" class="page">
+    <div class="page-head"><div><h1>▥ Étiquettes Milou</h1><p>Codes-barres Code 128 générés depuis les SKU enregistrés. Imprime une étiquette par article ou tout un dépôt.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="panel"><div class="panel-body">
+      <div class="grid">
+        <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
+        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="a4">Planche A4 (plusieurs étiquettes)</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div>
+      <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
+      <div id="labelsList" class="list" style="max-height:420px;overflow:auto;margin-top:12px"></div>
+      <div class="notice">Chaque étiquette comporte le nom Milou, le titre, la taille, le prix et un vrai code-barres Code 128. Aucune étiquette n'est attachée à un consignateur par son nom ou son pourcentage.</div>
+      <div class="actions"><button id="labelsPrint" class="btn primary">🖨 Imprimer les étiquettes sélectionnées</button></div>
+      <div id="labelsStatus"></div>
+    </div></div>
   </section>
 
   <section id="consignors" class="page">
@@ -401,7 +419,7 @@ $("signupBtn").onclick=async()=>{
 };
 $("logout").onclick=()=>sb.auth.signOut();sb.auth.onAuthStateChange(()=>setTimeout(authState,0));
 
-function go(id){if(id!=="salescan")void stopSaleScanner();if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
+function go(id){if(id!=="salescan")void stopSaleScanner();if(id!=="cashier")void stopPosCamera();document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));if(id==="stock")renderStock();if(id==="labels")renderLabelOptions();if(id==="deposits")renderDeposits();if(id==="consignors")renderConsignors();if(id==="payouts")renderPayouts()}
 document.querySelectorAll(".bottom button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 
 async function testShopifyConnection(){
@@ -1599,6 +1617,75 @@ function showSummary(d){
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0),pending=items.filter(i=>i.status!=="online").length;
  $("summaryContent").innerHTML='<div class="notice">Le dépôt '+esc(d.code)+' est terminé.</div><div class="summary"><div class="summary-card"><strong>'+items.length+'</strong><span>Articles</span></div><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur de vente</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div><div class="summary-card"><strong>'+pending+'</strong><span>À publier Shopify</span></div></div><div class="actions"><button id="summaryClose" class="btn green">Retour aux dépôts</button></div>';$("summaryModal").classList.remove("hidden");setTimeout(()=>{const b=$("summaryClose");if(b)b.onclick=()=>{$("summaryModal").classList.add("hidden");go("deposits")}},0)
 }
+
+
+let selectedLabelIds=new Set();
+function labelAvailableItems(){
+ return stock.filter(i=>["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at&&i.sku);
+}
+function labelVisibleItems(){
+ const deposit=$("labelsDeposit").value;
+ const filter=$("labelsFilter").value.trim().toLowerCase();
+ return labelAvailableItems().filter(i=>(!deposit||i.deposits?.id===deposit)&&(!filter||[i.sku,i.title,i.brand,i.size].join(" ").toLowerCase().includes(filter)));
+}
+function renderLabelOptions(){
+ const select=$("labelsDeposit"),value=select.value;
+ const options=deposits.filter(d=>(d.items||[]).some(i=>labelAvailableItems().some(x=>x.id===i.id)));
+ select.innerHTML='<option value="">Tous les articles disponibles</option>'+options.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||d.id)+'</option>').join("");
+ select.value=options.some(d=>d.id===value)?value:"";
+ renderLabelList();
+}
+function renderLabelList(){
+ const visible=labelVisibleItems();
+ $("labelsList").innerHTML=visible.length?visible.map(i=>
+  '<label class="check-row"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+'</small></span><strong>'+money(i.sale_price)+'</strong></label>'
+ ).join(""):'<div class="empty">Aucun article disponible pour ce filtre.</div>';
+ document.querySelectorAll(".labelPick").forEach(el=>el.onchange=()=>{if(el.checked)selectedLabelIds.add(el.dataset.id);else selectedLabelIds.delete(el.dataset.id)});
+}
+function labelSvg(sku){
+ const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+ window.JsBarcode(svg,String(sku),{format:"CODE128",displayValue:true,font:"Arial",fontSize:11,height:44,width:1.5,margin:3,background:"#ffffff",lineColor:"#000000"});
+ svg.removeAttribute("id");
+ return new XMLSerializer().serializeToString(svg);
+}
+function labelPageHtml(items,format){
+ const css=format==="roll"?
+ '@page{size:60mm 40mm;margin:0}body{margin:0}.sheet{display:block}.label{width:60mm;height:40mm;page-break-after:always;break-after:page;padding:2.2mm 2mm}':
+ '@page{size:A4;margin:9mm}body{margin:0}.sheet{display:grid;grid-template-columns:repeat(3,60mm);gap:2mm}.label{width:60mm;height:40mm;break-inside:avoid;border:.2mm solid #aaa;padding:2.2mm 2mm}';
+ const cards=items.map(i=>{
+  const sku=String(i.sku||"").trim();
+  const title=String(i.title||i.brand||"Vêtement").slice(0,50);
+  const description=[i.brand,i.size].filter(Boolean).join(" • ").slice(0,52);
+  return '<div class="label"><div class="brandname">FRIPERIE MILOU</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="barcode">'+labelSvg(sku)+'</div></div>';
+ }).join("");
+ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.barcode{text-align:center}.barcode svg{max-width:100%;height:19mm;width:auto;display:inline-block}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
+}
+function printMilouLabels(){
+ if(!window.JsBarcode){note($("labelsStatus"),"Générateur de codes-barres indisponible. Vérifie Internet puis réessaie.","err");return}
+ const items=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id));
+ if(!items.length){note($("labelsStatus"),"Sélectionne au moins un article disponible.","warn");return}
+ let html;
+ try{html=labelPageHtml(items,$("labelsFormat").value)}catch(e){note($("labelsStatus"),"Impossible de générer les codes-barres : "+esc(e.message||String(e)),"err");return}
+ const pop=window.open("","_blank");
+ if(!pop){note($("labelsStatus"),"Le navigateur bloque la fenêtre d'impression. Autorise les fenêtres surgissantes pour Milou.","warn");return}
+ pop.document.open();pop.document.write(html);pop.document.close();
+ pop.focus();
+ // A manual print fallback is kept in the preview window for restrictive iOS browsers.
+ const printButton=pop.document.createElement("button");
+ printButton.textContent="Imprimer";
+ printButton.style.cssText="position:fixed;right:10px;bottom:10px;z-index:5;padding:12px;background:#245a59;color:white;border:0;border-radius:10px";
+ printButton.onclick=()=>pop.print();
+ pop.document.body.appendChild(printButton);
+ const style=pop.document.createElement("style");style.textContent="@media print{button{display:none!important}}";pop.document.head.appendChild(style);
+ note($("labelsStatus"),items.length+" étiquette(s) générée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante.");
+}
+$("stockLabels").onclick=()=>{renderLabelOptions();go("labels")};
+$("labelsBack").onclick=()=>go("stock");
+$("labelsDeposit").onchange=renderLabelList;
+$("labelsFilter").oninput=renderLabelList;
+$("labelsSelectVisible").onclick=()=>{labelVisibleItems().forEach(i=>selectedLabelIds.add(i.id));renderLabelList()};
+$("labelsClearSelection").onclick=()=>{selectedLabelIds.clear();renderLabelList()};
+$("labelsPrint").onclick=printMilouLabels;
 
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
