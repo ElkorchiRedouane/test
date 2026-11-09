@@ -362,7 +362,7 @@ details.milou-secondary .panel{margin:10px 0 0}
   <section id="poshistory" class="page">
     <div class="page-head"><div><h1>Historique</h1><p>Commandes et reçus.</p></div><button id="posHistoryBack" class="btn ghost small">← Caisse</button></div>
     
-    <div class="actions"><button id="posHistoryReload" class="btn green small">↻ Actualiser</button><select id="posHistoryFilter" style="width:auto;flex:1;min-width:150px"><option value="all">Toutes commandes</option><option value="paid">Payées</option><option value="draft">Brouillons</option></select></div>
+    <div class="actions"><button id="posHistoryReload" class="btn green small">↻ Actualiser</button><select id="posHistoryFilter" style="width:auto;flex:1;min-width:150px"><option value="all">Toutes commandes</option><option value="sold">Vendues</option><option value="paid">Anciennes ventes</option><option value="draft">Paniers en cours</option><option value="canceled">Annulées</option></select></div>
     <div id="posHistoryMessage"></div><div id="posHistoryList" class="list" style="margin-top:12px"></div>
     <div id="posHistoryDetail"></div><div class="panel"><div class="panel-head"><h2>Demandes de retour</h2></div><div class="panel-body"><div id="posReturnHistoryList" class="list"></div></div></div>
   </section>
@@ -2476,7 +2476,7 @@ async function loadPosHistory(){
  }catch(e){note(box,"Historique inaccessible : "+esc(e.message||String(e)),"err")}
 }
 function posOrderStatus(v){
- return {draft:"Brouillon (non payé)",paid:"Payée",sent_to_terminal:"Envoyée au terminal — à vérifier",
+ return {draft:"Panier en cours",sold:"Vendue",paid:"Payée",sent_to_terminal:"Envoyée au terminal — à vérifier",
  payment_failed:"Paiement échoué",paid_needs_reconciliation:"Paiement à rapprocher",canceled:"Annulée"}[v]||v;
 }
 function renderPosHistory(){
@@ -2496,7 +2496,7 @@ async function showPosHistoryDetail(id){
  const {data,error}=await sb.from("milou_pos_order_items").select("item_id,sku,item_title,price_cents").eq("order_id",id);
  if(error){note(box,"Impossible de lire les articles : "+esc(error.message),"err");return}
  const lines=data||[];
- const paid=order.status==="paid"&&["cash","square"].includes(order.payment_method);
+ const paid=order.status==="sold"||(order.status==="paid"&&["cash","square"].includes(order.payment_method));
  const receipt={order_id:order.id,items:lines.map(x=>({sku:x.sku,title:x.item_title,price_cents:x.price_cents})),
  total_cents:order.total_cents??order.subtotal_cents,received_cents:order.cash_received_cents??0,
  change_cents:order.change_cents??0,tax_mode:order.tax_mode,payment_method:order.payment_method,square_reference:order.square_payment_id};
@@ -2508,6 +2508,12 @@ async function showPosHistoryDetail(id){
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
  (order.status==="draft"?'<div class="actions"><button id="posHistoryResumeDraft" class="btn green small">Reprendre ce panier en caisse</button></div><div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
+ (order.status==="sold"?'<div class="panel"><div class="panel-head"><h2>Corriger une vente</h2></div><div class="panel-body">'+
+ '<div class="field"><label>Article à retourner</label><select id="posAdjustItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div>'+
+ '<div class="field"><label>Motif</label><input id="posAdjustReason" maxlength="500" placeholder="Ex. article retourné, erreur de caisse"></div>'+
+ '<label class="check-row"><input id="posAdjustRestock" type="checkbox" checked> Remettre en stock après inspection</label>'+
+ '<div class="actions"><button id="posAdjustReturn" class="btn ghost">↩ Retour article</button><button id="posAdjustCancel" class="btn danger">Annuler la vente</button><button id="posAdjustCorrect" class="btn ghost">✎ Modifier et refaire</button></div>'+
+ '<div class="caption">Les corrections sont conservées dans l’historique. Aucun remboursement n’est effectué dans Square.</div><div id="posAdjustStatus"></div></div></div>':'')+
  '<div class="notice warn">Le retour est uniquement une demande de vérification : aucun remboursement ni changement de stock ou commission n’est effectué.</div>'+
  '<div id="posHistoryReceiptBox"></div></div></div>';
  if(paid)$("posHistoryReceipt").onclick=()=>showPosReceipt(receipt,false,order.completed_at||order.created_at,"posHistoryReceiptBox");
@@ -2522,6 +2528,39 @@ async function showPosHistoryDetail(id){
   await loadPosReturns();
  };
 
+
+ if(order.status==="sold"){
+  const adjust=async(mode)=>{
+   const reason=$("posAdjustReason").value.trim(),restock=$("posAdjustRestock").checked;
+   if(reason.length<5){note($("posAdjustStatus"),"Indiquez un motif d’au moins 5 caractères.","warn");return}
+   if(mode==="correct"&&!restock){note($("posAdjustStatus"),"Cochez la remise en stock pour modifier puis refaire la vente.","warn");return}
+   if(!confirm((mode==="return"?"Confirmer le retour de cet article ?":mode==="correct"?"Annuler cette vente et rouvrir le panier pour modification ?":"Annuler toute cette vente ?")+
+     "\nLe stock et les commissions seront ajustés. Aucun remboursement Square n'est effectué."))return;
+   for(const btn of ["posAdjustReturn","posAdjustCancel","posAdjustCorrect"])$(btn).disabled=true;
+   try{
+    const {data,error}=await sb.rpc("milou_pos_reverse_sale",{
+      p_order_id:id,p_item_id:mode==="return"?$("posAdjustItem").value:null,p_reason:reason,p_restock:restock});
+    if(error)throw error;
+    try{await refreshAll()}catch(e){console.warn("Actualisation après correction",e)}
+    await loadPosHistory();await loadPosReturns();
+    if(mode==="correct"){
+     posCartIds=lines.map(x=>x.item_id);posClearPrepared();
+     go("cashier");renderPosCart();
+     note($("posModernStatus"),"Panier prêt à être modifié : ajoutez ou retirez des articles, puis confirmez la nouvelle vente. Aucun paiement n'est lancé par Milou.");
+    }else{
+     toast(mode==="return"?"Retour enregistré.":"Vente annulée.");
+     if(data.status==="partially_returned")await showPosHistoryDetail(id);
+    }
+   }catch(e){
+    note($("posAdjustStatus"),"Correction impossible : "+esc(e.message||String(e)),"err");
+    for(const btn of ["posAdjustReturn","posAdjustCancel","posAdjustCorrect"])$(btn).disabled=false;
+   }
+  };
+  $("posAdjustReturn").onclick=()=>adjust("return");
+  $("posAdjustCancel").onclick=()=>adjust("cancel");
+  $("posAdjustCorrect").onclick=()=>adjust("correct");
+ }
+
  if(order.status==="draft")$("posHistoryResumeDraft").onclick=()=>{
   const eligible=lines.length>0&&lines.every(line=>stock.some(item=>item.id===line.item_id&&["validated","shopify_draft","online"].includes(item.status)&&Math.round(Number(item.sale_price||0)*100)===Number(line.price_cents)));
   if(!eligible){note($("posHistoryMessage"),"Impossible de reprendre ce panier : un article est absent, vendu ou son prix a changé.","err");return;}
@@ -2534,7 +2573,7 @@ async function showPosHistoryDetail(id){
   $("posSquareAttest").checked=false;
   go("cashier");
   renderPosCart();updateSquareManualButton();
-  note($("posPreparedStatus"),"Panier brouillon repris : "+esc(id)+". Vérifie dans Square la référence et le montant avant confirmation.");
+  note($("posPreparedStatus"),"Panier repris. Ajoutez ou retirez des articles, puis confirmez la vente.");
  };
  if(order.status==="draft")$("posHistoryCancelDraft").onclick=()=>{
   const surface=$("posHistoryCancelConfirm");
