@@ -2460,7 +2460,7 @@ async function loadPosReturns(){
  const box=$("posReturnHistoryList");
  const {data,error}=await sb.from("milou_pos_returns").select("id,created_at,status,reason,original_amount_cents").order("created_at",{ascending:false}).limit(100);
  if(error){note(box,"Demandes indisponibles : "+esc(error.message),"err");return}
- box.innerHTML=(data||[]).length?data.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.status==="pending_review"?"En attente de vérification":x.status)+'</b><small>'+esc(formatQuebecDateTime(x.created_at))+' • '+esc(x.reason)+'</small></div><strong>'+money(Number(x.original_amount_cents)/100)+'</strong></div>').join(""):'<div class="empty">Aucune demande de retour.</div>';
+ box.innerHTML=(data||[]).length?data.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.status==="pending_review"?"En attente de vérification":x.status==="completed"?"Retour enregistré":x.status==="approved"?"Retour approuvé":x.status==="rejected"?"Refusé":x.status)+'</b><small>'+esc(formatQuebecDateTime(x.created_at))+' • '+esc(x.reason)+'</small></div><strong>'+money(Number(x.original_amount_cents)/100)+'</strong></div>').join(""):'<div class="empty">Aucune demande de retour.</div>';
 }
 
 let posHistoryOrders=[];
@@ -2496,25 +2496,29 @@ async function showPosHistoryDetail(id){
  const {data,error}=await sb.from("milou_pos_order_items").select("item_id,sku,item_title,price_cents").eq("order_id",id);
  if(error){note(box,"Impossible de lire les articles : "+esc(error.message),"err");return}
  const lines=data||[];
+ const {data:reversals,error:reversalsError}=await sb.from("milou_pos_returns").select("item_id,status,reason,created_at,original_amount_cents,restock_requested").eq("order_id",id);
+ if(reversalsError)console.warn("Historique des retours indisponible",reversalsError);
+ const completed=(reversals||[]).filter(r=>r.status==="completed"),returnedIds=new Set(completed.map(r=>r.item_id));
+ const activeLines=lines.filter(x=>!returnedIds.has(x.item_id));
  const paid=order.status==="sold"||(order.status==="paid"&&["cash","square"].includes(order.payment_method));
  const receipt={order_id:order.id,items:lines.map(x=>({sku:x.sku,title:x.item_title,price_cents:x.price_cents})),
  total_cents:order.total_cents??order.subtotal_cents,received_cents:order.cash_received_cents??0,
  change_cents:order.change_cents??0,tax_mode:order.tax_mode,payment_method:order.payment_method,square_reference:order.square_payment_id};
  box.innerHTML='<div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Commande '+esc(order.id.slice(0,8))+'</h2></div><div class="panel-body">'+
  '<div class="notice">'+esc(posOrderStatus(order.status))+' • '+esc(formatQuebecDateTime(order.completed_at||order.created_at))+'</div>'+
- lines.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.item_title||x.sku)+'</b><small>'+esc(x.sku)+'</small></div><strong>'+money(Number(x.price_cents)/100)+'</strong></div>').join("")+
- '<div style="margin-top:12px"><b>Montant : '+money(Number(receipt.total_cents)/100)+'</b></div>'+
+ lines.map(x=>'<div class="row"><div class="row-main"><b>'+esc(x.item_title||x.sku)+'</b><small>'+esc(x.sku)+(returnedIds.has(x.item_id)?' • Retourné / annulé':'')+'</small></div><strong>'+money(Number(x.price_cents)/100)+'</strong></div>').join("")+
+ '<div style="margin-top:12px"><b>Vente initiale : '+money(Number(receipt.total_cents)/100)+'</b>'+(completed.length?'<div class="notice">Retours / annulations enregistrés : '+money(completed.reduce((n,r)=>n+Number(r.original_amount_cents||0),0)/100)+' — montant net des articles conservés : '+money((Number(receipt.total_cents)-completed.reduce((n,r)=>n+Number(r.original_amount_cents||0),0))/100)+'</div>':'')+'</div>'+
  (paid?'<div class="actions"><button class="btn green small" id="posHistoryReceipt">Voir et imprimer le reçu</button></div>':
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
  (order.status==="draft"?'<div class="actions"><button id="posHistoryResumeDraft" class="btn green small">Reprendre ce panier en caisse</button></div><div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
  (order.status==="sold"?'<div class="panel"><div class="panel-head"><h2>Corriger une vente</h2></div><div class="panel-body">'+
- '<div class="field"><label>Article à retourner</label><select id="posAdjustItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div>'+
+ '<div class="field"><label>Article à retourner</label><select id="posAdjustItem">'+activeLines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div>'+
  '<div class="field"><label>Motif</label><input id="posAdjustReason" maxlength="500" placeholder="Ex. article retourné, erreur de caisse"></div>'+
  '<label class="check-row"><input id="posAdjustRestock" type="checkbox" checked> Remettre en stock après inspection</label>'+
  '<div class="actions"><button id="posAdjustReturn" class="btn ghost">↩ Retour article</button><button id="posAdjustCancel" class="btn danger">Annuler la vente</button><button id="posAdjustCorrect" class="btn ghost">✎ Modifier et refaire</button></div>'+
  '<div class="caption">Les corrections sont conservées dans l’historique. Aucun remboursement n’est effectué dans Square.</div><div id="posAdjustStatus"></div></div></div>':'')+
- '<div class="notice warn">Le retour est uniquement une demande de vérification : aucun remboursement ni changement de stock ou commission n’est effectué.</div>'+
+ (order.status==="paid"?'<div class="notice warn">Les anciens retours restent soumis à vérification : aucun remboursement automatique.</div>':'')+
  '<div id="posHistoryReceiptBox"></div></div></div>';
  if(paid)$("posHistoryReceipt").onclick=()=>showPosReceipt(receipt,false,order.completed_at||order.created_at,"posHistoryReceiptBox");
  if(order.status==="paid")$("returnRequest").onclick=async()=>{
@@ -2544,7 +2548,7 @@ async function showPosHistoryDetail(id){
     try{await refreshAll()}catch(e){console.warn("Actualisation après correction",e)}
     await loadPosHistory();await loadPosReturns();
     if(mode==="correct"){
-     posCartIds=lines.map(x=>x.item_id);posClearPrepared();
+     posCartIds=lines.map(x=>x.item_id).filter(itemId=>stock.some(i=>i.id===itemId&&["validated","shopify_draft","online"].includes(i.status)));posClearPrepared();
      go("cashier");renderPosCart();
      note($("posModernStatus"),"Panier prêt à être modifié : ajoutez ou retirez des articles, puis confirmez la nouvelle vente. Aucun paiement n'est lancé par Milou.");
     }else{
@@ -2790,7 +2794,7 @@ function renderPayouts(){
  }).filter(x=>x.amount||x.hold).sort((a,b)=>b.amount-a.amount);
  $("payoutConsignorBalances").innerHTML=summary.length?summary.map(({c,amount,hold,count})=>
  '<div class="row"><div class="row-main"><b>'+esc(c.full_name||c.code)+'</b><small>'+count+' vente(s) admissible(s)'+(hold?' • Retours en vérification : '+money(hold/100):'')+'</small></div><strong>'+money(amount/100)+'</strong></div>').join(""):'<div class="empty">Aucun solde dû à ce stade.</div>';
- $("salesList").innerHTML=sales.length?sales.slice(0,100).map(s=>'<div class="row"><div class="row-main"><b>'+esc(s.items?.title||s.items?.sku||"Article")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(s.consignors?.full_name||"Stock boutique")+' • '+esc(formatQuebecDateTime(s.sold_at))+'</small></div><div class="row-actions"><strong>'+money(s.gross_amount)+'</strong><span class="badge">'+esc(s.payout_status==="paid"?"Versé":s.payout_status==="scheduled"?"Programmé":s.payout_status==="not_applicable"?"Sans commission":payoutReturnHolds.has(s.id)?"Retour à traiter":"À verser")+' : '+money(s.consignor_amount)+'</span></div></div>').join(""):'<div class="empty">Aucune vente enregistrée.</div>';
+ $("salesList").innerHTML=sales.length?sales.slice(0,100).map(s=>'<div class="row"><div class="row-main"><b>'+esc(s.items?.title||s.items?.sku||"Article")+'</b><small>'+esc(s.items?.sku||"")+' • '+esc(s.consignors?.full_name||"Stock boutique")+' • '+esc(formatQuebecDateTime(s.sold_at))+'</small></div><div class="row-actions"><strong>'+money(s.gross_amount)+'</strong><span class="badge">'+esc(s.payout_status==="paid"?"Versé":s.payout_status==="scheduled"?"Programmé":s.payout_status==="not_applicable"?"Sans commission":payoutReturnHolds.has(s.id)?"Retour à traiter":s.payout_status==="voided"?"Annulée":"À verser")+' : '+money(s.consignor_amount)+'</span></div></div>').join(""):'<div class="empty">Aucune vente enregistrée.</div>';
  $("payoutHistory").innerHTML=payoutHistory.length?payoutHistory.map(p=>{
   const c=consignors.find(x=>x.id===p.consignor_id);
   return '<div class="row"><div class="row-main"><b>'+esc(c?.full_name||"Consignateur")+'</b><small>'+esc(p.status==="paid"?"Payé":p.status==="draft"?"Brouillon":p.status==="scheduled"?"Programmé":"Annulé")+' • '+esc(p.paid_on||formatQuebecDateTime(p.created_at))+' • '+esc(p.payment_method||"Méthode non précisée")+'</small></div><strong>'+money(p.amount)+'</strong></div>';
