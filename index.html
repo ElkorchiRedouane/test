@@ -1903,7 +1903,7 @@ function labelPageHtml(items,format){
   const sku=String(i.sku||"").trim();
   const title=String(i.title||i.brand||"Vêtement").slice(0,50);
   const description=[i.brand,i.size].filter(Boolean).join(" • ").slice(0,52);
-  return '<div class="label"><div class="brandname">FRIPERIE MILOU</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div><img class="qr" src="'+milouQrData(sku)+'" alt="QR '+esc(sku)+'"></div></div>';
+  return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div><img class="qr" src="'+milouQrData(sku)+'" alt="QR '+esc(sku)+'"></div></div>';
  }).join("");
  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center}.barcode svg{max-width:100%;height:15mm;width:auto;display:inline-block}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
 }
@@ -1947,6 +1947,15 @@ function milou30Update(){
  const n=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id)).length;
  $("labelsPageEstimate").textContent=n+" étiquette(s) · "+(n?milou30Pages(n,Number($("labelsStartSlot").value)||1):0)+" feuille(s)";
 }
+
+function milouLabelDate(date){
+ if(!date)return "—";
+ const d=new Date(date);if(!Number.isFinite(d.getTime()))return "—";
+ const parts=new Intl.DateTimeFormat("fr-CA",{timeZone:"America/Toronto",day:"2-digit",month:"2-digit",year:"numeric"}).formatToParts(d);
+ const get=t=>parts.find(p=>p.type===t)?.value||"";
+ return get("day")+"/"+get("month")+"/"+get("year");
+}
+
 function milou30Document(items,opts,calibration=false){
  const pages=calibration?1:milou30Pages(items.length,opts.first);
  const css=[
@@ -1973,7 +1982,7 @@ function milou30Document(items,opts,calibration=false){
    if(calibration)body="Position "+(slot+1)+" — rangée "+(row+1)+" / colonne "+(col+1);
    else{
     const sku=String(item.sku||"").trim();
-    body='<div class="top"><b>FRIPERIE MILOU</b><strong>'+esc(money(item.sale_price))+'</strong></div>'+
+    body='<div class="top"><b>MILOU · Ajout '+esc(milouLabelDate(item.created_at))+'</b><strong>'+esc(money(item.sale_price))+'</strong></div>'+
      '<div class="name">'+esc((item.title||item.brand||"Vêtement").slice(0,32))+' · '+esc(item.size||"")+'</div>'+
      '<div class="code-row"><div class="bar">'+labelSvg(sku)+'</div><div class="qr"><img alt="QR" src="'+milouQrData(sku)+'"></div></div>';
    }
@@ -2031,7 +2040,7 @@ function previewMilouLabel(){
  try{
   // Preview the same selection used by the print button, not just the last clicked item.
   const cards=items.map(i=>'<div style="width:min(100%,340px);padding:12px;background:white;color:#111;border:1px solid #bbb;border-radius:8px;text-align:center;overflow:hidden">'+
-   '<b>FRIPERIE MILOU</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+' — '+esc(i.size||"")+'</div>'+
+   '<b>FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+' — '+esc(i.size||"")+'</div>'+
    '<strong>'+money(i.sale_price)+'</strong><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;min-width:0;overflow:hidden">'+labelSvg(i.sku)+'</div><img width="75" height="75" alt="QR code" src="'+milouQrData(i.sku)+'"></div>'+
    '<small>APERÇU — '+esc(i.sku)+'</small></div>').join("");
   box.classList.remove("hidden");
