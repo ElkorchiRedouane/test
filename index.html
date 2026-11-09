@@ -317,8 +317,8 @@ details.milou-secondary .panel{margin:10px 0 0}
 
 
   <section id="cashier" class="page">
-    <div class="page-head"><div><h1>🛒 Caisse</h1><p>Scannez les vêtements et préparez le paiement.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
-    <div class="notice" id="posSquareSetupNotice">Scannez les articles, choisissez le paiement, puis confirmez la vente.</div>
+    <div class="page-head"><div><h1>🛒 Caisse</h1><p>Scannez les vêtements et confirmez la vente.</p></div><button id="posHistoryOpen" class="btn ghost small">Historique</button></div>
+    <div class="notice" id="posSquareSetupNotice">Le paiement reste dans Square. Milou sert à gérer les ventes, le stock et les commissions.</div>
     <div class="panel cashier-primary"><div class="panel-head"><h2>Panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Code de l’article</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner un article</button><button id="posScanPhoto" class="btn ghost">Photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">Ajouter</button><button id="posClear" class="btn ghost">Vider</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
@@ -330,27 +330,11 @@ details.milou-secondary .panel{margin:10px 0 0}
       </div>
       
       <div id="posModernCheckout" class="pos-modern">
-        <div class="pos-modern-title">Mode de paiement</div>
-        <div class="pos-methods" role="group" aria-label="Mode de paiement">
-          <button type="button" id="posMethodCard" class="pos-method active" aria-pressed="true"><span class="pos-method-icon">💳</span><strong>CARTE</strong></button>
-          <button type="button" id="posMethodCash" class="pos-method" aria-pressed="false"><span class="pos-method-icon">💵</span><strong>COMPTANT</strong></button>
-        </div>
-        <div id="posModernCash" class="hidden">
-          <label for="posModernReceived" class="pos-mini-label">Montant reçu ($)</label>
-          <input id="posModernReceived" inputmode="decimal" placeholder="0,00" autocomplete="off">
-          <div class="pos-cash-shortcuts">
-            <button type="button" data-pos-tender="exact">Montant exact</button>
-            <button type="button" data-pos-tender="20">20 $</button>
-            <button type="button" data-pos-tender="50">50 $</button>
-            <button type="button" data-pos-tender="100">100 $</button>
-          </div>
-          <div class="pos-change"><span>Monnaie à rendre</span><strong id="posModernChange">—</strong></div>
-        </div>
-        <label class="pos-confirm-check"><input type="checkbox" id="posModernAttest"><span id="posModernAttestLabel">Le paiement par carte a été accepté sur le terminal.</span></label>
-        <button type="button" id="posModernConfirm" class="pos-confirm" disabled>✓ Confirmer la vente</button>
-        <div id="posModernStatus" role="status" aria-live="polite"></div>
-        <div id="posModernReceipt"></div>
-      </div>
+  <div class="pos-modern-title">Confirmer les articles vendus</div>
+  <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
+  <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
+  <div id="posModernStatus" role="status" aria-live="polite"></div><div id="posModernReceipt"></div>
+</div>
       <details id="posLegacyTools" class="milou-secondary"><summary>Outils complémentaires</summary>
       <div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Comptant</h2></div><div class="panel-body">
   <div class="notice">Le paiement comptant sera disponible après sa configuration.</div>
@@ -2365,25 +2349,26 @@ function posReceiptMarkup(data,isDemo,dateISO){
  const total=Number(data.total_cents||0),received=Number(data.received_cents||0),change=Number(data.change_cents||0);
  const id=isDemo?"APERÇU — NON VALIDE":String(data.order_id||"");
  const square=data.payment_method==="square"||data.payment_method==="card"||!!data.square_reference;
+ const external=data.payment_method==="external";
  return '<div class="pos-receipt" style="background:white;color:#111;padding:14px;border:1px solid #ddd;border-radius:9px;line-height:1.4">'+
  '<div style="text-align:center;font-weight:800;font-size:18px">FRIPERIE MILOU</div>'+
- '<div style="text-align:center">'+esc(isDemo?"APERÇU DU REÇU — NON VALIDE":"REÇU DE VENTE")+'</div>'+
+ '<div style="text-align:center">'+esc(isDemo?"APERÇU DU REÇU — NON VALIDE":external?"BORDEREAU DE VENTE":"REÇU DE VENTE")+'</div>'+
  '<div style="font-size:12px;text-align:center">'+esc(timestamp)+'</div>'+
  '<div style="overflow-wrap:anywhere;font-size:11px">Référence : '+esc(id)+'</div><hr>'+
  lines.map(x=>'<div style="display:flex;justify-content:space-between;gap:8px;margin:5px 0"><span style="min-width:0;overflow-wrap:anywhere">'+esc(x.title||x.sku||"Article")+'<div style="font-size:10px">'+esc(x.sku||"")+'</div></span><strong style="white-space:nowrap">'+money(Number(x.price_cents||0)/100)+'</strong></div>').join("")+
  '<hr><div style="display:flex;justify-content:space-between"><b>Total</b><b>'+money(total/100)+'</b></div>'+
- '<div>Paiement : '+esc(square?'Carte':'Comptant')+'</div>'+ (square?(data.square_reference?'<div>Référence de paiement : '+esc(data.square_reference)+'</div>':''):'<div>Espèces reçues : '+money(received/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div>')+
- '<div style="font-size:11px;margin-top:8px">'+esc(isDemo?"Taxes non appliquées : hypothèse de simulation, régime fiscal à valider.":data.tax_mode==="small_supplier_no_tax"?"TPS/TVQ non perçues (petit fournisseur).":"Configuration fiscale à vérifier.")+'</div>'+
+ '<div>Paiement : '+esc(external?'Traité séparément':square?'Carte':'Comptant')+'</div>'+ (external?'':square?(data.square_reference?'<div>Référence de paiement : '+esc(data.square_reference)+'</div>':''):'<div>Espèces reçues : '+money(received/100)+'</div><div>Monnaie rendue : '+money(change/100)+'</div>')+
+ '<div style="font-size:11px;margin-top:8px">'+esc(isDemo?"Taxes non appliquées : hypothèse de simulation, régime fiscal à valider.":data.tax_mode==="small_supplier_no_tax"?"TPS/TVQ non perçues (petit fournisseur).":"Taxes non calculées dans Milou : vérifier le document fiscal remis au client.")+'</div>'+
  (isDemo?'<div style="font-weight:800;text-align:center;margin-top:12px">APERÇU — AUCUNE VENTE ENREGISTRÉE</div>':'')+
  '</div>';
 }
 function posReceiptText(data,isDemo,dateISO){
- return ['FRIPERIE MILOU',isDemo?"APERÇU DU REÇU — NON VALIDE":"REÇU DE VENTE",
+ return ['FRIPERIE MILOU',isDemo?"APERÇU DU REÇU — NON VALIDE":data.payment_method==="external"?"BORDEREAU DE VENTE":"REÇU DE VENTE",
  formatQuebecDateTime(dateISO||new Date().toISOString()),'Référence : '+(isDemo?"TEST":data.order_id||""),
  ...(data.items||[]).map(x=>(x.sku||"")+" "+(x.title||"")+" : "+money(Number(x.price_cents||0)/100)),
  'Total : '+money(Number(data.total_cents||0)/100),
- (data.payment_method==='square'||data.square_reference)?'Paiement Square, référence : '+(data.square_reference||''):'Espèces reçues : '+money(Number(data.received_cents||0)/100),
- (data.payment_method==='square'||data.square_reference)?'Rapprochement manuel effectué':'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
+ (data.payment_method==='external')?'Paiement traité séparément (Milou n’encaisse pas)':(data.payment_method==='square'||data.square_reference)?'Paiement Square, référence : '+(data.square_reference||''):'Espèces reçues : '+money(Number(data.received_cents||0)/100),
+ (data.payment_method==='external')?'Taxes non calculées dans Milou':(data.payment_method==='square'||data.square_reference)?'Rapprochement manuel effectué':'Monnaie rendue : '+money(Number(data.change_cents||0)/100),
  isDemo?"APERÇU — AUCUNE VENTE ENREGISTRÉE":""].filter(Boolean).join("\n");
 }
 function printPosReceipt(receiptOverride=null){
@@ -2886,76 +2871,36 @@ window.addEventListener("pageshow",()=>{if(firstAuthFinished)resumeMilouApp()});
 window.addEventListener("online",()=>resumeMilouApp());
 
 
-let posModernMethod="card",posModernBusy=false;
+let posModernBusy=false;
 function renderPosModern(){
- const card=$("posMethodCard"),cash=$("posMethodCash"),isCash=posModernMethod==="cash";
- card.classList.toggle("active",!isCash);cash.classList.toggle("active",isCash);
- card.setAttribute("aria-pressed",String(!isCash));cash.setAttribute("aria-pressed",String(isCash));
- $("posModernCash").classList.toggle("hidden",!isCash);
- $("posModernAttestLabel").textContent=isCash?
- "J’ai reçu le montant en espèces et remis la monnaie.":
- "Le paiement par carte est accepté sur le terminal.";
- const total=posCartCents(),received=posCentsFromInput($("posModernReceived").value);
- $("posModernChange").textContent=received===null?"—":received<total?
- "Manque "+money((total-received)/100):money((received-total)/100);
- const authorized=posFiscalMode==="small_supplier_no_tax"&&(isCash?posLiveCashEnabled:posSquareManualEnabled);
- const validCash=!isCash||(received!==null&&received>=total);
- const ready=!!posCartIds.length&&validCash&&$("posModernAttest").checked&&!posModernBusy&&authorized;
- $("posModernConfirm").disabled=!ready;
- $("posModernConfirm").textContent=posModernBusy?"Enregistrement…": "✓ Confirmer la vente";
+ const b=$("posModernConfirm");if(!b)return;
+ b.disabled=posModernBusy||!posCartIds.length;
+ b.textContent=posModernBusy?"Enregistrement…":"✓ CONFIRMER LA VENTE";
 }
-function selectPosModernMethod(method){
- if(posModernBusy)return;
- posModernMethod=method;$("posModernAttest").checked=false;
- $("posModernStatus").textContent="";
- renderPosModern();
-}
+function posModernNotice(message,error=false){const e=$("posModernStatus");e.textContent=message;e.dataset.error=String(error)}
 async function confirmPosModern(){
  if(posModernBusy||!posCartIds.length)return;
- const card=posModernMethod==="card",received=card?posCartCents():posCentsFromInput($("posModernReceived").value);
- const allowed=posFiscalMode==="small_supplier_no_tax"&&(card?posSquareManualEnabled:posLiveCashEnabled);
- if(!allowed){
-  posModernNotice("Enregistrement des ventes non activé : les paramètres de caisse et de taxes doivent être validés.",true);return;
- }
- if(received===null||received<posCartCents()){posModernNotice("Montant reçu insuffisant.",true);return}
- if(!$("posModernAttest").checked){posModernNotice("Confirme d’abord que le paiement a bien été reçu.",true);return}
- posModernBusy=true;renderPosModern();
+ if(!confirm("Confirmer "+posCartIds.length+" article(s) vendus ? Aucun paiement n'est lancé par Milou."))return;
+ posModernBusy=true;renderPosModern();posModernNotice("");
  try{
   if(!posDraftOrderId){
    const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
    if(error)throw error;
    posDraftOrderId=data.order_id;
   }
-  const orderId=posDraftOrderId;
-  const {data,error}=await sb.rpc("milou_pos_complete_manual",{p_order_id:orderId,p_method:posModernMethod,p_received_cents:received});
+  const {data,error}=await sb.rpc("milou_pos_record_sale",{p_order_id:posDraftOrderId});
   if(error)throw error;
-  if(data?.status!=="paid")throw new Error("La vente n’a pas été confirmée.");
+  if(data?.status!=="sold")throw new Error("Réponse inattendue du serveur.");
   posCartIds=[];posDraftOrderId=null;
-  await refreshAll();renderPosCart();
-  $("posModernAttest").checked=false;$("posModernReceived").value="";
   $("posScanSuccess").classList.add("hidden");
   posModernNotice("✓ Vente enregistrée. Stock et commissions mis à jour.");
   showPosReceipt(data,false,null,"posModernReceipt");
- }catch(e){
-  posModernNotice("Vente NON confirmée : "+String(e?.message||e)+". Vérifie l’historique avant de recommencer.",true);
- }finally{posModernBusy=false;renderPosModern()}
+  try{await refreshAll()}catch(e){console.warn("Rafraîchissement",e)}
+  renderPosCart();
+ }catch(e){posModernNotice("Vente non confirmée : "+String(e?.message||e)+". Consulter l'historique avant de réessayer.",true)}
+ finally{posModernBusy=false;renderPosModern()}
 }
-function posModernNotice(message,error=false){
- const el=$("posModernStatus");el.textContent=message;el.dataset.error=String(error);
-}
-function initPosModern(){
- $("posMethodCard").onclick=()=>selectPosModernMethod("card");
- $("posMethodCash").onclick=()=>selectPosModernMethod("cash");
- $("posModernAttest").onchange=renderPosModern;
- $("posModernReceived").oninput=renderPosModern;
- $("posModernConfirm").onclick=confirmPosModern;
- document.querySelectorAll("[data-pos-tender]").forEach(b=>b.onclick=()=>{
-  $("posModernReceived").value=b.dataset.posTender==="exact"?(posCartCents()/100).toFixed(2):b.dataset.posTender;
-  renderPosModern();
- });
- renderPosModern();
-}
-
+function initPosModern(){$("posModernConfirm").onclick=confirmPosModern;renderPosModern()}
 function organizeMilouUI(){
  // Réorganiser sans retirer les contrôles existants : tous leurs identifiants restent stables.
  const home=$("home");
@@ -2981,6 +2926,7 @@ function organizeMilouUI(){
   // Legacy utilities already live under « Outils complémentaires ».
   cashPanel.classList.add("legacy-cash");
  }
+ $("posLegacyTools").classList.add("hidden");
  const diagnostic=document.createElement("details");diagnostic.className="milou-secondary";
  diagnostic.innerHTML="<summary>Options du scanner</summary>";
  const posList=$("posCartLines");
