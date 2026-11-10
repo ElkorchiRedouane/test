@@ -599,6 +599,7 @@ function go(id,options={}){
  if(id==="deposits")renderDeposits();
  if(id==="consignors")renderConsignors();
  if(id==="payouts")renderPayouts();
+ if(id==="cashier")requestAnimationFrame(()=>{if($("cashier").classList.contains("active"))$("posSku").focus({preventScroll:true})});
  if(id==="poshistory"){void loadPosHistory();void loadPosReturns()}
  if(options.history!==false && window.history.state?.milouPage!==id){
   window.history.pushState({milouPage:id},"","#"+id);
@@ -2729,6 +2730,39 @@ $("posSku").addEventListener("input",()=>{
   posAutoScanTimer=setTimeout(acceptPosKeyboardScan,180);
  }
 });
+// Les scanners Bluetooth HID peuvent envoyer leurs touches même si un bouton a le focus.
+// Capture uniquement des rafales de caractères ressemblant à un SKU Milou sur la page Caisse.
+let posHidBuffer="",posHidLastAt=0,posHidIdleTimer=null;
+function flushPosHidBuffer(){
+ const value=posHidBuffer.trim().toUpperCase();
+ posHidBuffer="";
+ clearTimeout(posHidIdleTimer);posHidIdleTimer=null;
+ if(!/^MIL-[A-Z0-9-]{3,35}$/.test(value))return;
+ $("posSku").value=value;
+ acceptPosKeyboardScan();
+}
+document.addEventListener("keydown",event=>{
+ if(!$("cashier").classList.contains("active")||$("app").classList.contains("hidden"))return;
+ if(event.ctrlKey||event.metaKey||event.altKey||event.isComposing)return;
+ const target=event.target;
+ if(target=== $("posSku"))return; // Gestion du champ existant, pas de double ajout.
+ if(target?.isContentEditable||target?.matches?.("input,textarea,select"))return;
+ if(target?.closest?.(".modal:not(.hidden)"))return;
+ if(event.key==="Enter"||event.key==="Tab"){
+  if(posHidBuffer.startsWith("MIL-")){event.preventDefault();flushPosHidBuffer()}
+  else posHidBuffer="";
+  return;
+ }
+ if(event.key.length!==1||!/^[a-zA-Z0-9-]$/.test(event.key))return;
+ const now=performance.now();
+ if(now-posHidLastAt>140)posHidBuffer="";
+ posHidLastAt=now;
+ posHidBuffer+=event.key.toUpperCase();
+ if(posHidBuffer.length>48)posHidBuffer=posHidBuffer.slice(-48);
+ clearTimeout(posHidIdleTimer);
+ posHidIdleTimer=setTimeout(flushPosHidBuffer,220);
+},true);
+
 $("posSku").onkeydown=e=>{
  if(e.key!=="Enter"&&e.key!=="Tab")return;
  e.preventDefault();
