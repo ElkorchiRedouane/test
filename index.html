@@ -2611,7 +2611,7 @@ function renderPosCart(){
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
  $("posCartCount").textContent=items.length+" article(s)";
  $("posCartLines").innerHTML=items.length?items.map(i=>
-  '<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.consignors?.full_name||"Stock boutique")+'</small></div><strong>'+money(i.sale_price)+'</strong><button class="btn danger small posRemove" data-id="'+esc(i.id)+'">✕</button></div>'
+  '<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku)+' • '+esc(i.consignors?.full_name||"Stock boutique")+'</small></div><strong>'+money(i.sale_price)+'</strong><button type="button" class="btn danger small posRemove" data-id="'+esc(i.id)+'" aria-label="Retirer '+esc(i.sku)+' du panier">✕ Retirer</button></div>'
  ).join(""):'<div class="empty">Le panier est vide. Scanne une étiquette pour commencer.</div>';
  const subCents=items.reduce((sum,i)=>sum+Math.round(Number(i.sale_price||0)*100),0);
  $("posSubtotal").textContent=money(subCents/100);
@@ -2619,12 +2619,27 @@ function renderPosCart(){
  $("posTotal").textContent=money(subCents/100)+(posFiscalMode==="small_supplier_no_tax"?"":" hors taxes");
  renderPosCash();
  if($("posModernConfirm"))renderPosModern();
- document.querySelectorAll(".posRemove").forEach(btn=>btn.onclick=()=>{
- posCartIds=posCartIds.filter(id=>id!==btn.dataset.id);posClearPrepared();
- $("posMessage").innerHTML="";if(!posCartIds.length)$("posCashReceived").value="";
- renderPosCart();
-});
+ // Écouteur de suppression centralisé sur le panier : indépendant des re-rendus.
+
 }
+function removePosItem(id){
+ if(!posCartIds.includes(id))return;
+ const item=stock.find(i=>i.id===id);
+ posCartIds=posCartIds.filter(x=>x!==id);
+ posClearPrepared();
+ $("posScanSuccess").classList.add("hidden");
+ if(!posCartIds.length)$("posCashReceived").value="";
+ renderPosCart();
+ note($("posMessage"),"Retiré du panier : "+esc(item?.title||item?.sku||"article")+".");
+ $("posSku").focus();
+}
+$("posCartLines").addEventListener("click",event=>{
+ const button=event.target.closest("button.posRemove");
+ if(!button||!$("posCartLines").contains(button))return;
+ event.preventDefault();
+ event.stopPropagation();
+ removePosItem(button.dataset.id);
+});
 function addPosSku(focusAfter=true){
  const code=$("posSku").value.trim().toUpperCase();
  if(!code)return false;
@@ -2691,7 +2706,41 @@ $("posSquareReceiptDemo").onclick=()=>{
  note($("posSquareStatus"),"Aperçu du reçu prêt à imprimer. Aucun paiement ni mouvement de stock effectué.");
 };
 $("posAdd").onclick=()=>addPosSku();
-$("posSku").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addPosSku()}};
+// Lecture NETUM en mode clavier Bluetooth : ajout automatique après saisie du SKU.
+let posAutoScanTimer=null;
+function acceptPosKeyboardScan(){
+ clearTimeout(posAutoScanTimer);posAutoScanTimer=null;
+ const sku=$("posSku").value.trim().toUpperCase();
+ if(!sku)return;
+ const item=stock.find(x=>String(x.sku||"").toUpperCase()===sku);
+ if(!item)return;
+ const added=addPosSku(true);
+ if(added){
+  const banner=$("posScanSuccess");
+  banner.innerHTML='<span class="scan-check">✓</span><div><strong>'+esc(item.title||item.sku)+'</strong><small>'+esc(item.sku)+' · '+money(item.sale_price)+' · '+posCartIds.length+' article(s) au panier</small></div>';
+  banner.classList.remove("hidden");
+  posScanFeedback("✓ Article ajouté : "+sku);
+ }
+}
+$("posSku").addEventListener("input",()=>{
+ clearTimeout(posAutoScanTimer);
+ const sku=$("posSku").value.trim().toUpperCase();
+ if(sku&&stock.some(x=>String(x.sku||"").toUpperCase()===sku)){
+  posAutoScanTimer=setTimeout(acceptPosKeyboardScan,180);
+ }
+});
+$("posSku").onkeydown=e=>{
+ if(e.key!=="Enter"&&e.key!=="Tab")return;
+ e.preventDefault();
+ const sku=$("posSku").value.trim().toUpperCase();
+ if(!sku)return;
+ clearTimeout(posAutoScanTimer);
+ if(stock.some(x=>String(x.sku||"").toUpperCase()===sku)){
+  acceptPosKeyboardScan();
+ }else{
+  addPosSku(true);
+ }
+};
 $("posClear").onclick=()=>{
  posCartIds=[];posClearPrepared();$("posSku").value="";$("posCashReceived").value="";
  $("posScanSuccess").classList.add("hidden");
