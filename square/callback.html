@@ -14,7 +14,7 @@
  const text=success?"Square indique un paiement effectué. Vérifiez la transaction dans le tableau de bord Square avant de clôturer la vente dans Milou.":offline?"Paiement possiblement hors ligne : il n’est pas encore vérifiable. Conservez le panier en attente.":data.status==="error"?"Paiement annulé ou refusé par Square. Le panier doit rester en attente.":"Retour non reconnu ou ne correspondant pas au panier préparé. Ne confirmez pas la vente.";
  document.getElementById("result").textContent=text;
  document.getElementById("reference").textContent=known?"Panier Milou : "+pending.orderId:"Aucune référence de panier validée";
- try{sessionStorage.setItem("milou_square_return",JSON.stringify({orderId:known?pending.orderId:null,status,receivedAt:Date.now()}))}catch(e){}
+ try{sessionStorage.setItem("milou_square_return",JSON.stringify({orderId:known?pending.orderId:null,status,transactionId:success?data.transaction_id:null,receivedAt:Date.now()}))}catch(e){}
  if(known&&data.status==="error")sessionStorage.removeItem("milou_square_pending");
  // Do not persist transaction identifiers or accept callback data as proof of payment.
  history.replaceState(null,"","/square/callback");
