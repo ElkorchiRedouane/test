@@ -2679,7 +2679,7 @@ $("posPrepare").onclick=preparePosDraft;
 const MILOU_SQUARE_IOS={clientId:"sq0idp-eZ9jvpOGjlcuUHvR1B4y6g",locationId:"LQ323RNYXHX4M",callback:"https://milou-ops.vercel.app/square/callback"};
 function refreshSquareIosButton(){
  const button=$("posSquareIosLaunch");if(!button)return;
- button.disabled=!posCartIds.length||posModernBusy||posFiscalMode!=="small_supplier_no_tax";
+ button.disabled=!posCartIds.length||posFiscalMode!=="small_supplier_no_tax";
 }
 async function launchSquareIos(){
  if(!/iPhone|iPad|iPod/i.test(navigator.userAgent)){note($("posModernStatus"),"Ouvre Milou Ops dans Safari sur un iPhone ou iPad pour lancer Square.","warn");return}
