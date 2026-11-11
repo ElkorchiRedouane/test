@@ -2064,8 +2064,10 @@ function milou30PDF(items,opts,calibration=false){
    if(!sku)throw new Error("Un article n'a pas de SKU.");
    const price=ascii(money(item.sale_price));
    const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - "));
+   const addedOn=milouLabelDate(item.created_at);
+   const header="MILOU - Ajout "+(addedOn==="—"?"date inconnue":addedOn);
    stream+="0 g\n";
-   stream+=posText(x+2,y+4.8,6.6,"FRIPERIE MILOU",true);
+   stream+=posText(x+2,y+4.8,6.1,header,true);
    stream+=posText(x+width-2-Math.min(price.length*1.8,16),y+4.8,9,price,true);
    stream+=posText(x+2,y+8.6,7,title.slice(0,39));
    stream+=barcodeCommands(sku,x+4,y+10.2,width-8,9);
