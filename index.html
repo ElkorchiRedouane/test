@@ -333,6 +333,7 @@ details.milou-secondary .panel{margin:10px 0 0}
   <div class="pos-modern-title">Confirmer les articles vendus</div>
   <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
   <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px;background:#245a59" disabled>↗ Payer avec Square (iPhone/iPad)</button>
+ <button id="posSquareIosVerify" type="button" class="btn green" style="margin-top:9px;width:100%" hidden>Vérifier le paiement Square</button>
  <div class="notice warn" id="posSquareIosWarning">Square transmettra le montant, mais une réponse de retour ne confirme pas automatiquement la vente dans Milou. Ne pas rescanner ou revendre les mêmes articles avant rapprochement.</div>
  <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
   <div id="posModernStatus" role="status" aria-live="polite"></div><div id="posModernReceipt"></div>
@@ -556,6 +557,7 @@ async function authState(){
    const destination=document.getElementById(requested)?.classList.contains("page")?requested:"home";
    window.history.replaceState({milouPage:destination},"",window.location.pathname+window.location.search+"#"+destination);
    go(destination,{history:false});
+   await handleSquareReturnAfterLogin();
   }catch(e){
    $("app").classList.add("hidden");$("login").classList.remove("hidden");
    note($("authMsg"),"Chargement impossible : "+esc(e.message||String(e)),"err");
@@ -2693,6 +2695,7 @@ async function launchSquareIos(){
    posDraftOrderId=data.order_id;
   }
   const orderId=posDraftOrderId,total=posCartCents();
+  sessionStorage.removeItem("milou_square_return");
   sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
   const request={
    amount_money:{amount:String(total),currency_code:"CAD"},
@@ -2707,15 +2710,66 @@ async function launchSquareIos(){
  finally{refreshSquareIosButton()}
 }
 $("posSquareIosLaunch").onclick=launchSquareIos;
-(function showSquareReturnMessage(){
- const raw=sessionStorage.getItem("milou_square_return");
- if(!raw)return;
+let squareVerificationRunning=false;
+function squareReturn(){
+ try{return JSON.parse(sessionStorage.getItem("milou_square_return")||"null")}catch{return null}
+}
+function squarePending(){
+ try{return JSON.parse(sessionStorage.getItem("milou_square_pending")||"null")}catch{return null}
+}
+async function restoreSquareCart(){
+ const pending=squarePending();
+ if(!pending||!pending.orderId)return;
+ const {data,error}=await sb.from("milou_pos_order_items").select("item_id").eq("order_id",pending.orderId);
+ if(error||!Array.isArray(data)||!data.length)return;
+ const ids=data.map(x=>x.item_id).filter(id=>stock.some(i=>i.id===id));
+ if(ids.length!==data.length)return;
+ posCartIds=ids;
+ posDraftOrderId=pending.orderId;
+ renderPosCart();
+}
+function renderSquareVerification(){
+ const result=squareReturn(),button=$("posSquareIosVerify"),warn=$("posSquareIosWarning");
+ if(!button||!warn)return;
+ const canVerify=result?.status==="ok"&&result?.orderId&&result?.transactionId;
+ button.hidden=!canVerify;button.disabled=squareVerificationRunning;
+ if(canVerify)warn.textContent="Square a renvoyé un identifiant de transaction. Milou va interroger Square pour vérifier le paiement avant de modifier le stock. Référence : "+result.orderId;
+ else if(result)warn.textContent="Paiement non vérifié ou annulé. Aucune vente enregistrée. Vérifie Square avant toute nouvelle tentative.";
+}
+async function verifySquarePending(){
+ const result=squareReturn();
+ if(!result||result.status!=="ok"||!result.orderId||!result.transactionId||squareVerificationRunning)return;
+ squareVerificationRunning=true;renderSquareVerification();
  try{
-  const result=JSON.parse(raw);sessionStorage.removeItem("milou_square_return");
-  const content=result.status==="ok"?"Square a renvoyé un résultat positif. Vérifie la transaction dans Square avant de confirmer manuellement la vente dans Milou. Aucun stock n’a été modifié.":"Le paiement Square a été annulé, a échoué ou doit être vérifié. Aucun stock n’a été modifié.";
-  const box=$("posSquareIosWarning");if(box)box.textContent=content+" Référence panier : "+String(result.orderId||"non disponible");
- }catch(e){sessionStorage.removeItem("milou_square_return")}
-})();
+  const {data,error}=await sb.functions.invoke("milou-square-verify",{
+   body:{order_id:result.orderId,transaction_id:result.transactionId}
+  });
+  if(error)throw error;
+  if(data?.status!=="paid"&&data?.status!=="already_paid")throw new Error(data?.error||"Paiement non confirmé par Square");
+  if(data?.status==="paid"){
+   const receipt=data.receipt;
+   if(receipt)showPosReceipt(receipt,false,null,"posModernReceipt");
+  }
+  sessionStorage.removeItem("milou_square_return");
+  sessionStorage.removeItem("milou_square_pending");
+  posCartIds=[];posDraftOrderId=null;
+  await refreshAll();renderPosCart();
+  note($("posModernStatus"),"✓ Paiement vérifié par Square. Stock et commissions actualisés.");
+ }catch(error){
+  const explanation=error?.context?.json?await error.context.json().catch(()=>null):null;
+  const message=explanation?.error||error?.message||String(error);
+  note($("posModernStatus"),"Vente non confirmée : "+esc(message)+". Vérifie Square avant de réessayer.","err");
+ }finally{squareVerificationRunning=false;renderSquareVerification()}
+}
+$("posSquareIosVerify").onclick=verifySquarePending;
+async function handleSquareReturnAfterLogin(){
+ const result=squareReturn();
+ if(!result)return;
+ await restoreSquareCart();
+ renderSquareVerification();
+ go("cashier",{history:false});
+ if(result.status==="ok")await verifySquarePending();
+}
 
 async function confirmSquareManual(){
  const status=$("posSquareStatus");
