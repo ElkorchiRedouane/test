@@ -332,7 +332,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div id="posModernCheckout" class="pos-modern">
   <div class="pos-modern-title">Confirmer les articles vendus</div>
   <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
-  <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px;background:#245a59" disabled>↗ Payer avec Square (iPhone/iPad)</button>
+  <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px" disabled>Ajoute un article pour payer avec Square</button>
  <button id="posSquareIosVerify" type="button" class="btn green" style="margin-top:9px;width:100%" hidden>Vérifier le paiement Square</button>
  <div class="notice warn" id="posSquareIosWarning">Square transmettra le montant, mais une réponse de retour ne confirme pas automatiquement la vente dans Milou. Ne pas rescanner ou revendre les mêmes articles avant rapprochement.</div>
  <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
@@ -2686,6 +2686,7 @@ function squareIosDevice(){
 function refreshSquareIosButton(){
  const button=$("posSquareIosLaunch");if(!button)return;
  button.disabled=!posCartIds.length||posFiscalMode!=="small_supplier_no_tax";
+ button.textContent=!posCartIds.length?"Ajoute un article pour payer avec Square":posFiscalMode!=="small_supplier_no_tax"?"Paiement Square non disponible":"↗ Préparer le paiement Square";
  const link=$("posSquareIosDirect");
  if(link&&link.dataset.orderId!==String(posDraftOrderId||""))link.hidden=true;
 }
