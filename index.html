@@ -291,13 +291,11 @@ details.milou-secondary .panel{margin:10px 0 0}
         <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="letter30">30 autocollants — Lettre</option><option value="a4">Ancien format A4</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
       </div>
       <div id="labelsLetterControls" class="panel" style="margin-top:12px"><div class="panel-body">
-<div class="notice">Papier Lettre (8,5 × 11 po) — 30 autocollants, 3 colonnes × 10 rangées. À l'impression, choisir <b>100 % / taille réelle</b> (sans ajustement).</div>
+<div class="notice"><b>Avery 5160 / 8160 — 30 étiquettes — US Letter (215,9 × 279,4 mm).</b><br>Papier : <b>Letter</b> — Échelle : <b>100 % / Taille réelle</b> — Portrait — <b>Jamais Ajuster à la page / Adapter / Réduire</b> — Marges : <b>par défaut</b>. Désactiver en-têtes/pieds si proposés par le navigateur.</div>
 <div class="grid">
- <div class="field"><label>Première position (1–30)</label><select id="labelsStartSlot"></select></div>
- <div class="field"><label>Décalage horizontal (mm)</label><input id="labelsShiftX" type="number" min="-5" max="5" step="0.25" value="0"></div>
- <div class="field"><label>Décalage vertical (mm)</label><input id="labelsShiftY" type="number" min="-5" max="5" step="0.25" value="0"></div>
+ <div class="field"><label>Commencer à la position n° (1–30)</label><select id="labelsStartSlot"></select></div>
 </div>
-<div class="actions"><button type="button" class="btn ghost" id="labelsTestGrid">🎯 Grille de calibration</button><button type="button" class="btn ghost small" id="labelsResetGrid">Réinitialiser</button></div>
+<div class="actions"><a class="btn ghost" id="labelsTestGrid" href="/calibration-avery5160.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">🎯 Grille de calibration — PDF Letter</a><button type="button" class="btn ghost small" id="labelsResetGrid">Recommencer à la position 1</button></div>
 <div id="labelsPageEstimate" class="caption"></div></div></div>
 <div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div>
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
@@ -332,7 +330,10 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div id="posModernCheckout" class="pos-modern">
   <div class="pos-modern-title">Confirmer les articles vendus</div>
   <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
-  <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
+  <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px" disabled>Ajoute un article pour payer avec Square</button>
+ <button id="posSquareIosVerify" type="button" class="btn green" style="margin-top:9px;width:100%" hidden>Vérifier le paiement Square</button>
+ <div class="notice warn" id="posSquareIosWarning">Square transmettra le montant, mais une réponse de retour ne confirme pas automatiquement la vente dans Milou. Ne pas rescanner ou revendre les mêmes articles avant rapprochement.</div>
+ <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
   <div id="posModernStatus" role="status" aria-live="polite"></div><div id="posModernReceipt"></div>
 </div>
       <details id="posLegacyTools" class="milou-secondary"><summary>Outils complémentaires</summary>
@@ -554,6 +555,7 @@ async function authState(){
    const destination=document.getElementById(requested)?.classList.contains("page")?requested:"home";
    window.history.replaceState({milouPage:destination},"",window.location.pathname+window.location.search+"#"+destination);
    go(destination,{history:false});
+   await handleSquareReturnAfterLogin();
   }catch(e){
    $("app").classList.add("hidden");$("login").classList.remove("hidden");
    note($("authMsg"),"Chargement impossible : "+esc(e.message||String(e)),"err");
@@ -1937,16 +1939,16 @@ $("labelsPrint").onclick=printMilouLabels;
 milou30Init();
 
 function milou30Settings(){
- const first=Number($("labelsStartSlot").value)||1,x=Number($("labelsShiftX").value),y=Number($("labelsShiftY").value);
- if(first<1||first>30||!Number.isInteger(first)||!Number.isFinite(x)||!Number.isFinite(y)||Math.abs(x)>5||Math.abs(y)>5)throw new Error("Position ou décalage invalide.");
- return {first,x,y};
+ const first=Number($("labelsStartSlot").value)||1;
+ if(!Number.isInteger(first)||first<1||first>30)throw new Error("La première position doit être entre 1 et 30.");
+ return {first};
 }
-function milou30Pages(n,first){return Math.ceil((n+first-1)/30)}
+function milou30Pages(n,first){return n>0?Math.ceil((n+first-1)/30):0}
 function milou30Update(){
  const enabled=$("labelsFormat").value==="letter30";
  $("labelsLetterControls").classList.toggle("hidden",!enabled);
  const n=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id)).length;
- $("labelsPageEstimate").textContent=n+" étiquette(s) · "+(n?milou30Pages(n,Number($("labelsStartSlot").value)||1):0)+" feuille(s)";
+ $("labelsPageEstimate").textContent=n+" étiquette(s) · "+(enabled?milou30Pages(n,Number($("labelsStartSlot").value)||1):"—")+" feuille(s)";
 }
 
 function milouLabelDate(date){
@@ -1960,68 +1962,173 @@ function milouLabelDate(date){
 function milou30Document(items,opts,calibration=false){
  const pages=calibration?1:milou30Pages(items.length,opts.first);
  const css=[
- '@page{size:letter;margin:0}*{box-sizing:border-box}html,body{padding:0;margin:0;background:white;color:#111;font-family:Arial,sans-serif}',
- '.sheet{position:relative;width:215.9mm;height:279.4mm;overflow:hidden;break-after:page;page-break-after:always}.sheet:last-child{break-after:auto;page-break-after:auto}',
- '.sticker{position:absolute;width:66.675mm;height:25.4mm;padding:1.1mm 1.5mm;overflow:hidden;background:white}',
- '.top{display:flex;justify-content:space-between;align-items:center;font-size:6.4pt;white-space:nowrap;height:5mm}.top strong{font-size:9pt}',
- '.name{font-size:6.7pt;height:4mm;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}',
- '.code-row{display:block;height:13.2mm}.bar{width:100%;overflow:hidden}.bar svg{display:block;max-width:100%;width:100%;height:12.2mm}',
- '.qr{height:13.1mm;width:13.1mm;flex-shrink:0;padding:.6mm;background:white}.qr img{width:100%;height:100%;image-rendering:pixelated;display:block}',
- '.test-cell{border:.2mm dashed #999;font-size:8pt;padding:5mm 2mm}',
- '.tools{background:#e8f3ee;padding:12px;font-size:14px}.tools button{padding:10px 18px;background:#276b5d;color:white;border:0;border-radius:8px;font-weight:bold}',
- '@media screen{body{background:#eee}.sheet{background:white;margin:20px auto;box-shadow:0 4px 18px #0003}}@media print{body{background:white}.sheet{margin:0;box-shadow:none}.tools{display:none}}'
+ '@page{size:Letter portrait;margin:0}',
+ '*{box-sizing:border-box}',
+ 'html,body{margin:0;padding:0;background:white;color:#111;font-family:Arial,Helvetica,sans-serif}',
+ '.sheet{width:215.9mm;height:279.4mm;padding:12.7mm 4.7625mm;display:grid;grid-template-columns:repeat(3,66.675mm);grid-template-rows:repeat(10,25.4mm);column-gap:3.175mm;row-gap:0;break-after:page;page-break-after:always;overflow:hidden}',
+ '.sheet:last-of-type{break-after:auto;page-break-after:auto}',
+ '.sticker{width:66.675mm;height:25.4mm;min-width:0;min-height:0;position:relative;overflow:hidden;break-inside:avoid;background:white}',
+ '.label-inner{width:100%;height:100%;padding:2mm;overflow:hidden;display:flex;flex-direction:column;gap:0}',
+ '.top{height:4.2mm;flex:0 0 4.2mm;display:flex;align-items:center;justify-content:space-between;gap:1mm;white-space:nowrap;font-size:6pt;overflow:hidden}',
+ '.top .brand{font-weight:700;overflow:hidden;text-overflow:ellipsis}',
+ '.top strong{font-size:9pt;white-space:nowrap}',
+ '.name{height:3.8mm;flex:0 0 3.8mm;font-size:6.8pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+ '.bar{height:12mm;flex:0 0 12mm;width:100%;overflow:hidden}',
+ '.bar svg{display:block;width:100%;max-width:100%;height:12mm}',
+ '.calibration{border:0.2mm solid #888;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:11pt;font-weight:bold}',
+ '.calibration small{font-size:7pt;font-weight:normal}',
+ '.calibration::after{content:"";position:absolute;inset:2mm;border:0.15mm dashed #aaa;pointer-events:none}',
+ '.tools{padding:12px;background:#e8f3ee;font:14px Arial,sans-serif;line-height:1.5}',
+ '.tools button{padding:10px 18px;background:#276b5d;color:white;border:0;border-radius:8px;font-weight:bold}',
+ '@media screen{body{background:#eee}.sheet{background:white;margin:20px auto;box-shadow:0 4px 18px #0003}}',
+ '@media print{html,body{background:white;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{margin:0;box-shadow:none;break-after:page;page-break-after:always}.sheet:last-of-type{break-after:auto;page-break-after:auto}.tools{display:none!important}}'
  ].join("");
  let rendered="";
  for(let page=0;page<pages;page++){
   rendered+='<div class="sheet">';
   for(let slot=0;slot<30;slot++){
-   const index=page*30+slot-(opts.first-1),item=index<0?null:items[index];
-   if(!item&&!calibration)continue;
-   const col=slot%3,row=Math.floor(slot/3);
-   const left=(4.7625+col*69.85+opts.x).toFixed(3),top=(12.7+row*25.4+opts.y).toFixed(3);
-   let body;
-   if(calibration)body="Position "+(slot+1)+" — rangée "+(row+1)+" / colonne "+(col+1);
-   else{
+   const index=page*30+slot-(opts.first-1);
+   const item=calibration?null:(index>=0?items[index]:null);
+   const row=Math.floor(slot/3),col=slot%3;
+   if(calibration){
+    rendered+='<div class="sticker calibration"><span>'+(slot+1)+'</span><small>R'+(row+1)+' · C'+(col+1)+'</small></div>';
+   }else if(item){
     const sku=String(item.sku||"").trim();
-    body='<div class="top"><b>MILOU · Ajout '+esc(milouLabelDate(item.created_at))+'</b><strong>'+esc(money(item.sale_price))+'</strong></div>'+
-     '<div class="name">'+esc((item.title||item.brand||"Vêtement").slice(0,32))+' · '+esc(item.size||"")+'</div>'+
-     '<div class="code-row"><div class="bar">'+labelSvg(sku)+'</div></div>';
-   }
-   rendered+='<div class="sticker'+(calibration?' test-cell':'')+'" style="left:'+left+'mm;top:'+top+'mm">'+body+'</div>';
+    rendered+='<div class="sticker"><div class="label-inner">'+
+     '<div class="top"><span class="brand">FRIPERIE MILOU</span><strong>'+esc(money(item.sale_price))+'</strong></div>'+
+     '<div class="name">'+esc((item.title||item.brand||"Vêtement").slice(0,40))+' · '+esc(item.size||"")+'</div>'+
+     '<div class="bar">'+labelSvg(sku)+'</div></div></div>';
+   }else rendered+='<div class="sticker"></div>';
   }
   rendered+='</div>';
  }
- return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Milou — 30 étiquettes</title><style>'+css+'</style></head><body>'+
- '<div class="tools"><button type="button" onclick="window.print()">Imprimer</button> &nbsp; Papier Lettre • 100 % / Taille réelle • Sans ajuster</div>'+rendered+'</body></html>';
+ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Milou — Avery 5160 / Letter</title><style>'+css+'</style></head><body>'+
+ '<div class="tools"><button type="button" onclick="window.print()">Imprimer</button> &nbsp; <b>Papier : Letter — Échelle : 100 % / Taille réelle — Portrait — Jamais Ajuster à la page / Adapter / Réduire — Marges : par défaut.</b><div>'+(calibration?'Grille de calibration : imprimer sur papier ordinaire et superposer à la feuille Avery 5160.':'Avery 5160 / 8160 — 30 étiquettes sur feuille US Letter.')+'</div></div>'+rendered+'</body></html>';
 }
-function milou30Open(html,message){
- const w=window.open("","_blank");if(!w){note($("labelsStatus"),"Autorisez les fenêtres surgissantes Safari.","warn");return}
- w.document.open();w.document.write(html);w.document.close();w.focus();note($("labelsStatus"),message);
+
+function milou30PDF(items,opts,calibration=false){
+ // Self-contained US Letter PDF generator: no jsPDF/CDN dependency and no Safari HTML print scaling.
+ const mm=v=>v*72/25.4, fmt=v=>Number(v.toFixed(4)).toString();
+ const ascii=v=>String(v??"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7E]/g," ").replace(/\s+/g," ").trim();
+ const pdfEscape=v=>ascii(v).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+ const width=66.675,height=25.4,left=4.7625,top=12.7,pitch=69.85;
+ const pages=calibration?1:milou30Pages(items.length,opts.first);
+ if(pages<1)throw new Error("Aucune étiquette à imprimer.");
+ const output=[];
+ const objects=[null];
+ const obj=value=>{objects.push(value);return objects.length-1};
+ const fontNormal=obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+ const fontBold=obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+ const pageRefs=[];
+ const catalog=obj("");
+ const pagesRoot=obj("");
+ const posText=(x,y,size,text,bold=false)=>"BT /"+(bold?"F2":"F1")+" "+fmt(size)+" Tf 1 0 0 1 "+fmt(mm(x))+" "+fmt(792-mm(y))+" Tm ("+pdfEscape(text)+") Tj ET\n";
+ const rect=(x,y,w,h)=>fmt(mm(x))+" "+fmt(792-mm(y+h))+" "+fmt(mm(w))+" "+fmt(mm(h))+" re S\n";
+ // Render Code128 bars as PDF vector rectangles; no embedded bitmap files required.
+ function barcodeCommands(sku,x,y,w,h){
+  if(!window.JsBarcode)throw new Error("Le module Code128 ne s'est pas chargé.");
+  const canvas=document.createElement("canvas");
+  window.JsBarcode(canvas,sku,{format:"CODE128",displayValue:false,width:3,height:60,margin:0,
+   background:"#ffffff",lineColor:"#000000"});
+  const cw=canvas.width,ch=canvas.height;
+  if(!cw||!ch)throw new Error("Code-barres vide.");
+  const context=canvas.getContext("2d",{willReadFrequently:true});
+  if(!context)throw new Error("Impossible de lire le code-barres.");
+  const pixels=context.getImageData(0,Math.floor(ch/2),cw,1).data;
+  let txt="0 g\n",begin=-1;
+  for(let i=0;i<=cw;i++){
+   const black=i<cw&&pixels[4*i]<128&&pixels[4*i+1]<128&&pixels[4*i+2]<128&&pixels[4*i+3]>128;
+   if(black&&begin<0)begin=i;
+   if(!black&&begin>=0){
+    const bx=x+w*begin/cw,bw=w*(i-begin)/cw;
+    txt+=fmt(mm(bx))+" "+fmt(792-mm(y+h))+" "+fmt(mm(bw))+" "+fmt(mm(h))+" re f\n";
+    begin=-1;
+   }
+  }
+  return txt;
+ }
+ for(let p=0;p<pages;p++){
+  let stream="q\n";
+  for(let slot=0;slot<30;slot++){
+   const col=slot%3,row=Math.floor(slot/3),x=left+col*pitch,y=top+row*height;
+   if(calibration){
+    stream+="0.45 G 0.13 w\n"+rect(x+0.3,y+0.3,width-0.6,height-0.6);
+    stream+="0.7 G [1.7 1.4] 0 d\n"+rect(x+2,y+2,width-4,height-4)+"[] 0 d\n";
+    stream+="0 g\n"+posText(x+width/2-1.8,y+11.3,11,String(slot+1),true);
+    stream+=posText(x+width/2-4.6,y+15.4,7,"R"+(row+1)+" / C"+(col+1));
+    continue;
+   }
+   const ix=p*30+slot-(opts.first-1);
+   if(ix<0||ix>=items.length)continue;
+   const item=items[ix],sku=String(item.sku||"").trim();
+   if(!sku)throw new Error("Un article n'a pas de SKU.");
+   const price=ascii(money(item.sale_price));
+   const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - "));
+   stream+="0 g\n";
+   stream+=posText(x+2,y+4.8,6.6,"FRIPERIE MILOU",true);
+   stream+=posText(x+width-2-Math.min(price.length*1.8,16),y+4.8,9,price,true);
+   stream+=posText(x+2,y+8.6,7,title.slice(0,39));
+   stream+=barcodeCommands(sku,x+4,y+10.2,width-8,9);
+   stream+=posText(x+width/2-Math.min(sku.length*0.85,18),y+21.7,6.9,sku);
+  }
+  stream+="Q\n";
+  const streamNumber=obj("<< /Length "+new TextEncoder().encode(stream).length+" >>\nstream\n"+stream+"endstream");
+  const pageNumber=obj("");
+  objects[pageNumber]="<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 "+fontNormal+" 0 R /F2 "+fontBold+" 0 R >> >> /Contents "+streamNumber+" 0 R >>";
+  pageRefs.push(pageNumber);
+ }
+ objects[catalog]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
+ objects[pagesRoot]="<< /Type /Pages /Count "+pageRefs.length+" /Kids ["+pageRefs.map(n=>n+" 0 R").join(" ")+"] >>";
+ const encoder=new TextEncoder();const chunks=[];let offset=0;const xrefs=[0];
+ function write(s){const bytes=encoder.encode(s);chunks.push(bytes);offset+=bytes.length}
+ write("%PDF-1.4\n");
+ for(let i=1;i<objects.length;i++){
+  xrefs[i]=offset;
+  write(i+" 0 obj\n"+objects[i]+"\nendobj\n");
+ }
+ const xrefStart=offset;
+ write("xref\n0 "+objects.length+"\n0000000000 65535 f \n");
+ for(let i=1;i<objects.length;i++)write(String(xrefs[i]).padStart(10,"0")+" 00000 n \n");
+ write("trailer\n<< /Size "+objects.length+" /Root "+catalog+" 0 R >>\nstartxref\n"+xrefStart+"\n%%EOF");
+ return new Blob(chunks,{type:"application/pdf"});
+}
+function milou30OpenPDF(items,opts,calibration,message){
+ try{
+  const file=milou30PDF(items,opts,calibration);
+  const url=URL.createObjectURL(file),link=document.createElement("a");
+  link.href=url;
+  link.download=calibration?"milou-grille-calibration-letter.pdf":"milou-etiquettes-avery5160.pdf";
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  note($("labelsStatus"),message+" PDF généré sans module externe. Dans Fichiers/Téléchargements, imprime en Letter à 100 %, recto verso désactivé.");
+ }catch(error){
+  note($("labelsStatus"),"Impossible de générer le PDF : "+esc(error?.message||String(error)),"err");
+ }
 }
 function milou30Print(){
  if($("labelsFormat").value!=="letter30"){printMilouLabels();return}
- if(!window.JsBarcode){note($("labelsStatus"),"Modules d'étiquettes indisponibles.","err");return}
  const items=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id));
- if(!items.length){note($("labelsStatus"),"Sélectionnez les articles à imprimer.","warn");return}
- try{
-  const opts=milou30Settings();
-  milou30Open(milou30Document(items,opts),items.length+" étiquette(s) sur "+milou30Pages(items.length,opts.first)+" feuille(s).");
- }catch(e){note($("labelsStatus"),"Erreur d'impression : "+esc(e.message||String(e)),"err")}
+ if(!items.length){note($("labelsStatus"),"Sélectionne au moins un article à imprimer.","warn");return}
+ const opts=milou30Settings();
+ milou30OpenPDF(items,opts,false,items.length+" étiquette(s) sur "+milou30Pages(items.length,opts.first)+" feuille(s).");
 }
 function milou30Init(){
- $("labelsStartSlot").innerHTML=Array.from({length:30},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+' — ligne '+(Math.floor(i/3)+1)+', colonne '+(i%3+1)+'</option>').join("");
- const keys=[["labelsStartSlot","milou_label_start"],["labelsShiftX","milou_label_shiftx"],["labelsShiftY","milou_label_shifty"]];
- keys.forEach(([id,key])=>{
-  try{const v=localStorage.getItem(key);if(v!==null)$(id).value=v}catch(e){}
-  $(id).addEventListener("change",()=>{try{localStorage.setItem(key,$(id).value)}catch(e){}milou30Update()});
+ $("labelsStartSlot").innerHTML=Array.from({length:30},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+' — rangée '+(Math.floor(i/3)+1)+', colonne '+(i%3+1)+'</option>').join("");
+ try{const v=localStorage.getItem("milou_label_start");if(v&&Number(v)>=1&&Number(v)<=30)$("labelsStartSlot").value=v}catch(e){}
+ $("labelsStartSlot").addEventListener("change",()=>{
+  try{localStorage.setItem("milou_label_start",$("labelsStartSlot").value)}catch(e){}
+  milou30Update();
  });
  $("labelsFormat").addEventListener("change",milou30Update);
- $("labelsTestGrid").onclick=()=>{try{milou30Open(milou30Document([],milou30Settings(),true),"Grille : imprimer sur papier normal, superposer à une feuille d’autocollants et ajuster les décalages.")}catch(e){note($("labelsStatus"),esc(e.message||String(e)),"err")}};
+ // Direct PDF link needs no JavaScript event handler.
  $("labelsResetGrid").onclick=()=>{
-  keys.forEach(([id,key])=>{$(id).value=id==="labelsStartSlot"?"1":"0";try{localStorage.removeItem(key)}catch(e){}});
+  $("labelsStartSlot").value="1";
+  try{localStorage.setItem("milou_label_start","1")}catch(e){}
   milou30Update();
  };
- $("labelsFormat").value="letter30";$("labelsPrint").onclick=milou30Print;milou30Update();
+ $("labelsFormat").value="letter30";
+ $("labelsPrint").onclick=milou30Print;
+ milou30Update();
 }
 function previewMilouLabel(){
  const visible=labelVisibleItems();
@@ -2289,6 +2396,7 @@ $("posScanPhoto").onclick=()=>{$("posScanFile").click()};
 $("posScanFile").onchange=e=>{void scanPosPhoto(e.target.files?.[0])};
 $("posScanDiagnostics").onclick=()=>{void diagnosePosScanner()};
 let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false,posSquareManualEnabled=false,posSquareBusy=false;
+let posModernBusy=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
  if(!/^\d{1,7}(?:\.\d{1,2})?$/.test(x))return null;
@@ -2619,6 +2727,7 @@ function renderPosCart(){
  $("posTax").textContent=posFiscalMode==="small_supplier_no_tax"?"0,00 $":"À confirmer";
  $("posTotal").textContent=money(subCents/100)+(posFiscalMode==="small_supplier_no_tax"?"":" hors taxes");
  renderPosCash();
+ refreshSquareIosButton();
  if($("posModernConfirm"))renderPosModern();
  // Écouteur de suppression centralisé sur le panier : indépendant des re-rendus.
 
@@ -2672,6 +2781,128 @@ async function preparePosDraft(){
  finally{b.disabled=false;b.textContent="✓ Préparer le panier dans Milou"}
 }
 $("posPrepare").onclick=preparePosDraft;
+
+const MILOU_SQUARE_IOS={clientId:"sq0idp-eZ9jvpOGjlcuUHvR1B4y6g",locationId:"LQ323RNYXHX4M",callback:"https://milou-ops.vercel.app/square/callback"};
+function squareIosDevice(){
+ return /iPhone|iPad|iPod/i.test(navigator.userAgent)||
+  (navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+}
+function refreshSquareIosButton(){
+ const button=$("posSquareIosLaunch");if(!button)return;
+ button.disabled=!posCartIds.length||posFiscalMode!=="small_supplier_no_tax";
+ button.textContent=!posCartIds.length?"Ajoute un article pour payer avec Square":posFiscalMode!=="small_supplier_no_tax"?"Paiement Square non disponible":"↗ Préparer le paiement Square";
+ const link=$("posSquareIosDirect");
+ if(link&&link.dataset.orderId!==String(posDraftOrderId||""))link.hidden=true;
+}
+function ensureSquareIosDirectLink(){
+ let link=$("posSquareIosDirect");
+ if(link)return link;
+ link=document.createElement("a");
+ link.id="posSquareIosDirect";
+ link.className="pos-confirm";
+ link.style.cssText="text-align:center;text-decoration:none;margin-top:10px;background:#315f5c;color:#fff;padding:16px;border-radius:14px;font-weight:850;";
+ link.textContent="↗ OUVRIR SQUARE POUR ENCAISSER";
+ link.hidden=true;
+ link.addEventListener("click",(event)=>{
+  if(!squareIosDevice()){event.preventDefault();note($("posModernStatus"),"Ce lien fonctionne uniquement sur un iPhone ou un iPad équipé de l’application Square.","warn");return}
+  note($("posModernStatus"),"Ouverture de Square. Si rien ne se passe, vérifie que Square Point of Sale est installé et utilise Safari plutôt qu’un navigateur intégré.");
+ });
+ $("posSquareIosLaunch").after(link);
+ return link;
+}
+async function launchSquareIos(){
+ if(!posCartIds.length||posCartCents()<=0){note($("posModernStatus"),"Ajoute d’abord des articles au panier.","warn");return}
+ if(posFiscalMode!=="small_supplier_no_tax"){note($("posModernStatus"),"Le régime fiscal de Milou n’est pas validé.","warn");return}
+ if(!squareIosDevice()){note($("posModernStatus"),"Square Point of Sale s’ouvre uniquement sur iPhone/iPad. Ouvre cette caisse dans Safari sur l’appareil iOS où Square est installé.","warn");return}
+ const b=$("posSquareIosLaunch");b.disabled=true;b.textContent="Préparation du panier…";
+ try{
+  if(!posDraftOrderId){
+   const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
+   if(error)throw error;
+   posDraftOrderId=data.order_id;
+  }
+  const orderId=posDraftOrderId,total=posCartCents();
+  const request={
+   amount_money:{amount:String(total),currency_code:"CAD"},
+   callback_url:MILOU_SQUARE_IOS.callback,client_id:MILOU_SQUARE_IOS.clientId,
+   location_id:MILOU_SQUARE_IOS.locationId,version:"1.3",state:orderId,
+   notes:"Friperie Milou - panier "+orderId,
+   options:{supported_tender_types:["CREDIT_CARD"],clear_default_fees:true,auto_return:true,skip_receipt:false}
+  };
+  const link=ensureSquareIosDirectLink();
+  link.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
+  link.dataset.orderId=orderId;
+  link.hidden=false;
+  sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
+  sessionStorage.removeItem("milou_square_return");
+  note($("posModernStatus"),"Panier préparé ("+money(total/100)+"). Appuie maintenant sur « OUVRIR SQUARE POUR ENCAISSER ». Aucun paiement n’a encore été effectué.");
+  link.scrollIntoView({block:"nearest",behavior:"smooth"});
+ }catch(error){
+  note($("posModernStatus"),"Impossible de préparer le transfert Square : "+esc(error?.message||String(error)),"err");
+ }finally{b.textContent="↗ Préparer le paiement Square";refreshSquareIosButton();}
+}
+$("posSquareIosLaunch").onclick=launchSquareIos;
+let squareVerificationRunning=false;
+function squareReturn(){
+ try{return JSON.parse(sessionStorage.getItem("milou_square_return")||"null")}catch{return null}
+}
+function squarePending(){
+ try{return JSON.parse(sessionStorage.getItem("milou_square_pending")||"null")}catch{return null}
+}
+async function restoreSquareCart(){
+ const pending=squarePending();
+ if(!pending||!pending.orderId)return;
+ const {data,error}=await sb.from("milou_pos_order_items").select("item_id").eq("order_id",pending.orderId);
+ if(error||!Array.isArray(data)||!data.length)return;
+ const ids=data.map(x=>x.item_id).filter(id=>stock.some(i=>i.id===id));
+ if(ids.length!==data.length)return;
+ posCartIds=ids;
+ posDraftOrderId=pending.orderId;
+ renderPosCart();
+}
+function renderSquareVerification(){
+ const result=squareReturn(),button=$("posSquareIosVerify"),warn=$("posSquareIosWarning");
+ if(!button||!warn)return;
+ const canVerify=result?.status==="ok"&&result?.orderId&&result?.transactionId;
+ button.hidden=!canVerify;button.disabled=squareVerificationRunning;
+ if(canVerify)warn.textContent="Square a renvoyé un identifiant de transaction. Milou va interroger Square pour vérifier le paiement avant de modifier le stock. Référence : "+result.orderId;
+ else if(result)warn.textContent="Paiement non vérifié ou annulé. Aucune vente enregistrée. Vérifie Square avant toute nouvelle tentative.";
+}
+async function verifySquarePending(){
+ const result=squareReturn();
+ if(!result||result.status!=="ok"||!result.orderId||!result.transactionId||squareVerificationRunning)return;
+ squareVerificationRunning=true;renderSquareVerification();
+ try{
+  const {data,error}=await sb.functions.invoke("milou-square-verify",{
+   body:{order_id:result.orderId,transaction_id:result.transactionId}
+  });
+  if(error)throw error;
+  if(data?.status!=="paid"&&data?.status!=="already_paid")throw new Error(data?.error||"Paiement non confirmé par Square");
+  if(data?.status==="paid"){
+   const receipt=data.receipt;
+   if(receipt)showPosReceipt(receipt,false,null,"posModernReceipt");
+  }
+  sessionStorage.removeItem("milou_square_return");
+  sessionStorage.removeItem("milou_square_pending");
+  posCartIds=[];posDraftOrderId=null;
+  await refreshAll();renderPosCart();
+  note($("posModernStatus"),"✓ Paiement vérifié par Square. Stock et commissions actualisés.");
+ }catch(error){
+  const explanation=error?.context?.json?await error.context.json().catch(()=>null):null;
+  const message=explanation?.error||error?.message||String(error);
+  note($("posModernStatus"),"Vente non confirmée : "+esc(message)+". Vérifie Square avant de réessayer.","err");
+ }finally{squareVerificationRunning=false;renderSquareVerification()}
+}
+$("posSquareIosVerify").onclick=verifySquarePending;
+async function handleSquareReturnAfterLogin(){
+ const result=squareReturn();
+ if(!result)return;
+ await restoreSquareCart();
+ renderSquareVerification();
+ go("cashier",{history:false});
+ if(result.status==="ok")await verifySquarePending();
+}
+
 async function confirmSquareManual(){
  const status=$("posSquareStatus");
  if(!posSquareManualEnabled){note(status,"Rapprochement réel Square verrouillé en attendant la validation fiscale et les tests.","warn");return;}
@@ -3006,7 +3237,6 @@ window.addEventListener("pageshow",()=>{if(firstAuthFinished)resumeMilouApp()});
 window.addEventListener("online",()=>resumeMilouApp());
 
 
-let posModernBusy=false;
 function renderPosModern(){
  const b=$("posModernConfirm");if(!b)return;
  b.disabled=posModernBusy||!posCartIds.length;
