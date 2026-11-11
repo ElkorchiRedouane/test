@@ -332,7 +332,9 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div id="posModernCheckout" class="pos-modern">
   <div class="pos-modern-title">Confirmer les articles vendus</div>
   <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
-  <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
+  <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px;background:#245a59" disabled>↗ Payer avec Square (iPhone/iPad)</button>
+ <div class="notice warn" id="posSquareIosWarning">Square transmettra le montant, mais une réponse de retour ne confirme pas automatiquement la vente dans Milou. Ne pas rescanner ou revendre les mêmes articles avant rapprochement.</div>
+ <button id="posModernConfirm" type="button" class="pos-confirm" disabled>✓ CONFIRMER LA VENTE</button>
   <div id="posModernStatus" role="status" aria-live="polite"></div><div id="posModernReceipt"></div>
 </div>
       <details id="posLegacyTools" class="milou-secondary"><summary>Outils complémentaires</summary>
@@ -2620,6 +2622,7 @@ function renderPosCart(){
  $("posTotal").textContent=money(subCents/100)+(posFiscalMode==="small_supplier_no_tax"?"":" hors taxes");
  renderPosCash();
  if($("posModernConfirm"))renderPosModern();
+ refreshSquareIosButton();
  // Écouteur de suppression centralisé sur le panier : indépendant des re-rendus.
 
 }
@@ -2672,6 +2675,48 @@ async function preparePosDraft(){
  finally{b.disabled=false;b.textContent="✓ Préparer le panier dans Milou"}
 }
 $("posPrepare").onclick=preparePosDraft;
+
+const MILOU_SQUARE_IOS={clientId:"sq0idp-eZ9jvpOGjlcuUHvR1B4y6g",locationId:"LQ323RNYXHX4M",callback:"https://milou-ops.vercel.app/square/callback"};
+function refreshSquareIosButton(){
+ const button=$("posSquareIosLaunch");if(!button)return;
+ button.disabled=!posCartIds.length||posModernBusy||posFiscalMode!=="small_supplier_no_tax";
+}
+async function launchSquareIos(){
+ if(!/iPhone|iPad|iPod/i.test(navigator.userAgent)){note($("posModernStatus"),"Ouvre Milou Ops dans Safari sur un iPhone ou iPad pour lancer Square.","warn");return}
+ if(posFiscalMode!=="small_supplier_no_tax"){note($("posModernStatus"),"Square est bloqué : configuration fiscale de Milou non validée.","warn");return}
+ if(!posCartIds.length||posCartCents()<=0){note($("posModernStatus"),"Ajoute d’abord des articles valides au panier.","warn");return}
+ const button=$("posSquareIosLaunch");button.disabled=true;
+ try{
+  if(!posDraftOrderId){
+   const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
+   if(error)throw error;
+   posDraftOrderId=data.order_id;
+  }
+  const orderId=posDraftOrderId,total=posCartCents();
+  sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
+  const request={
+   amount_money:{amount:String(total),currency_code:"CAD"},
+   callback_url:MILOU_SQUARE_IOS.callback,client_id:MILOU_SQUARE_IOS.clientId,
+   location_id:MILOU_SQUARE_IOS.locationId,version:"1.3",state:orderId,
+   notes:"Friperie Milou - panier "+orderId,
+   options:{supported_tender_types:["CREDIT_CARD"],clear_default_fees:true,auto_return:true,skip_receipt:false}
+  };
+  note($("posModernStatus"),"Ouverture de Square. La vente reste en attente dans Milou jusqu’au rapprochement sécurisé.");
+  window.location.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
+ }catch(error){note($("posModernStatus"),"Square non lancé : "+esc(error?.message||String(error)),"err");}
+ finally{refreshSquareIosButton()}
+}
+$("posSquareIosLaunch").onclick=launchSquareIos;
+(function showSquareReturnMessage(){
+ const raw=sessionStorage.getItem("milou_square_return");
+ if(!raw)return;
+ try{
+  const result=JSON.parse(raw);sessionStorage.removeItem("milou_square_return");
+  const content=result.status==="ok"?"Square a renvoyé un résultat positif. Vérifie la transaction dans Square avant de confirmer manuellement la vente dans Milou. Aucun stock n’a été modifié.":"Le paiement Square a été annulé, a échoué ou doit être vérifié. Aucun stock n’a été modifié.";
+  const box=$("posSquareIosWarning");if(box)box.textContent=content+" Référence panier : "+String(result.orderId||"non disponible");
+ }catch(e){sessionStorage.removeItem("milou_square_return")}
+})();
+
 async function confirmSquareManual(){
  const status=$("posSquareStatus");
  if(!posSquareManualEnabled){note(status,"Rapprochement réel Square verrouillé en attendant la validation fiscale et les tests.","warn");return;}
