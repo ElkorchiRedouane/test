@@ -296,7 +296,7 @@ details.milou-secondary .panel{margin:10px 0 0}
 <div class="grid">
  <div class="field"><label>Commencer à la position n° (1–30)</label><select id="labelsStartSlot"></select></div>
 </div>
-<div class="actions"><button type="button" class="btn ghost" id="labelsTestGrid">🎯 Grille de calibration — 30 cadres</button><button type="button" class="btn ghost small" id="labelsResetGrid">Recommencer à la position 1</button></div>
+<div class="actions"><a class="btn ghost" id="labelsTestGrid" href="/calibration-avery5160.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">🎯 Grille de calibration — PDF Letter</a><button type="button" class="btn ghost small" id="labelsResetGrid">Recommencer à la position 1</button></div>
 <div id="labelsPageEstimate" class="caption"></div></div></div>
 <div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div>
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
@@ -2078,7 +2078,7 @@ function milou30Init(){
   milou30Update();
  });
  $("labelsFormat").addEventListener("change",milou30Update);
- $("labelsTestGrid").onclick=()=>{try{milou30OpenPDF([],{first:1},true,"Grille de calibration PDF Avery 5160.");}catch(e){note($("labelsStatus"),esc(e.message||String(e)),"err")}};
+ // Direct PDF link needs no JavaScript event handler.
  $("labelsResetGrid").onclick=()=>{
   $("labelsStartSlot").value="1";
   try{localStorage.setItem("milou_label_start","1")}catch(e){}
