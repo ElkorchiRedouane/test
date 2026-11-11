@@ -2679,15 +2679,37 @@ async function preparePosDraft(){
 $("posPrepare").onclick=preparePosDraft;
 
 const MILOU_SQUARE_IOS={clientId:"sq0idp-eZ9jvpOGjlcuUHvR1B4y6g",locationId:"LQ323RNYXHX4M",callback:"https://milou-ops.vercel.app/square/callback"};
+function squareIosDevice(){
+ return /iPhone|iPad|iPod/i.test(navigator.userAgent)||
+  (navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+}
 function refreshSquareIosButton(){
  const button=$("posSquareIosLaunch");if(!button)return;
  button.disabled=!posCartIds.length||posFiscalMode!=="small_supplier_no_tax";
+ const link=$("posSquareIosDirect");
+ if(link&&link.dataset.orderId!==String(posDraftOrderId||""))link.hidden=true;
+}
+function ensureSquareIosDirectLink(){
+ let link=$("posSquareIosDirect");
+ if(link)return link;
+ link=document.createElement("a");
+ link.id="posSquareIosDirect";
+ link.className="pos-confirm";
+ link.style.cssText="display:block;text-align:center;text-decoration:none;margin-top:10px;background:#315f5c;color:#fff;padding:16px;border-radius:14px;font-weight:850;";
+ link.textContent="↗ OUVRIR SQUARE POUR ENCAISSER";
+ link.hidden=true;
+ link.addEventListener("click",(event)=>{
+  if(!squareIosDevice()){event.preventDefault();note($("posModernStatus"),"Ce lien fonctionne uniquement sur un iPhone ou un iPad équipé de l’application Square.","warn");return}
+  note($("posModernStatus"),"Ouverture de Square. Si rien ne se passe, vérifie que Square Point of Sale est installé et utilise Safari plutôt qu’un navigateur intégré.");
+ });
+ $("posSquareIosLaunch").after(link);
+ return link;
 }
 async function launchSquareIos(){
- if(!/iPhone|iPad|iPod/i.test(navigator.userAgent)){note($("posModernStatus"),"Ouvre Milou Ops dans Safari sur un iPhone ou iPad pour lancer Square.","warn");return}
- if(posFiscalMode!=="small_supplier_no_tax"){note($("posModernStatus"),"Square est bloqué : configuration fiscale de Milou non validée.","warn");return}
- if(!posCartIds.length||posCartCents()<=0){note($("posModernStatus"),"Ajoute d’abord des articles valides au panier.","warn");return}
- const button=$("posSquareIosLaunch");button.disabled=true;
+ if(!posCartIds.length||posCartCents()<=0){note($("posModernStatus"),"Ajoute d’abord des articles au panier.","warn");return}
+ if(posFiscalMode!=="small_supplier_no_tax"){note($("posModernStatus"),"Le régime fiscal de Milou n’est pas validé.","warn");return}
+ if(!squareIosDevice()){note($("posModernStatus"),"Square Point of Sale s’ouvre uniquement sur iPhone/iPad. Ouvre cette caisse dans Safari sur l’appareil iOS où Square est installé.","warn");return}
+ const b=$("posSquareIosLaunch");b.disabled=true;b.textContent="Préparation du panier…";
  try{
   if(!posDraftOrderId){
    const {data,error}=await sb.rpc("milou_pos_prepare",{p_item_ids:posCartIds});
@@ -2695,8 +2717,6 @@ async function launchSquareIos(){
    posDraftOrderId=data.order_id;
   }
   const orderId=posDraftOrderId,total=posCartCents();
-  sessionStorage.removeItem("milou_square_return");
-  sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
   const request={
    amount_money:{amount:String(total),currency_code:"CAD"},
    callback_url:MILOU_SQUARE_IOS.callback,client_id:MILOU_SQUARE_IOS.clientId,
@@ -2704,10 +2724,17 @@ async function launchSquareIos(){
    notes:"Friperie Milou - panier "+orderId,
    options:{supported_tender_types:["CREDIT_CARD"],clear_default_fees:true,auto_return:true,skip_receipt:false}
   };
-  note($("posModernStatus"),"Ouverture de Square. La vente reste en attente dans Milou jusqu’au rapprochement sécurisé.");
-  window.location.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
- }catch(error){note($("posModernStatus"),"Square non lancé : "+esc(error?.message||String(error)),"err");}
- finally{refreshSquareIosButton()}
+  const link=ensureSquareIosDirectLink();
+  link.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
+  link.dataset.orderId=orderId;
+  link.hidden=false;
+  sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
+  sessionStorage.removeItem("milou_square_return");
+  note($("posModernStatus"),"Panier préparé ("+money(total/100)+"). Appuie maintenant sur « OUVRIR SQUARE POUR ENCAISSER ». Aucun paiement n’a encore été effectué.");
+  link.scrollIntoView({block:"nearest",behavior:"smooth"});
+ }catch(error){
+  note($("posModernStatus"),"Impossible de préparer le transfert Square : "+esc(error?.message||String(error)),"err");
+ }finally{b.textContent="↗ Préparer le paiement Square";refreshSquareIosButton();}
 }
 $("posSquareIosLaunch").onclick=launchSquareIos;
 let squareVerificationRunning=false;
