@@ -2050,16 +2050,17 @@ function milou30PDF(items,opts,calibration=false){
  return doc;
 }
 function milou30OpenPDF(items,opts,calibration,message){
- const newTab=window.open("","_blank");
+ const status=$("labelsStatus");
+ status.innerHTML='<div class="notice">Préparation du PDF en cours…</div>';
  try{
   const pdf=milou30PDF(items,opts,calibration);
-  const url=pdf.output("bloburl");
-  if(newTab)newTab.location.href=url;
-  else pdf.save(calibration?"milou-grille-calibration-letter.pdf":"milou-etiquettes-avery5160.pdf");
-  note($("labelsStatus"),message+" Document PDF sans en-tête ni pied de page. Papier Lettre, 100 % taille réelle et recto verso désactivé.");
+  const filename=calibration?"milou-grille-calibration-letter.pdf":"milou-etiquettes-avery5160.pdf";
+  // iPad Safari often blocks new tabs opened on a blob: URL.
+  // Use an ordinary, user-triggered PDF download rather than opening a blank tab.
+  pdf.save(filename,{returnPromise:false});
+  note(status,message+" PDF téléchargé. Ouvre-le dans Fichiers ou Téléchargements puis imprime en Lettre (US Letter), portrait, 100 %, recto verso désactivé.");
  }catch(error){
-  if(newTab)newTab.close();
-  note($("labelsStatus"),"PDF non généré : "+esc(error.message||String(error)),"err");
+  note(status,"Impossible de générer le PDF : "+esc(error?.message||String(error))+". Vérifie la connexion Internet et recharge Milou Ops.","err");
  }
 }
 function milou30Print(){
