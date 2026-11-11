@@ -2293,6 +2293,7 @@ $("posScanPhoto").onclick=()=>{$("posScanFile").click()};
 $("posScanFile").onchange=e=>{void scanPosPhoto(e.target.files?.[0])};
 $("posScanDiagnostics").onclick=()=>{void diagnosePosScanner()};
 let posDraftOrderId=null,posCashBusy=false,posFiscalMode="unconfirmed",posLiveCashEnabled=false,posSquareManualEnabled=false,posSquareBusy=false;
+let posModernBusy=false;
 function posCentsFromInput(raw){
  const x=String(raw??"").trim().replace(",",".");
  if(!/^\d{1,7}(?:\.\d{1,2})?$/.test(x))return null;
@@ -2623,8 +2624,8 @@ function renderPosCart(){
  $("posTax").textContent=posFiscalMode==="small_supplier_no_tax"?"0,00 $":"À confirmer";
  $("posTotal").textContent=money(subCents/100)+(posFiscalMode==="small_supplier_no_tax"?"":" hors taxes");
  renderPosCash();
- if($("posModernConfirm"))renderPosModern();
  refreshSquareIosButton();
+ if($("posModernConfirm"))renderPosModern();
  // Écouteur de suppression centralisé sur le panier : indépendant des re-rendus.
 
 }
@@ -3133,7 +3134,6 @@ window.addEventListener("pageshow",()=>{if(firstAuthFinished)resumeMilouApp()});
 window.addEventListener("online",()=>resumeMilouApp());
 
 
-let posModernBusy=false;
 function renderPosModern(){
  const b=$("posModernConfirm");if(!b)return;
  b.disabled=posModernBusy||!posCartIds.length;
