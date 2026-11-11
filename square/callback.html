@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Retour Square — Milou Ops</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;background:#fbf7ef;color:#245a59;margin:0;display:grid;min-height:100dvh;place-items:center;padding:18px}main{max-width:520px;width:100%;background:white;border:1px solid #e7ddd0;padding:26px;border-radius:22px}h1{font-size:1.5rem}p{line-height:1.55}.warning{background:#fff1d9;padding:13px;border-radius:12px;color:#775f2e}a{display:block;background:#315f5c;color:white;border-radius:13px;text-align:center;padding:14px;text-decoration:none;font-weight:700}small{display:block;margin-top:14px;color:#718784}</style></head>
+<body><main><h1>Retour du paiement Square</h1><p id="result">Vérification du retour…</p><p class="warning">Une réponse de Square ne constitue pas une vérification bancaire. Milou Ops ne modifie ni le stock ni les commissions à cette étape.</p><a href="/">Retourner à Milou Ops</a><small id="reference"></small></main>
+<script>
+(function(){
+ let data={};const params=new URLSearchParams(location.search);
+ try{const raw=params.get("data");if(raw&&raw.length<10000)data=JSON.parse(raw)}catch(e){data={error_code:"invalid_response",status:"error"}}
+ const pending=(()=>{try{return JSON.parse(sessionStorage.getItem("milou_square_pending")||"null")}catch(e){return null}})();
+ const known=!!pending&&typeof pending.orderId==="string"&&data.state===pending.orderId&&Date.now()-pending.startedAt<86400000;
+ const success=known&&data.status==="ok"&&typeof data.transaction_id==="string"&&data.transaction_id.length>0;
+ const offline=known&&data.status==="ok"&&!data.transaction_id;
+ const status=success?"ok":offline?"offline":"pending";
+ const text=success?"Square indique un paiement effectué. Vérifiez la transaction dans le tableau de bord Square avant de clôturer la vente dans Milou.":offline?"Paiement possiblement hors ligne : il n’est pas encore vérifiable. Conservez le panier en attente.":data.status==="error"?"Paiement annulé ou refusé par Square. Le panier doit rester en attente.":"Retour non reconnu ou ne correspondant pas au panier préparé. Ne confirmez pas la vente.";
+ document.getElementById("result").textContent=text;
+ document.getElementById("reference").textContent=known?"Panier Milou : "+pending.orderId:"Aucune référence de panier validée";
+ try{sessionStorage.setItem("milou_square_return",JSON.stringify({orderId:known?pending.orderId:null,status,receivedAt:Date.now()}))}catch(e){}
+ if(known&&data.status==="error")sessionStorage.removeItem("milou_square_pending");
+ // Do not persist transaction identifiers or accept callback data as proof of payment.
+ history.replaceState(null,"","/square/callback");
+})();
+</script></body></html>
