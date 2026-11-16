@@ -1,6 +1,6 @@
 # Sauvegarde gratuite de Milou Ops
 
-Le workflow `.github/workflows/milou-nightly-backup.yml` est planifié à **00:00 America/Toronto** (GitHub Actions). Il doit être exécuté une première fois manuellement après configuration.
+**En pause à la demande du propriétaire depuis le 16 novembre 2026.** La planification automatique a été retirée de `.github/workflows/milou-nightly-backup.yml`. Les scripts et le déclenchement manuel restent disponibles pour une reprise ultérieure. Aucune sauvegarde réelle ni restauration n’a été validée. La synchronisation Google Sheets à 00:15 reste un dispositif distinct et n’a pas été modifiée.
 
 ## Ce qui est inclus
 
