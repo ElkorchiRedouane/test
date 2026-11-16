@@ -218,7 +218,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <input id="depositSearch" class="wide" placeholder="Rechercher dépôt, consignateur, SKU...">
       <select id="depositStatusFilter"><option value="">Tous statuts</option><option value="open">Ouverts</option><option value="closed">Terminés</option><option value="pending">À envoyer Shopify</option><option value="deleted">Supprimés</option></select>
       <select id="depositConsignorFilter"><option value="">Tous consignateurs</option></select>
-      <button id="exportDeposits" class="btn ghost small">Excel</button>
+      <input id="depositDateFilter" type="date" title="Date du dépôt"><button id="exportDeposits" class="btn ghost small">Excel</button>
     </div>
     <div id="depositDetail"></div>
     <div class="panel"><div class="panel-head"><h2>Tous les dépôts</h2><span id="depositCount" class="badge"></span></div><div class="panel-body"><div id="depositList" class="list"></div></div></div>
@@ -275,29 +275,29 @@ details.milou-secondary .panel{margin:10px 0 0}
       <input id="stockSearch" class="wide" placeholder="SKU, Shopify, titre, marque, emplacement...">
       <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option><option value="deleted_milou">Supprimé dans Milou Ops</option></select>
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
-      <button id="exportStock" class="btn ghost small">Excel</button>
+      <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
     <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
-    <div id="locationSummary" class="notice"></div>
+    <div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
 
   <section id="labels" class="page">
-    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>30 autocollants par feuille, parfaitement alignés.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Impression individuelle sur rouleau.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
     <div class="panel"><div class="panel-body">
       <div class="grid">
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
-        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="letter30">30 autocollants — Lettre</option><option value="a4">Ancien format A4</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
+        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
       </div>
-      <div id="labelsLetterControls" class="panel" style="margin-top:12px"><div class="panel-body">
+      <div id="labelsLetterControls" class="panel hidden" style="margin-top:12px"><div class="panel-body">
 <div class="notice"><b>Avery 5160 / 8160 — 30 étiquettes — US Letter (215,9 × 279,4 mm).</b><br>Papier : <b>Letter</b> — Échelle : <b>100 % / Taille réelle</b> — Portrait — <b>Jamais Ajuster à la page / Adapter / Réduire</b> — Marges : <b>par défaut</b>. Désactiver en-têtes/pieds si proposés par le navigateur.</div>
 <div class="grid">
  <div class="field"><label>Commencer à la position n° (1–30)</label><select id="labelsStartSlot"></select></div>
 </div>
 <div class="actions"><a class="btn ghost" id="labelsTestGrid" href="/calibration-avery5160.pdf" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">🎯 Grille de calibration — PDF Letter</a><button type="button" class="btn ghost small" id="labelsResetGrid">Recommencer à la position 1</button></div>
 <div id="labelsPageEstimate" class="caption"></div></div></div>
-<div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div>
+<div class="field" style="margin-top:12px"><label>Filtrer SKU, titre, marque</label><input id="labelsFilter" placeholder="Rechercher un article..."></div><div class="grid" style="margin-top:8px"><div class="field"><label>Date d’ajout</label><input id="labelsDateFilter" type="date"></div><div class="field"><label>Étiquettes déjà générées</label><select id="labelsGeneratedFilter"><option value="">Toutes</option><option value="new">Jamais générées</option><option value="generated">Déjà générées</option></select></div></div>
       <div class="actions"><button id="labelsSelectVisible" class="btn ghost small">Tout sélectionner</button><button id="labelsClearSelection" class="btn ghost small">Tout désélectionner</button></div>
       <div id="labelsList" class="list" style="max-height:420px;overflow:auto;margin-top:12px"></div>
       
@@ -608,7 +608,7 @@ function go(id,options={}){
  document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
  if(id==="stock")renderStock();
  if(id==="labels")renderLabelOptions();
- if(id==="deposits")renderDeposits();
+ if(id==="deposits"){if(options.keepDepositDetail!==true)$("depositDetail").innerHTML="";renderDeposits();}
  if(id==="consignors")renderConsignors();
  if(id==="payouts")renderPayouts();
  if(id==="cashier")requestAnimationFrame(()=>{if($("cashier").classList.contains("active"))$("posSku").focus({preventScroll:true})});
@@ -770,7 +770,7 @@ async function fetchMilouPages(table,fields,orderColumn,label){
 }
 let photoHydrationActive=false;
 async function loadStock(){
- stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,condition,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
+ stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,condition,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,label_generated_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
  // Photo URLs will load after the initial dashboard render to avoid blocking startup.
 }
 async function hydrateMilouPhotos(){
@@ -814,6 +814,8 @@ async function loadLocations(){
 function fillFilters(){
  const opts=consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
  if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;
+ if($("stockConsignorFilter"))$("stockConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;
+ if($("stockDepositFilter"))$("stockDepositFilter").innerHTML='<option value="">Tous dépôts</option>'+deposits.filter(d=>d.status!=="deleted").map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||"Dépôt")+'</option>').join("");
  // Payout choices are set by renderPayouts; never overwrite them here.
 }
 function renderStats(){
@@ -850,11 +852,11 @@ function renderHomeDeposits(){
 function depRow(d){
   const items=d.items||[],pending=items.filter(i=>!i.shopify_product_id).length,shopifyDrafts=items.filter(i=>i.status==="shopify_draft").length;
   const sold=items.filter(i=>i.status==="sold").length;
-  return '<div class="row clickable depOpen" data-id="'+d.id+'"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+sold+' vendu(s) • '+esc(d.received_on||"")+'</small></div><div class="row-actions">'+(pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer Shopify</button>':'<span class="badge">'+esc(shopifyDrafts?"Shopify : "+shopifyDrafts+" brouillon(s)":"Envoyé Shopify")+'</span>')+'</div></div>'
+  return '<div class="row clickable depOpen" data-id="'+d.id+'"><div class="row-main"><b>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(d.acquisition_mode))+' • '+items.length+' article(s) • '+sold+' vendu(s) • '+esc(d.received_on||milouLabelDate(d.created_at))+'</small></div><div class="row-actions">'+(pending?'<button class="btn primary small sendDepShopify" data-id="'+d.id+'">Envoyer Shopify</button>':'<span class="badge">'+esc(shopifyDrafts?"Shopify : "+shopifyDrafts+" brouillon(s)":"Envoyé Shopify")+'</span>')+'</div></div>'
 }
 function renderDeposits(){
  renderHomeDeposits();
- const q=($("depositSearch")?.value||"").toLowerCase(),st=$("depositStatusFilter")?.value||"",cid=$("depositConsignorFilter")?.value||"";
+ const q=($("depositSearch")?.value||"").toLowerCase(),st=$("depositStatusFilter")?.value||"",cid=$("depositConsignorFilter")?.value||"",date=$("depositDateFilter")?.value||"";
  const rows=deposits.filter(d=>{
    const items=d.items||[],pending=items.some(i=>!i.shopify_product_id);
    const text=[d.code,d.consignors?.full_name,...items.map(i=>i.sku),...items.map(i=>i.title)].join(" ").toLowerCase();
@@ -864,13 +866,13 @@ function renderDeposits(){
       (st==="open"&&!["closed","deleted"].includes(d.status))||
       (st==="closed"&&d.status==="closed")||
       (st==="pending"&&pending&&d.status!=="deleted"));
-   return okQ&&okC&&okS;
+   return okQ&&okC&&okS&&(!date||d.received_on===date||(!d.received_on&&String(d.created_at||"").slice(0,10)===date));
  });
  if($("depositCount"))$("depositCount").textContent=rows.length+" dépôt(s)";
  $("depositList").innerHTML=rows.length?rows.map(depRow).join(""):'<div class="empty">Aucun dépôt.</div>';bindDepositButtons();
 }
 function bindDepositButtons(){
- document.querySelectorAll(".depOpen").forEach(r=>r.onclick=e=>{if(e.target.closest("button,a"))return;renderDepositDetail(r.dataset.id)});
+ document.querySelectorAll(".depOpen").forEach(r=>r.onclick=e=>{if(e.target.closest("button,a"))return;renderDepositDetail(r.dataset.id);$("depositDetail").scrollIntoView({behavior:"smooth",block:"start"})});
  document.querySelectorAll(".resumeDep").forEach(b=>b.onclick=()=>startDepositSession(b.dataset.id));
  document.querySelectorAll(".viewDep").forEach(b=>b.onclick=()=>renderDepositDetail(b.dataset.id));
  document.querySelectorAll(".sendDepShopify").forEach(b=>b.onclick=async()=>{
@@ -887,7 +889,7 @@ function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
  const canDeleteDeposit=items.every(i=>!i.shopify_product_id);
- $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">'+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+
+ $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">Date du dépôt : '+esc(d.received_on||milouLabelDate(d.created_at))+' • '+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+
    (d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>')+
    (items.some(i=>!i.shopify_product_id)?'<button id="depPublishAll" class="btn green small">Envoyer tout à Shopify</button>':'')+
    (canDeleteDeposit?'<button id="depDelete" class="btn danger small">Supprimer le dépôt</button>':'')+
@@ -900,11 +902,12 @@ function renderDepositDetail(id){
      ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+
-     '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • 📍 '+esc(i.location_code||"Non attribué")+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
+     '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • Ajout '+esc(milouLabelDate(i.created_at))+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
      '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join("")+'</div>':'<div class="empty">Aucun article.</div>')+
  '<div class="notice">Taux au dépôt : '+esc(d.commission_pct==null?"non défini (voir les articles)":String(d.commission_pct)+" %")+'. Montants potentiels calculés sur les prix affichés ; le taux final est fixé lors de la vente.</div><div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
  const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll"),del=$("depDelete");
+ const back=document.createElement("button");back.className="btn ghost small";back.textContent="← Retour à tous les dépôts";back.onclick=()=>{$("depositDetail").innerHTML="";$("depositList").scrollIntoView({behavior:"smooth"})};$("depositDetail .panel-head .row-actions")?.prepend(back);
  if(a)a.onclick=()=>startDepositSession(id);
  if(f)f.onclick=()=>finishDeposit(id);
  if(all)all.onclick=()=>publishDeposit(id);
@@ -1867,8 +1870,8 @@ function labelAvailableItems(){
 }
 function labelVisibleItems(){
  const deposit=$("labelsDeposit").value;
- const filter=$("labelsFilter").value.trim().toLowerCase();
- return labelAvailableItems().filter(i=>(!deposit||i.deposits?.id===deposit)&&(!filter||[i.sku,i.title,i.brand,i.size].join(" ").toLowerCase().includes(filter)));
+ const filter=$("labelsFilter").value.trim().toLowerCase(),date=$("labelsDateFilter")?.value||"",generated=$("labelsGeneratedFilter")?.value||"";
+ return labelAvailableItems().filter(i=>(!deposit||i.deposits?.id===deposit)&&(!filter||[i.sku,i.title,i.brand,i.size].join(" ").toLowerCase().includes(filter))&&(!date||String(i.created_at||"").slice(0,10)===date)&&(!generated||(generated==="generated"?!!i.label_generated_at:!i.label_generated_at)));
 }
 function renderLabelOptions(){
  const select=$("labelsDeposit"),value=select.value;
@@ -1883,7 +1886,7 @@ function renderLabelList(){
  $("labelsSelectionCount").textContent=count+" étiquette"+(count===1?"":"s")+" sélectionnée"+(count===1?"":"s")+" pour impression";
  if($("labelsPageEstimate"))milou30Update();
  $("labelsList").innerHTML=visible.length?visible.map(i=>
-  '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
+  '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+' • Ajout '+esc(milouLabelDate(i.created_at))+' • '+(i.label_generated_at?'Étiquette générée '+esc(milouLabelDate(i.label_generated_at)):'Jamais générée')+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
  ).join(""):'<div class="empty">Aucun article imprimable pour ce dépôt ou ce filtre. Les articles supprimés de Shopify ne sont pas automatiquement remis en vente.</div>';
  document.querySelectorAll(".labelPick").forEach(el=>el.onchange=()=>{
  if(el.checked)selectedLabelIds.add(el.dataset.id)
@@ -1937,7 +1940,8 @@ function printMilouLabels(){
  printButton.onclick=()=>pop.print();
  pop.document.body.appendChild(printButton);
  const style=pop.document.createElement("style");style.textContent="@media print{button{display:none!important}}";pop.document.head.appendChild(style);
- note($("labelsStatus"),items.length+" étiquette(s) générée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante.");
+ note($("labelsStatus"),items.length+" étiquette(s) préparée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante. La génération ne garantit pas une impression physique.");
+ void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error)console.warn("Historique étiquettes",error);else void refreshAll()});
 }
 $("stockLabels").onclick=()=>{renderLabelOptions();go("labels")};
 $("labelsBack").onclick=()=>go("stock");
@@ -2138,8 +2142,12 @@ function milou30Init(){
   try{localStorage.setItem("milou_label_start","1")}catch(e){}
   milou30Update();
  };
- $("labelsFormat").value="letter30";
- $("labelsPrint").onclick=milou30Print;
+ $("labelsFormat").value="roll";
+ $("labelsPrint").onclick=printMilouLabels;
+ $("labelsDateFilter").onchange=renderLabelList;
+ $("labelsGeneratedFilter").onchange=renderLabelList;
+ $("depositDateFilter").onchange=renderDeposits;
+ ["stockConsignorFilter","stockDepositFilter","stockDateFilter"].forEach(id=>$(id).onchange=renderStock);
  milou30Update();
 }
 function previewMilouLabel(){
@@ -2196,10 +2204,10 @@ $("articleInfoClose").onclick=closeStockItemDetails;
 $("articleInfoModal").addEventListener("click",e=>{if(e.target===$("articleInfoModal"))closeStockItemDetails()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("articleInfoModal").classList.contains("hidden"))closeStockItemDetails()});
 function renderStock(){
- const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"";
+ const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"",cid=$("stockConsignorFilter")?.value||"",did=$("stockDepositFilter")?.value||"",date=$("stockDateFilter")?.value||"";
  const rows=stock.filter(i=>{
    const text=[i.sku,i.title,i.brand,i.size,i.location_code,i.deposits?.code,i.consignors?.full_name,shopifyNumber(i.shopify_product_id)].join(" ").toLowerCase();
-   return (!q||text.includes(q))&&(st?i.status===st:i.status!=="deleted_milou")&&(!sz||i.age_band===sz);
+   return (!q||text.includes(q))&&(st?i.status===st:i.status!=="deleted_milou")&&(!sz||i.age_band===sz)&&(!cid||i.consignors?.id===cid)&&(!did||i.deposits?.id===did)&&(!date||String(i.created_at||"").slice(0,10)===date);
  });
  const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify","deleted_milou"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques (stock actif, hors articles supprimés ou archivés) :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
@@ -2211,7 +2219,7 @@ function renderStock(){
      ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
-   '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — Détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • 📍 '+esc(i.location_code||"Non attribué")+'</small>'+
+   '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — Détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • Ajout '+esc(milouLabelDate(i.created_at))+'</small>'+
    '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
    '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join(""):'<div class="empty">Aucun article.</div>';
