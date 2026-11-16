@@ -272,7 +272,7 @@ details.milou-secondary .panel{margin:10px 0 0}
   <section id="stock" class="page">
     <div class="page-head"><div><h1>Stock</h1><p>Rechercher, étiqueter et retrouver les vêtements.</p></div><button id="quickItemStock" class="btn primary small">+ Article</button></div>
     <div class="toolbar">
-      <input id="stockSearch" class="wide" placeholder="SKU, Shopify, titre, marque, emplacement...">
+      <input id="stockSearch" class="wide" placeholder="SKU, titre, marque, consignateur...">
       <select id="stockStatusFilter"><option value="">Tous statuts</option><option value="validated">À envoyer</option><option value="shopify_draft">Brouillon Shopify</option><option value="online">En ligne</option><option value="sold">Vendu</option><option value="archived">Archivé</option><option value="deleted_shopify">Supprimé de Shopify</option><option value="deleted_milou">Supprimé dans Milou Ops</option></select>
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
@@ -753,7 +753,7 @@ async function loadConsignors(){
  consignors=data||[];
 }
 async function loadDeposits(){
-  const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,brand,size,age_band,condition,acquisition_mode,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
+  const {data,error}=await sb.from("deposits").select("*,consignors(id,code,full_name),items(id,sku,title,brand,size,age_band,condition,acquisition_mode,status,sale_price,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,commission_pct,created_at,item_photos(storage_path,is_primary,sort_order))").order("created_at",{ascending:false});
   if(error)throw new Error("Dépôts : "+error.message);
   deposits=data||[];
   // Photo URLs are signed after the core data is visible; no sequential network wait here.
@@ -1941,7 +1941,7 @@ function printMilouLabels(){
  pop.document.body.appendChild(printButton);
  const style=pop.document.createElement("style");style.textContent="@media print{button{display:none!important}}";pop.document.head.appendChild(style);
  note($("labelsStatus"),items.length+" étiquette(s) préparée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante. La génération ne garantit pas une impression physique.");
- void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error)console.warn("Historique étiquettes",error);else void refreshAll()});
+ void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error){console.warn("Historique étiquettes",error);note($("labelsStatus"),"Étiquettes préparées, mais suivi de génération non enregistré : "+esc(error.message),"warn")}else void refreshAll()});
 }
 $("stockLabels").onclick=()=>{renderLabelOptions();go("labels")};
 $("labelsBack").onclick=()=>go("stock");
