@@ -46,6 +46,6 @@ tar -tzf "$archive" | grep -q './manifest.json'
 printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback   --passphrase-fd 0 --symmetric --cipher-algo AES256   --output "$archive.gpg" "$archive"
 test -s "$archive.gpg"
 # Verify decryptability and tar structure before any remote copy.
-printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --quiet --pinentry-mode loopback   --passphrase-fd 0 --decrypt "$archive.gpg" | tar -tzf - | grep -q './manifest.json'
+printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --quiet --pinentry-mode loopback   --passphrase-fd 0 --decrypt "$archive.gpg" | tar -tzf - | grep './manifest.json' >/dev/null
 rm -rf "$workspace/plain" "$archive"
 echo "Archive chiffrée créée, inventaire présent, déchiffrement contrôlé."
