@@ -8,8 +8,9 @@ Le workflow `.github/workflows/milou-nightly-backup.yml` est planifié à **00:0
 - Tous les fichiers Supabase Storage (actuellement photos et autres objets).
 - Un manifeste des fichiers avec taille et SHA-256.
 - Une archive TAR/GZIP chiffrée symétriquement avec **GPG AES-256**.
-- Une copie datée dans `miloudrive:MilouBackups/daily/`.
-- Une copie remplaçable `miloudrive:MilouBackups/latest/milou-backup-latest.tar.gz.gpg`, actualisée **uniquement après** la réussite du transfert daté.
+- Le dossier Drive cible est fixé par son identifiant dans le workflow via `RCLONE_CONFIG_MILOUDRIVE_ROOT_FOLDER_ID`; les chemins du remote partent directement de MilouBackups.
+- Une copie datée dans `miloudrive:daily/`.
+- Une copie remplaçable `miloudrive:latest/milou-backup-latest.tar.gz.gpg`, actualisée **uniquement après** la réussite du transfert daté.
 - Conservation des archives datées des 8 derniers jours.
 
 **Important :** aucune sauvegarde non chiffrée n'est téléversée dans les artefacts GitHub. Ne jamais y placer des données en clair.
@@ -31,7 +32,8 @@ Créer les quatre secrets (ne jamais en envoyer les valeurs dans un chat) :
 
 1. Installer `rclone` depuis https://rclone.org/downloads/ .
 2. Pour Google Drive, créer idéalement des identifiants OAuth personnels Google Cloud, comme indiqué dans https://rclone.org/drive/#making-your-own-client-id (le client partagé rclone doit être évité).
-3. Lancer `rclone config`, choisir **n** (nouveau remote), nommer exactement `miloudrive`, type `drive`, autoriser ton compte Google dans le navigateur. Choisir ton Drive personnel, pas un Drive partagé.
+3. Dans ce remote, fixer `root_folder_id` au dossier MilouBackups fourni. Le workflow force également ce dossier par variable d'environnement. Ne pas ajouter un second niveau MilouBackups au chemin.
+4. Lancer `rclone config`, choisir **n** (nouveau remote), nommer exactement `miloudrive`, type `drive`, autoriser ton compte Google dans le navigateur. Choisir ton Drive personnel, pas un Drive partagé.
 4. Tester `rclone lsd miloudrive:` ; les dossiers de ton Google Drive doivent être listés.
 5. Trouver le chemin du fichier local de configuration avec `rclone config file`.
 6. Encoder **l'ensemble du fichier** au format Base64 et enregistrer la chaîne dans le secret GitHub `MILOU_RCLONE_CONFIG_B64`. Par exemple, dans PowerShell sous Windows :
@@ -62,7 +64,7 @@ tar -xzf milou-backup.tar.gz -C dossier-temporaire
 pg_restore --list dossier-temporaire/database.dump
 ```
 
-Vérifier les sommes SHA-256 du manifeste. Tester la restauration dans **une base PostgreSQL de test distincte**, jamais directement sur la production.
+Exécuter `python3 scripts/milou_verify_backup.py milou-backup.tar.gz` pour vérifier la couverture complète du manifeste, les tailles et les SHA-256 sans extraire les fichiers. Le workflow effectue aussi ce contrôle sur une copie retéléchargée depuis Drive et compare les empreintes chiffrées de daily et latest. Tester la restauration dans **une base PostgreSQL de test distincte**, jamais directement sur la production.
 
 Les photos sont dans `storage/<nom_bucket>/`. Pour restaurer sur Supabase Storage, réimporter les objets via l'API de Storage ou un outil dédié après avoir restauré la base.
 
@@ -75,3 +77,24 @@ Les sauvegardes peuvent contenir des informations personnelles sur des consignat
 - Si un job échoue, **l'ancienne archive n'est pas écrasée**. Surveiller les échecs dans GitHub Actions.
 - Les imports photos et la structure des tables peuvent évoluer ; refaire un test de restauration après une modification majeure.
 - Google Sheets reste un registre opérationnel séparé, synchronisé à 00:15 dans Supabase.
+
+## État de validation — 16 novembre 2026
+
+La configuration reste **non opérationnelle tant que les secrets manquants et la restauration réelle ne sont pas validés**.
+
+- Le projet Supabase a été vérifié actif sur PostgreSQL 17.
+- Le dossier Drive et ses sous-dossiers daily/latest ont été vérifiés privés et vides avant le premier essai.
+- MILOU_SERVICE_ROLE_KEY a été ajouté dans les secrets GitHub Actions par l'interface sécurisée. La présence des autres secrets doit encore être vérifiée.
+- Le ciblage Drive par identifiant et la vérification du téléchargement par SHA-256, déchiffrement et manifeste ont été ajoutés. Les diagnostics PostgreSQL et Storage potentiellement privés sont gardés dans les fichiers temporaires du runner, jamais publiés comme artefacts.
+- Les cinq tests synthétiques du vérificateur passent (archive valide, corruption de même taille, fichier manquant, ajout hors manifeste, chemin dangereux); la syntaxe du script Bash a été vérifiée. Ces tests ne constituent pas un test réel de sauvegarde ou restauration.
+- Le mot de passe PostgreSQL existant doit être saisi uniquement dans l'URI du secret GitHub; ne pas le réinitialiser sans vérifier les dépendances existantes. Utiliser le Session pooler sur le port 5432 si le runner ne dispose pas d'IPv6.
+- L'autorisation OAuth Google Drive dédiée et la conservation indépendante de la phrase de déchiffrement restent à terminer. Ne pas considérer le connecteur Drive comme une autorisation rclone exportable.
+- Le moteur Docker local était inaccessible lors du contrôle. Aucun essai de restauration n'a encore eu lieu.
+
+### Limites de reprise à traiter
+
+Un dump brut Supabase inclut des références aux rôles et extensions de la plateforme. PostgreSQL standard seul n'est pas nécessairement une cible compatible. Préparer une instance Supabase isolée et compatible avec PostgreSQL 17, pg_cron, pg_net et supabase_vault, puis restaurer et vérifier les objets réellement utiles. Ne pas lancer de restauration dans le projet de production.
+
+Les clés API, paramètres Auth, fonctions Edge, secrets externes et configuration de chiffrement Vault ne sont pas tous reconstitués par ce dump. Documenter leur reprise dans un emplacement privé et vérifier que les secrets Vault restent utilisables dans la cible d'essai sans exposer leurs valeurs. Les fichiers Storage doivent également être réimportés et relus dans une cible séparée.
+
+Preuves finales à consigner ici uniquement sous forme non sensible : URL d'exécution Actions réussie, date/heure, présence et taille des archives, égalité des empreintes, résultat du manifeste, résultat de restauration et première exécution planifiée observée. Ne jamais publier de dump, jeton, phrase secrète, requête contenant des données privées ou ligne de consignateur.
