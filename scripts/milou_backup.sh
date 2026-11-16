@@ -11,12 +11,12 @@ mkdir -p "$workspace/plain"
 stamp="$(TZ=America/Toronto date +%Y-%m-%dT%H-%M-%S)"
 pg_dump --version >/dev/null
 # Custom format preserves structure and data. All included schemas and permissions depend on the DB role.
-PGCONNECT_TIMEOUT=30 pg_dump --format=custom --no-owner --no-acl   --file="$workspace/plain/database.dump" "$DATABASE_URL"
+PGCONNECT_TIMEOUT=30 pg_dump --format=custom --no-owner --no-acl   --file="$workspace/plain/database.dump" "$DATABASE_URL" 2>"$workspace/database-error.log" || { echo "::error::Échec de l’export PostgreSQL (diagnostic privé masqué)."; exit 1; }
 test -s "$workspace/plain/database.dump"
 pg_restore --list "$workspace/plain/database.dump" > "$workspace/plain/database-inventory.txt"
 test -s "$workspace/plain/database-inventory.txt"
 
-python3 scripts/milou_export_storage.py "$workspace/plain/storage"
+python3 scripts/milou_export_storage.py "$workspace/plain/storage" >"$workspace/storage-export.log" 2>&1 || { echo "::error::Échec de l’export Storage (diagnostic privé masqué)."; exit 1; }
 python3 - "$workspace/plain" <<'PY'
 import datetime, hashlib, json, pathlib, sys
 root=pathlib.Path(sys.argv[1])
@@ -41,7 +41,7 @@ PY
 archive="$workspace/milou-$stamp.tar.gz"
 tar -C "$workspace/plain" -czf "$archive" .
 test -s "$archive"
-tar -tzf "$archive" | grep -q './manifest.json'
+python3 scripts/milou_verify_backup.py "$archive"
 # AES-256 symmetric encryption: never upload plain database or files to public artifacts.
 printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback   --passphrase-fd 0 --symmetric --cipher-algo AES256   --output "$archive.gpg" "$archive"
 test -s "$archive.gpg"
