@@ -14,22 +14,50 @@ jobs:
           PGCONNECT_TIMEOUT: "30"
         run: |
           python3 - <<'PY'
-          import os, subprocess, sys
-          dsn = os.environ.get("DATABASE_URL", "")
+          import os, shutil, subprocess, sys
+          from urllib.parse import urlsplit
+          dsn = os.environ.get("DATABASE_URL", "").strip()
           if not dsn or "[YOUR-PASSWORD]" in dsn:
               print("::error::URI PostgreSQL absente ou contenant encore le mot de passe à remplacer.")
               sys.exit(1)
+          category = "connexion"
           try:
+              uri = urlsplit(dsn)
+              if uri.scheme not in ("postgres", "postgresql") or not uri.hostname or not uri.username or not uri.password:
+                  raise ValueError("uri")
+              if not shutil.which("psql"):
+                  raise FileNotFoundError()
               result = subprocess.run(["psql", "-X", "--no-password", "--dbname", dsn, "-v", "ON_ERROR_STOP=1", "-Atc", "SELECT 1"], capture_output=True, text=True, timeout=45)
               ok = result.returncode == 0 and result.stdout.strip() == "1"
+              diagnostic = result.stderr.lower()
+              if any(x in diagnostic for x in ("password authentication failed", "wrong password", "authentication failed", "scram")):
+                  category = "authentification"
+              elif any(x in diagnostic for x in ("could not translate host", "name or service not known", "no such host")):
+                  category = "adresse du serveur"
+              elif any(x in diagnostic for x in ("invalid uri", "invalid percent", "extra key/value", "invalid connection option", "missing", "invalid integer")):
+                  category = "format de l'URI"
+              elif "tenant or user not found" in diagnostic:
+                  category = "utilisateur ou serveur du pooler"
+              elif "permission denied" in diagnostic:
+                  category = "permissions"
+          except ValueError:
+              ok = False
+              category = "format de l'URI"
+          except FileNotFoundError:
+              ok = False
+              category = "client psql absent du runner"
+          except subprocess.TimeoutExpired:
+              ok = False
+              category = "délai de connexion"
           except Exception:
               ok = False
           if not ok:
-              print("::error::Connexion PostgreSQL refusée ou inaccessible. Vérifier le mot de passe encodé, le Session pooler et le port 5432. Détails privés masqués.")
+              print("::error::Échec PostgreSQL : " + category + ". Détails privés masqués.")
               sys.exit(1)
           print("Connexion PostgreSQL chiffrée : réussie.")
           PY
       - name: Tester la clé Storage sans afficher les buckets
+        if: always()
         env:
           SERVICE_KEY: ${{ secrets.MILOU_SERVICE_ROLE_KEY }}
         run: |
