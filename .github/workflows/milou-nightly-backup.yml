@@ -1,9 +1,7 @@
 name: Milou — sauvegarde chiffrée de nuit
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
-      timezone: "America/Toronto"
+  # Sauvegardes automatiques en pause à la demande du propriétaire (2026-11-16).
 
 permissions:
   contents: read
