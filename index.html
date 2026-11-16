@@ -307,7 +307,7 @@ details.milou-secondary .panel{margin:10px 0 0}
   </section>
 
   <section id="consignors" class="page">
-    <div class="page-head"><div><h1>Consignateurs</h1><p>Clients déposants et soldes.</p></div><button id="newConsignor" class="btn primary small">+ Ajouter</button></div>
+    <div class="page-head"><div><h1>Consignateurs</h1><p>Clients déposants et soldes.</p></div><div class="actions"><a href="/consignateur.html" target="_blank" rel="noopener" class="btn ghost small" style="text-decoration:none">Espace consignateur ↗</a><button id="newConsignor" class="btn primary small">+ Ajouter</button></div></div>
     <div class="toolbar"><input id="consignorSearch" class="wide" placeholder="Rechercher nom, code, courriel..."><span></span><span></span><button id="exportConsignors" class="btn ghost small">Excel</button></div>
     <div id="consignorDetail"></div>
     <div class="panel"><div class="panel-body"><div id="consignorList" class="list"></div></div></div>
@@ -2641,6 +2641,7 @@ async function showPosHistoryDetail(id){
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
  (order.status==="draft"?'<div class="actions"><button id="posHistoryResumeDraft" class="btn green small">Reprendre ce panier en caisse</button></div><div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
+ (order.status==="paid"&&order.payment_method==="cash"&&activeLines.length?'<div class="panel" style="margin-top:12px;border:1px solid #d6bdbd"><div class="panel-head"><h2>Annuler la vente en espèces</h2></div><div class="panel-body"><p class="caption">Pour les tests ou une erreur de caisse : la vente est contrepassée, les articles remis en stock et les parts des consignateurs annulées si aucun versement n’est déjà engagé. Aucun mouvement d’argent physique n’est réalisé.</p><div class="field"><label>Motif d’annulation</label><input id="posCashCancelReason" maxlength="500" placeholder="Ex. Annulation vente de test"></div><button id="posCashCancelSale" type="button" class="btn danger">Annuler cette vente et remettre en stock</button><div id="posCashCancelResult" role="status"></div></div></div>':'')+
  (order.status==="sold"?'<div class="panel"><div class="panel-head"><h2>Corriger une vente</h2></div><div class="panel-body">'+
  '<div class="field"><label>Article à retourner</label><select id="posAdjustItem">'+activeLines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div>'+
  '<div class="field"><label>Motif</label><input id="posAdjustReason" maxlength="500" placeholder="Ex. article retourné, erreur de caisse"></div>'+
@@ -2662,6 +2663,22 @@ async function showPosHistoryDetail(id){
  };
 
 
+ if(order.status==="paid"&&order.payment_method==="cash"&&activeLines.length){
+  $("posCashCancelSale").onclick=async()=>{
+   const reason=$("posCashCancelReason").value.trim(),button=$("posCashCancelSale");
+   if(reason.length<5){note($("posCashCancelResult"),"Indique au moins 5 caractères pour justifier l'annulation.","warn");return}
+   if(!confirm("Annuler la vente comptant et remettre les articles en stock ? Les commissions non versées seront contrepassées. Aucun remboursement physique n'est effectué par Milou."))return;
+   button.disabled=true;
+   try{
+    const {data,error}=await sb.rpc("milou_pos_reverse_sale",{p_order_id:id,p_item_id:null,p_reason:reason,p_restock:true});
+    if(error)throw error;
+    if(!data?.reversed_count)throw new Error("Le serveur n'a confirmé aucune contrepassation.");
+    try{await refreshAll()}catch(e){console.warn("Actualisation après annulation",e)}
+    await loadPosHistory();await loadPosReturns();
+    toast("Vente en espèces annulée; stock et commissions ajustés.");
+   }catch(e){note($("posCashCancelResult"),"Annulation impossible : "+esc(e.message||String(e)),"err");button.disabled=false}
+  };
+ }
  if(order.status==="sold"){
   const adjust=async(mode)=>{
    const reason=$("posAdjustReason").value.trim(),restock=$("posAdjustRestock").checked;
