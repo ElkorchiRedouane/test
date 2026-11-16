@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mon espace consignateur | Friperie Milou</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#234e4d;background:#fbf8f2}*{box-sizing:border-box}
+body{margin:0}header{background:#315f5c;color:white;padding:20px max(18px,calc((100vw - 1050px)/2))}
+header h1{font-size:1.4rem;margin:0}header small{opacity:.9}main{max-width:1060px;margin:auto;padding:25px 16px}
+.panel{border:1px solid #e6ded4;border-radius:18px;background:#fff;padding:20px;margin-bottom:16px}
+input,button{font:inherit}input{padding:12px;border:1px solid #bbb;border-radius:9px;max-width:100%;width:330px}
+button{padding:12px 18px;background:#315f5c;color:white;border:0;border-radius:9px;cursor:pointer}button:disabled{opacity:.6}
+a{color:#315f5c}.hide{display:none!important}.muted{color:#617875}.error{color:#a63838}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px}
+.metric{background:#eaf0e8;border-radius:13px;padding:14px}.metric b{display:block;font-size:1.35rem}
+table{width:100%;border-collapse:collapse;text-align:left;font-size:.92rem}
+th,td{border-bottom:1px solid #eee;padding:10px 7px;vertical-align:top}th{font-weight:700}
+.scroll{overflow-x:auto}.chip{background:#eaf0e8;border-radius:20px;padding:4px 8px;white-space:nowrap;font-size:.8rem}
+footer{text-align:center;padding:20px;color:#617875}
+</style></head><body>
+<header><h1>Friperie Milou — Mon espace consignateur</h1><small>Suivez vos articles, vos ventes et vos versements</small></header>
+<main>
+<section id="login" class="panel"><h2>Connexion sécurisée</h2>
+<p>Inscrivez l'adresse courriel enregistrée dans votre fiche consignateur. Un lien de connexion vous sera envoyé.</p>
+<form id="loginForm"><label for="email">Courriel</label><div style="margin:9px 0"><input id="email" required type="email" autocomplete="email" placeholder="vous@exemple.ca"></div><button id="send" type="submit">Recevoir mon lien de connexion</button></form>
+<p id="loginStatus" role="status" aria-live="polite"></p><p class="muted">Vous ne pouvez consulter que vos propres informations. Adresse courriel incorrecte ? Contactez Friperie Milou.</p></section>
+<section id="dashboard" class="hide"><div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+<div><h2 style="margin:0" id="welcome">Mon suivi</h2><span class="muted" id="code"></span></div><button id="logout">Déconnexion</button></div>
+<p class="muted">Les informations affichées sont en lecture seule. Les ventes annulées sont exclues des montants.</p>
+<div id="metrics" class="cards"></div></div>
+<div class="panel"><h3>Mes articles</h3><div class="scroll"><table><thead><tr><th>Article</th><th>Référence</th><th>Dépôt</th><th>Prix</th><th>État</th></tr></thead><tbody id="items"></tbody></table></div></div>
+<div class="panel"><h3>Historique de mes ventes</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Article</th><th>Prix vendu</th><th>Ma part</th><th>État</th></tr></thead><tbody id="sales"></tbody></table></div></div>
+<div class="panel"><h3>Versements</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Montant</th><th>État</th></tr></thead><tbody id="payouts"></tbody></table></div></div></section>
+</main><footer>Friperie Milou • Portail sécurisé et consultatif</footer>
+<script type="module">
+import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
+const sb=createClient("https://lgdapxduxmhcixjwzfrq.supabase.co","sb_publishable_dnBT7KNwqp-qk034dR2tNQ_FZtGX1DI");
+const $=id=>document.getElementById(id);
+const fmt=n=>new Intl.NumberFormat("fr-CA",{style:"currency",currency:"CAD"}).format(Number(n||0));
+const date=x=>x?new Intl.DateTimeFormat("fr-CA",{dateStyle:"medium",timeZone:"America/Toronto"}).format(new Date(x)):"—";
+const html=x=>String(x??"—").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function row(x){return "<tr>"+x.map(c=>"<td>"+c+"</td>").join("")+"</tr>"}
+$("loginForm").onsubmit=async e=>{e.preventDefault();$("send").disabled=true;$("loginStatus").textContent="Envoi en cours…";
+const {error}=await sb.auth.signInWithOtp({email:$("email").value.trim(),options:{emailRedirectTo:location.origin+"/consignateur.html",shouldCreateUser:true}});
+$("send").disabled=false;$("loginStatus").textContent=error?"Erreur d'envoi : "+error.message:"Si le courriel peut recevoir nos messages, un lien de connexion vient d'être envoyé.";};
+$("logout").onclick=async()=>{await sb.auth.signOut();location.replace("/consignateur.html")};
+async function render(){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){$("login").classList.remove("hide");$("dashboard").classList.add("hide");return}
+ const {data,error}=await sb.rpc("milou_consignor_portal");
+ if(error){$("login").classList.remove("hide");$("dashboard").classList.add("hide");$("loginStatus").className="error";$("loginStatus").textContent="Espace indisponible : vérifiez que votre courriel correspond bien à celui de votre fiche chez Milou. "+error.message;return}
+ $("login").classList.add("hide");$("dashboard").classList.remove("hide");
+ $("welcome").textContent="Bienvenue, "+data.name;$("code").textContent="Code consignateur : "+data.code;
+ const items=data.items||[],sales=(data.sales||[]).filter(s=>!s.is_voided),payouts=data.payouts||[];
+ const sold=sales.reduce((s,x)=>s+Number(x.consignor_amount||0),0);
+ const paid=payouts.filter(p=>p.status==="completed"||p.status==="paid").reduce((s,x)=>s+Number(x.amount||0),0);
+ $("metrics").innerHTML=[["Articles en vente",items.filter(i=>["validated","shopify_draft","online"].includes(i.status)).length],["Articles vendus",sales.length],["Gains des ventes",fmt(sold)],["Versements enregistrés",fmt(paid)],["Solde indicatif",fmt(sold-paid)]].map(m=>'<div class="metric"><span>'+html(m[0])+'</span><b>'+html(m[1])+'</b></div>').join("");
+ $("items").innerHTML=items.length?items.map(i=>row([html(i.title),html(i.sku),html(i.deposit_code),fmt(i.sale_price),'<span class="chip">'+html(i.status)+'</span>'])).join(""):row(["Aucun article","","","",""]);
+ $("sales").innerHTML=sales.length?sales.map(i=>row([date(i.sold_at),html(i.title||i.sku),fmt(i.gross_amount),fmt(i.consignor_amount),html(i.payout_status)])).join(""):row(["Aucune vente","","","",""]);
+ $("payouts").innerHTML=payouts.length?payouts.map(i=>row([date(i.created_at),fmt(i.amount),html(i.status)])).join(""):row(["Aucun versement","",""]);
+}
+sb.auth.onAuthStateChange(()=>setTimeout(render,0));await render();
+</script></body></html>
