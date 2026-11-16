@@ -1,0 +1,92 @@
+name: Milou — sauvegarde chiffrée de nuit
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+      timezone: "America/Toronto"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: milou-nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Télécharger le code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364 # v4.2.2
+      - name: Vérifier les secrets requis
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.MILOU_DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.MILOU_SERVICE_ROLE_KEY }}
+          RCLONE_CONFIG_B64: ${{ secrets.MILOU_RCLONE_CONFIG_B64 }}
+          BACKUP_PASSPHRASE: ${{ secrets.MILOU_BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          for var in DATABASE_URL SUPABASE_SERVICE_ROLE_KEY RCLONE_CONFIG_B64 BACKUP_PASSPHRASE; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Le secret $var n'est pas configuré. Voir docs/MILOU-BACKUP.md."
+              exit 1
+            fi
+          done
+          if [ "${#BACKUP_PASSPHRASE}" -lt 24 ]; then
+            echo "::error::La phrase secrète de sauvegarde doit contenir au moins 24 caractères."
+            exit 1
+          fi
+      - name: Installer PostgreSQL 17 et rclone
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg rclone
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+          rclone version | head -1
+      - name: Exporter et chiffrer PostgreSQL + Storage
+        env:
+          DATABASE_URL: ${{ secrets.MILOU_DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.MILOU_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: https://lgdapxduxmhcixjwzfrq.supabase.co
+          BACKUP_PASSPHRASE: ${{ secrets.MILOU_BACKUP_PASSPHRASE }}
+        shell: bash
+        run: bash scripts/milou_backup.sh
+      - name: Envoyer et vérifier dans Google Drive
+        shell: bash
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.MILOU_RCLONE_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$RCLONE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/rclone.conf"
+          chmod 600 "$RUNNER_TEMP/rclone.conf"
+          export RCLONE_CONFIG="$RUNNER_TEMP/rclone.conf"
+          rclone lsd "miloudrive:" >/dev/null
+          filename="$(basename "$(find "$RUNNER_TEMP/milou-backup" -maxdepth 1 -name '*.tar.gz.gpg' -type f -print -quit)")"
+          test -n "$filename"
+          source="$RUNNER_TEMP/milou-backup/$filename"
+          dest="miloudrive:MilouBackups/daily/$filename"
+          rclone copyto "$source" "$dest" --retries 3 --low-level-retries 5
+          remote_size="$(rclone lsjson "$dest" --stat | python3 -c 'import json,sys;print(json.load(sys.stdin)["Size"])')"
+          local_size="$(stat -c '%s' "$source")"
+          test "$remote_size" -eq "$local_size"
+          # Do not overwrite the last known-good copy until a verified daily upload exists.
+          rclone copyto "$source" "miloudrive:MilouBackups/latest/milou-backup-latest.tar.gz.gpg" --retries 3
+          latest_size="$(rclone lsjson "miloudrive:MilouBackups/latest/milou-backup-latest.tar.gz.gpg" --stat | python3 -c 'import json,sys;print(json.load(sys.stdin)["Size"])')"
+          test "$latest_size" -eq "$local_size"
+          # Retain several generations; deletion only occurs after both uploads pass.
+          rclone delete "miloudrive:MilouBackups/daily" --min-age 8d --include "milou-*.tar.gz.gpg"
+          echo "Archive chiffrée transférée et vérifiée par taille. Une restauration d'essai est toujours nécessaire."
+      - name: Nettoyer les fichiers temporaires
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/milou-backup" "$RUNNER_TEMP/rclone.conf"
