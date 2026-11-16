@@ -115,3 +115,10 @@ Le workflow manuel `milou-backup-access-check.yml` teste PostgreSQL avec `SELECT
 - Le téléchargement automatisé du JSON OAuth n'a pas abouti. Le propriétaire doit sauvegarder ce fichier localement; ne pas le publier dans le dépôt ni dans le chat. Le secret ne sera plus affichable après fermeture de la fenêtre Google.
 - Les secrets MILOU_BACKUP_PASSPHRASE et MILOU_RCLONE_CONFIG_B64 sont toujours absents lors du dernier contrôle. Aucune archive réelle n'a été créée et aucun test de restauration réel n'a été effectué.
 - Le démarrage de Docker Desktop a été demandé, mais l'accès au moteur n'a pas été confirmé. La restauration locale demeure non validée.
+
+### Blocages complémentaires — 16 novembre 2026
+
+- Le fichier OAuth de bureau a été retrouvé localement et validé sans publier son contenu. Le propriétaire a autorisé explicitement la poursuite avec son client Milou Backups non validé par Google et les droits Drive demandés.
+- La tentative OAuth a échoué : le disque Windows C: était plein et le processus rclone s'est arrêté pendant l'écriture de son journal privé. Aucun jeton ni configuration rclone fonctionnelle n'a été confirmé. Une nouvelle autorisation devra être démarrée après libération d'espace; ne pas réutiliser le retour OAuth échoué.
+- L'application Google reste externe en mode test : les autorisations avec accès Drive sont soumises à l'expiration de sept jours. La publication est bloquée par la configuration Branding incomplète dans Google Cloud. Ce point doit être résolu avant de qualifier la sauvegarde de durable.
+- Le dernier contrôle PostgreSQL reste en échec d'authentification, malgré l'encodage du mot de passe. La phrase de chiffrement et la configuration rclone restent à enregistrer. Aucune archive réelle, aucun déchiffrement réel et aucune restauration isolée n'ont été validés.
