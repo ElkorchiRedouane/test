@@ -1,0 +1,52 @@
+name: Milou — vérifier les accès de sauvegarde
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Tester PostgreSQL sans afficher de données
+        env:
+          DATABASE_URL: ${{ secrets.MILOU_DATABASE_URL }}
+          PGSSLMODE: require
+          PGCONNECT_TIMEOUT: "30"
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, sys
+          dsn = os.environ.get("DATABASE_URL", "")
+          if not dsn or "[YOUR-PASSWORD]" in dsn:
+              print("::error::URI PostgreSQL absente ou contenant encore le mot de passe à remplacer.")
+              sys.exit(1)
+          try:
+              result = subprocess.run(["psql", "-X", "--no-password", "--dbname", dsn, "-v", "ON_ERROR_STOP=1", "-Atc", "SELECT 1"], capture_output=True, text=True, timeout=45)
+              ok = result.returncode == 0 and result.stdout.strip() == "1"
+          except Exception:
+              ok = False
+          if not ok:
+              print("::error::Connexion PostgreSQL refusée ou inaccessible. Vérifier le mot de passe encodé, le Session pooler et le port 5432. Détails privés masqués.")
+              sys.exit(1)
+          print("Connexion PostgreSQL chiffrée : réussie.")
+          PY
+      - name: Tester la clé Storage sans afficher les buckets
+        env:
+          SERVICE_KEY: ${{ secrets.MILOU_SERVICE_ROLE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          from urllib.request import Request, urlopen
+          token = os.environ.get("SERVICE_KEY", "")
+          try:
+              if not token:
+                  raise ValueError()
+              request = Request("https://lgdapxduxmhcixjwzfrq.supabase.co/storage/v1/bucket", headers={"apikey": token, "Authorization": "Bearer " + token})
+              with urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              if not isinstance(payload, list):
+                  raise ValueError()
+          except Exception:
+              print("::error::Accès Storage refusé ou inaccessible. Détails privés masqués.")
+              sys.exit(1)
+          print("Accès Storage : réussi.")
+          PY
