@@ -84,7 +84,7 @@ La configuration reste **non opérationnelle tant que les secrets manquants et l
 
 - Le projet Supabase a été vérifié actif sur PostgreSQL 17.
 - Le dossier Drive et ses sous-dossiers daily/latest ont été vérifiés privés et vides avant le premier essai.
-- MILOU_SERVICE_ROLE_KEY a été ajouté dans les secrets GitHub Actions par l'interface sécurisée. La présence des autres secrets doit encore être vérifiée.
+- MILOU_SERVICE_ROLE_KEY a été ajouté dans les secrets GitHub Actions par l'interface sécurisée. MILOU_DATABASE_URL est aussi présent, mais le test du 16 novembre à 10h40 refuse l'authentification PostgreSQL.
 - Le ciblage Drive par identifiant et la vérification du téléchargement par SHA-256, déchiffrement et manifeste ont été ajoutés. Les diagnostics PostgreSQL et Storage potentiellement privés sont gardés dans les fichiers temporaires du runner, jamais publiés comme artefacts.
 - Les cinq tests synthétiques du vérificateur passent (archive valide, corruption de même taille, fichier manquant, ajout hors manifeste, chemin dangereux); la syntaxe du script Bash a été vérifiée. Ces tests ne constituent pas un test réel de sauvegarde ou restauration.
 - Le mot de passe PostgreSQL existant doit être saisi uniquement dans l'URI du secret GitHub; ne pas le réinitialiser sans vérifier les dépendances existantes. Utiliser le Session pooler sur le port 5432 si le runner ne dispose pas d'IPv6.
@@ -98,3 +98,12 @@ Un dump brut Supabase inclut des références aux rôles et extensions de la pla
 Les clés API, paramètres Auth, fonctions Edge, secrets externes et configuration de chiffrement Vault ne sont pas tous reconstitués par ce dump. Documenter leur reprise dans un emplacement privé et vérifier que les secrets Vault restent utilisables dans la cible d'essai sans exposer leurs valeurs. Les fichiers Storage doivent également être réimportés et relus dans une cible séparée.
 
 Preuves finales à consigner ici uniquement sous forme non sensible : URL d'exécution Actions réussie, date/heure, présence et taille des archives, égalité des empreintes, résultat du manifeste, résultat de restauration et première exécution planifiée observée. Ne jamais publier de dump, jeton, phrase secrète, requête contenant des données privées ou ligne de consignateur.
+
+### Contrôle d'accès du 16 novembre, 10h40 (America/Toronto)
+
+Le workflow manuel `milou-backup-access-check.yml` teste PostgreSQL avec `SELECT 1` et l'accès à la liste des buckets Storage sans publier le résultat ni les diagnostics privés.
+
+- [Exécution de contrôle](https://github.com/ElkorchiRedouane/test/actions/runs/43898894862) : accès Storage réussi; authentification PostgreSQL refusée. Ce résultat n'est pas une sauvegarde réussie.
+- Le propriétaire indique ne plus connaître le mot de passe PostgreSQL. La réinitialisation doit être effectuée par lui dans l'interface Supabase; les connexions PostgreSQL directes existantes nécessiteront ensuite la mise à jour de leurs identifiants. Aucun changement du mot de passe n'a été effectué par l'agent.
+- Le propriétaire a explicitement autorisé la création d'un projet Google Cloud dédié sans facturation. Le projet « Milou Backups » a été créé (identifiant `inspired-parsec-514915-h4`). Aucun service payant n'a été activé dans cette session. L'API Drive, le client OAuth et le jeton rclone restent à configurer.
+- La phrase de chiffrement reste à enregistrer dans GitHub et dans un gestionnaire de mots de passe indépendant. Sans copie indépendante, elle ne sera pas récupérable depuis le secret GitHub.
