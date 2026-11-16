@@ -49,7 +49,8 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
           rclone version | head -1
       - name: Exporter et chiffrer PostgreSQL + Storage
         env:
@@ -63,6 +64,8 @@ jobs:
         shell: bash
         env:
           RCLONE_CONFIG_B64: ${{ secrets.MILOU_RCLONE_CONFIG_B64 }}
+          BACKUP_PASSPHRASE: ${{ secrets.MILOU_BACKUP_PASSPHRASE }}
+          RCLONE_CONFIG_MILOUDRIVE_ROOT_FOLDER_ID: 1mpC8jAqgyLMLLnCv-g4Snrv20-5aL2nN
         run: |
           set -euo pipefail
           umask 077
@@ -73,18 +76,25 @@ jobs:
           filename="$(basename "$(find "$RUNNER_TEMP/milou-backup" -maxdepth 1 -name '*.tar.gz.gpg' -type f -print -quit)")"
           test -n "$filename"
           source="$RUNNER_TEMP/milou-backup/$filename"
-          dest="miloudrive:MilouBackups/daily/$filename"
+          dest="miloudrive:daily/$filename"
           rclone copyto "$source" "$dest" --retries 3 --low-level-retries 5
           remote_size="$(rclone lsjson "$dest" --stat | python3 -c 'import json,sys;print(json.load(sys.stdin)["Size"])')"
           local_size="$(stat -c '%s' "$source")"
           test "$remote_size" -eq "$local_size"
+          # Verify the downloaded Drive bytes, then every decrypted manifest entry.
+          rclone copyto "$dest" "$RUNNER_TEMP/milou-backup/remote.tar.gz.gpg" --retries 3
+          test "$(sha256sum "$source" | cut -d ' ' -f1)" = "$(sha256sum "$RUNNER_TEMP/milou-backup/remote.tar.gz.gpg" | cut -d ' ' -f1)"
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 --output "$RUNNER_TEMP/milou-backup/remote.tar.gz" --decrypt "$RUNNER_TEMP/milou-backup/remote.tar.gz.gpg"
+          python3 scripts/milou_verify_backup.py "$RUNNER_TEMP/milou-backup/remote.tar.gz"
           # Do not overwrite the last known-good copy until a verified daily upload exists.
-          rclone copyto "$source" "miloudrive:MilouBackups/latest/milou-backup-latest.tar.gz.gpg" --retries 3
-          latest_size="$(rclone lsjson "miloudrive:MilouBackups/latest/milou-backup-latest.tar.gz.gpg" --stat | python3 -c 'import json,sys;print(json.load(sys.stdin)["Size"])')"
+          rclone copyto "$source" "miloudrive:latest/milou-backup-latest.tar.gz.gpg" --retries 3
+          latest_size="$(rclone lsjson "miloudrive:latest/milou-backup-latest.tar.gz.gpg" --stat | python3 -c 'import json,sys;print(json.load(sys.stdin)["Size"])')"
           test "$latest_size" -eq "$local_size"
+          rclone copyto "miloudrive:latest/milou-backup-latest.tar.gz.gpg" "$RUNNER_TEMP/milou-backup/latest.tar.gz.gpg" --retries 3
+          test "$(sha256sum "$source" | cut -d ' ' -f1)" = "$(sha256sum "$RUNNER_TEMP/milou-backup/latest.tar.gz.gpg" | cut -d ' ' -f1)"
           # Retain several generations; deletion only occurs after both uploads pass.
-          rclone delete "miloudrive:MilouBackups/daily" --min-age 8d --include "milou-*.tar.gz.gpg"
-          echo "Archive chiffrée transférée et vérifiée par taille. Une restauration d'essai est toujours nécessaire."
+          rclone delete "miloudrive:daily" --min-age 8d --include "milou-*.tar.gz.gpg"
+          echo "Archive distante vérifiée par SHA-256, déchiffrement et manifeste. Une restauration d'essai est toujours nécessaire."
       - name: Nettoyer les fichiers temporaires
         if: always()
         shell: bash
