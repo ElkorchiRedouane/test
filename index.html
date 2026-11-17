@@ -290,7 +290,7 @@ details.milou-secondary .panel{margin:10px 0 0}
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
         <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="brother-dk1201">Brother QL-800 — DK-1201 (90 × 29 mm)</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
       </div>
-      <div class="notice" style="margin-top:10px"><b>Brother QL-800 / DK-1201 :</b> dans Windows, choisis Brother QL-800, papier 29 × 90 mm, paysage, taille réelle (100 %), marges aucune et une étiquette par page. Aucun passage par P-touch Editor n’est nécessaire. Le navigateur demandera de confirmer l’impression.</div>
+      <div class="notice" style="margin-top:10px"><b>Brother QL-800 / DK-1201 :</b> le bouton génère un PDF de 90 × 29 mm, une page par étiquette, afin d’éviter la réduction depuis A4. Ouvre le PDF téléchargé, sélectionne Brother QL-800 (DK-1201) et imprime à 100 % / taille réelle, sans ajuster à la page. Pas besoin de P-touch Editor.</div>
       <div id="labelsLetterControls" class="panel hidden" style="margin-top:12px"><div class="panel-body">
 <div class="notice"><b>Avery 5160 / 8160 — 30 étiquettes — US Letter (215,9 × 279,4 mm).</b><br>Papier : <b>Letter</b> — Échelle : <b>100 % / Taille réelle</b> — Portrait — <b>Jamais Ajuster à la page / Adapter / Réduire</b> — Marges : <b>par défaut</b>. Désactiver en-têtes/pieds si proposés par le navigateur.</div>
 <div class="grid">
@@ -1926,10 +1926,83 @@ function labelPageHtml(items,format){
  }).join("");
  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center} .barcode svg{max-width:100%;height:'+(format==="brother-dk1201"?"12mm":"17mm")+' ;width:auto;display:inline-block}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
 }
+
+function milouBrotherPDF(items){
+ // Each physical DK-1201 label gets its own 90 x 29 mm PDF page.
+ // Using an actual PDF MediaBox avoids browser A4-to-label shrinkage.
+ if(!window.JsBarcode)throw new Error("Le module Code 128 est indisponible.");
+ if(!items.length)throw new Error("Aucune étiquette sélectionnée.");
+ const mm=n=>n*72/25.4, fmt=n=>Number(n.toFixed(4)).toString();
+ const ascii=v=>String(v??"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7E]/g," ").replace(/\s+/g," ").trim();
+ const pdfEsc=v=>ascii(v).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+ const W=90,H=29;
+ const objects=[null],obj=v=>{objects.push(v);return objects.length-1};
+ const font=obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+ const bold=obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+ const catalog=obj(""),pagesRoot=obj(""),pageIds=[];
+ const txt=(x,y,size,value,isBold=false)=>"BT /"+(isBold?"F2":"F1")+" "+fmt(size)+" Tf 1 0 0 1 "+fmt(mm(x))+" "+fmt(mm(H-y))+" Tm ("+pdfEsc(value)+") Tj ET\n";
+ function bars(value,x,y,width,height){
+  const canvas=document.createElement("canvas");
+  window.JsBarcode(canvas,value,{format:"CODE128",displayValue:false,width:3,height:58,margin:0,lineColor:"#000000",background:"#ffffff"});
+  const cw=canvas.width,ctx=canvas.getContext("2d",{willReadFrequently:true});
+  if(!cw||!ctx)throw new Error("Code-barres non disponible : "+value);
+  const px=ctx.getImageData(0,29,cw,1).data;let start=-1,out="0 g\n";
+  for(let i=0;i<=cw;i++){
+   const black=i<cw&&px[i*4]<128&&px[i*4+3]>128;
+   if(black&&start<0)start=i;
+   if(!black&&start>=0){
+    out+=fmt(mm(x+width*start/cw))+" "+fmt(mm(H-y-height))+" "+fmt(mm(width*(i-start)/cw))+" "+fmt(mm(height))+" re f\n";
+    start=-1;
+   }
+  }
+  return out;
+ }
+ for(const item of items){
+  const sku=String(item.sku||"").trim();
+  if(!sku)throw new Error("SKU manquant.");
+  const price=ascii(money(item.sale_price));
+  const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - ")).slice(0,45);
+  const date=ascii(milouLabelDate(item.created_at));
+  let stream="q\n0 g\n";
+  stream+=txt(3,5.1,9.1,"FRIPERIE MILOU",true);
+  stream+=txt(64,5.1,6.2,date);
+  stream+=txt(3,9.4,7.2,title.slice(0,42));
+  // Keep price outside the barcode's quiet zones.
+  stream+=txt(70,15.4,11,price,true);
+  stream+=bars(sku,5,12.2,59,10.0);
+  stream+=txt(21,26.2,7.6,sku,true);
+  stream+="Q\n";
+  const content=obj("<< /Length "+new TextEncoder().encode(stream).length+" >>\nstream\n"+stream+"endstream");
+  const page=obj("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+fmt(mm(W))+" "+fmt(mm(H))+"] /Resources << /Font << /F1 "+font+" 0 R /F2 "+bold+" 0 R >> >> /Contents "+content+" 0 R >>");
+  pageIds.push(page);
+ }
+ objects[catalog]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
+ objects[pagesRoot]="<< /Type /Pages /Count "+pageIds.length+" /Kids ["+pageIds.map(i=>i+" 0 R").join(" ")+"] >>";
+ const chunks=[],encoder=new TextEncoder(),offsets=[0];let size=0;
+ const write=value=>{const bytes=encoder.encode(value);chunks.push(bytes);size+=bytes.length};
+ write("%PDF-1.4\n");
+ for(let i=1;i<objects.length;i++){offsets[i]=size;write(i+" 0 obj\n"+objects[i]+"\nendobj\n");}
+ const xref=size;
+ write("xref\n0 "+objects.length+"\n0000000000 65535 f \n");
+ for(let i=1;i<objects.length;i++)write(String(offsets[i]).padStart(10,"0")+" 00000 n \n");
+ write("trailer\n<< /Size "+objects.length+" /Root "+catalog+" 0 R >>\nstartxref\n"+xref+"\n%%EOF");
+ return new Blob(chunks,{type:"application/pdf"});
+}
+function milouBrotherDownload(items){
+ const file=milouBrotherPDF(items),url=URL.createObjectURL(file),a=document.createElement("a");
+ a.href=url;a.download="milou-brother-dk1201-"+new Date().toISOString().slice(0,10)+".pdf";
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+ note($("labelsStatus"),items.length+" étiquette(s) PDF au format exact 90 × 29 mm téléchargée(s). Ouvre le PDF, imprime sur Brother QL-800 (DK-1201) à 100 % / taille réelle, sans ajustement A4. Une page PDF correspond à une étiquette.");
+}
+
 function printMilouLabels(){
  if(!window.JsBarcode){note($("labelsStatus"),"Modules Code 128 / QR indisponibles. Recharge Safari avec Internet.","err");return}
  const items=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id));
  if(!items.length){note($("labelsStatus"),"Sélectionne au moins un article disponible.","warn");return}
+ if($("labelsFormat").value==="brother-dk1201"){
+  try{milouBrotherDownload(items)}catch(error){note($("labelsStatus"),"PDF Brother impossible : "+esc(error?.message||String(error)),"err")}
+  return;
+ }
  let html;
  try{html=labelPageHtml(items,$("labelsFormat").value)}catch(e){note($("labelsStatus"),"Impossible de générer les codes-barres : "+esc(e.message||String(e)),"err");return}
  const pop=window.open("","_blank");
