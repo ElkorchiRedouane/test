@@ -2145,7 +2145,7 @@ function milou30Init(){
   try{localStorage.setItem("milou_label_start","1")}catch(e){}
   milou30Update();
  };
- $("labelsFormat").value="roll";
+ $("labelsFormat").value="brother-dk1201";
  $("labelsPrint").onclick=printMilouLabels;
  $("labelsDateFilter").onchange=renderLabelList;
  $("labelsGeneratedFilter").onchange=renderLabelList;
@@ -3385,7 +3385,7 @@ function organizeMilouUI(){
  }
  // Présentation des étapes de vente plus courte.
  const p=$("posPrepare");if(p)p.textContent="Préparer la vente";
- const label=$("labelsFormat");if(label)label.value="letter30";
+ const label=$("labelsFormat");if(label)label.value="brother-dk1201";
 }
 organizeMilouUI();
 initPosModern();
