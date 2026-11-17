@@ -284,12 +284,13 @@ details.milou-secondary .panel{margin:10px 0 0}
 
 
   <section id="labels" class="page">
-    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Impression individuelle sur rouleau.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Impression sur rouleau Brother QL-800 (DK-1201) ou autre format.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
     <div class="panel"><div class="panel-body">
       <div class="grid">
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
-        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
+        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="brother-dk1201">Brother QL-800 — DK-1201 (90 × 29 mm)</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
       </div>
+      <div class="notice" style="margin-top:10px"><b>Brother QL-800 / DK-1201 :</b> dans Windows, choisis Brother QL-800, papier 29 × 90 mm, paysage, taille réelle (100 %), marges aucune et une étiquette par page. Aucun passage par P-touch Editor n’est nécessaire. Le navigateur demandera de confirmer l’impression.</div>
       <div id="labelsLetterControls" class="panel hidden" style="margin-top:12px"><div class="panel-body">
 <div class="notice"><b>Avery 5160 / 8160 — 30 étiquettes — US Letter (215,9 × 279,4 mm).</b><br>Papier : <b>Letter</b> — Échelle : <b>100 % / Taille réelle</b> — Portrait — <b>Jamais Ajuster à la page / Adapter / Réduire</b> — Marges : <b>par défaut</b>. Désactiver en-têtes/pieds si proposés par le navigateur.</div>
 <div class="grid">
@@ -1912,7 +1913,9 @@ function labelSvg(sku){
  return new XMLSerializer().serializeToString(svg);
 }
 function labelPageHtml(items,format){
- const css=format==="roll"?
+ const css=format==="brother-dk1201"?
+ '@page{size:90mm 29mm;margin:0}html,body{width:90mm;margin:0;padding:0}.sheet{display:block}.label{width:90mm;height:29mm;page-break-after:always;break-after:page;padding:1.3mm 2.5mm}':
+ format==="roll"?
  '@page{size:60mm 40mm;margin:0}body{margin:0}.sheet{display:block}.label{width:60mm;height:40mm;page-break-after:always;break-after:page;padding:2.2mm 2mm}':
  '@page{size:A4;margin:9mm}body{margin:0}.sheet{display:grid;grid-template-columns:repeat(3,60mm);gap:2mm}.label{width:60mm;height:40mm;break-inside:avoid;border:.2mm solid #aaa;padding:2.2mm 2mm}';
  const cards=items.map(i=>{
@@ -1921,7 +1924,7 @@ function labelPageHtml(items,format){
   const description=[i.brand,i.size].filter(Boolean).join(" • ").slice(0,52);
   return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div></div></div>';
  }).join("");
- return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center}.barcode svg{max-width:100%;height:17mm;width:auto;display:inline-block}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
+ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center} .barcode svg{max-width:100%;height:'+(format==="brother-dk1201"?"12mm":"17mm")+' ;width:auto;display:inline-block}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
 }
 function printMilouLabels(){
  if(!window.JsBarcode){note($("labelsStatus"),"Modules Code 128 / QR indisponibles. Recharge Safari avec Internet.","err");return}
