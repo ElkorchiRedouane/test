@@ -1964,13 +1964,16 @@ function milouBrotherPDF(items){
   const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - ")).slice(0,45);
   const date=ascii(milouLabelDate(item.created_at));
   let stream="q\n0 g\n";
-  stream+=txt(3,5.1,9.1,"FRIPERIE MILOU",true);
-  stream+=txt(64,5.1,6.2,date);
-  stream+=txt(3,9.4,7.2,title.slice(0,42));
-  // Keep price outside the barcode's quiet zones.
-  stream+=txt(70,15.4,11,price,true);
-  stream+=bars(sku,5,12.2,59,10.0);
-  stream+=txt(21,26.2,7.6,sku,true);
+  // Only the left ~58mm of the 90mm DK-1201 label is printed:
+  // the right hand side remains blank for the customer's smaller hang tags.
+  stream+=txt(3,5.2,7.8,"FRIPERIE MILOU",true);
+  stream+=txt(39,5.2,9.5,price,true);
+  stream+=txt(3,9.3,6.3,"Ajout : "+date);
+  // Restrict product name to the printable left zone; avoid running onto the empty section.
+  stream+=txt(3,13.0,6.1,title.slice(0,30));
+  // Preserve Code128 quiet zones; 48mm gives larger narrow bars than the browser-scaled version.
+  stream+=bars(sku,5,15.1,48,8.3);
+  stream+=txt(18,26.5,7.2,sku,true);
   stream+="Q\n";
   const content=obj("<< /Length "+new TextEncoder().encode(stream).length+" >>\nstream\n"+stream+"endstream");
   const page=obj("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+fmt(mm(W))+" "+fmt(mm(H))+"] /Resources << /Font << /F1 "+font+" 0 R /F2 "+bold+" 0 R >> >> /Contents "+content+" 0 R >>");
