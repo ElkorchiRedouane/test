@@ -337,10 +337,10 @@ details.milou-secondary .panel{margin:10px 0 0}
  <div class="panel" id="posModernCashPanel" style="margin-top:16px;border:1px solid #d5e3d4">
   <div class="panel-body">
    <h3 style="margin:0 0 6px">💵 Paiement en espèces</h3>
-   <p class="caption" style="margin:0 0 10px">Test de vente bout en bout : encaissement comptant, sortie du stock et calcul de la part du consignateur. La vente sera réellement enregistrée dans Milou Ops.</p>
+   <p class="caption" style="margin:0 0 10px">Vente réelle : confirme les espèces reçues, calcule la monnaie à rendre, puis enregistre la vente, le stock et la part consignateur.</p>
    <div class="field"><label for="posModernCashReceived">Montant reçu du client ($)</label>
     <input id="posModernCashReceived" inputmode="decimal" autocomplete="off" placeholder="Ex. 20,00" aria-describedby="posModernCashChange"></div>
-   <div class="actions"><button id="posModernCashExact" type="button" class="btn ghost small">Montant exact du panier</button></div>
+   <div class="actions" id="posModernCashShortcuts"><button id="posModernCashExact" type="button" class="btn ghost small">Montant exact</button><button class="btn ghost small" type="button" data-value="20">20 $</button><button class="btn ghost small" type="button" data-value="50">50 $</button><button class="btn ghost small" type="button" data-value="100">100 $</button></div>
    <div id="posModernCashChange" class="caption" aria-live="polite">Ajoute un article pour calculer le montant.</div>
    <button id="posModernConfirm" type="button" class="pos-confirm" disabled>💵 CONFIRMER LA VENTE EN ESPÈCES</button>
   </div>
@@ -892,6 +892,7 @@ function renderDepositDetail(id){
  const canDeleteDeposit=items.every(i=>!i.shopify_product_id);
  $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">Date du dépôt : '+esc(d.received_on||milouLabelDate(d.created_at))+' • '+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+
    (d.status!=="closed"?'<button id="depAdd" class="btn primary small">+ Article</button><button id="depFinish" class="btn ghost small">Terminer</button>':'<span class="badge">Terminé</span>')+
+   '<button id="depAttachExisting" class="btn ghost small">+ Article existant</button>'+ 
    (items.some(i=>!i.shopify_product_id)?'<button id="depPublishAll" class="btn green small">Envoyer tout à Shopify</button>':'')+
    (canDeleteDeposit?'<button id="depDelete" class="btn danger small">Supprimer le dépôt</button>':'')+
  '</div></div><div class="panel-body">'+
@@ -908,6 +909,7 @@ function renderDepositDetail(id){
  }).join("")+'</div>':'<div class="empty">Aucun article.</div>')+
  '<div class="notice">Taux au dépôt : '+esc(d.commission_pct==null?"non défini (voir les articles)":String(d.commission_pct)+" %")+'. Montants potentiels calculés sur les prix affichés ; le taux final est fixé lors de la vente.</div><div class="summary" style="margin-top:12px"><div class="summary-card"><strong>'+money(total)+'</strong><span>Valeur du dépôt</span></div><div class="summary-card"><strong>'+money(share)+'</strong><span>Part consignateur potentielle</span></div></div></div></div>';
  const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll"),del=$("depDelete");
+ const attach=$("depAttachExisting");if(attach)attach.onclick=()=>openMilouItemReassignment(id,null);
  const back=document.createElement("button");back.className="btn ghost small";back.textContent="← Retour à tous les dépôts";back.onclick=()=>{$("depositDetail").innerHTML="";$("depositList").scrollIntoView({behavior:"smooth"})};$("depositDetail .panel-head .row-actions")?.prepend(back);
  if(a)a.onclick=()=>startDepositSession(id);
  if(f)f.onclick=()=>finishDeposit(id);
@@ -955,6 +957,77 @@ async function publishDeposit(depositId){
   renderDepositDetail(depositId);
   if(failed)toast(ok+" publié(s), "+failed+" erreur(s)"+(lastError?" : "+lastError:""));
   else toast(ok+" article(s) envoyé(s) en brouillon Shopify");
+}
+
+
+function openMilouItemReassignment(depositId=null,itemId=null){
+ // One secure reassignment flow for an existing lot and for an individual stock article.
+ const activeConsignorIds=new Set(consignors.filter(c=>c.status==="active"&&!c.deleted_at).map(c=>c.id));
+ const targets=deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeConsignorIds.has(d.consignor_id)&&!d.deleted_at);
+ const eligible=stock.filter(i=>["to_process","ai_ready","validated","shopify_draft","online","returned"].includes(i.status)&&!i.deleted_at);
+ if(!targets.length){toast("Crée d’abord un lot de consignation avec un taux valide.");return;}
+ if(!eligible.length){toast("Aucun article non vendu disponible.");return;}
+ let modal=$("milouTransferModal");
+ if(!modal){
+  modal=document.createElement("div");
+  modal.id="milouTransferModal";modal.className="modal hidden";
+  modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
+  modal.setAttribute("aria-label","Réaffecter un article");
+  modal.innerHTML='<div class="modal-box" style="max-width:580px">'+
+   '<div class="modal-head"><h2>Déplacer un article existant</h2><button type="button" id="milouTransferClose" aria-label="Fermer">×</button></div>'+
+   '<p class="caption">Le SKU ne change pas. Le lot, le consignateur et le taux de consignation suivront le nouveau dépôt. Le changement est enregistré dans l’historique.</p>'+
+   '<div class="field"><label>Article à déplacer</label><select id="milouTransferItem"></select></div>'+
+   '<div class="field" style="margin-top:12px"><label>Lot de destination (consignateur)</label><select id="milouTransferDeposit"></select></div>'+
+   '<div class="notice warn" style="margin-top:12px">Les articles vendus ou liés à un paiement en attente ne peuvent pas être déplacés. Vérifie le taux de commission avant de confirmer.</div>'+
+   '<div id="milouTransferSummary" class="notice" style="margin-top:12px"></div>'+
+   '<div class="actions" style="margin-top:12px"><button type="button" id="milouTransferSave" class="btn primary">Confirmer le déplacement</button><button type="button" id="milouTransferCancel" class="btn ghost">Annuler</button></div>'+
+   '<div id="milouTransferFeedback" role="status"></div>'+
+   '</div>';
+  document.body.appendChild(modal);
+  $("milouTransferClose").onclick=()=>modal.classList.add("hidden");
+  $("milouTransferCancel").onclick=()=>modal.classList.add("hidden");
+  modal.addEventListener("click",e=>{if(e.target===modal)modal.classList.add("hidden")});
+ }
+ const itemSelect=$("milouTransferItem"),depositSelect=$("milouTransferDeposit");
+ itemSelect.innerHTML='<option value="">Sélectionner un article</option>'+eligible.map(i=>
+  '<option value="'+esc(i.id)+'">'+esc(i.sku+" — "+(i.title||"Sans titre")+" ("+(i.consignors?.full_name||"Stock boutique")+")")+'</option>').join("");
+ depositSelect.innerHTML=targets.map(d=>{
+  const c=consignors.find(c=>c.id===d.consignor_id);
+  const rate=d.commission_pct??c?.default_commission_pct;
+  return '<option value="'+esc(d.id)+'">'+esc((d.code||"Dépôt")+" — "+(c?.full_name||"Consignateur")+" — taux "+(rate==null?"à définir":rate+" %"))+'</option>';
+ }).join("");
+ if(itemId&&eligible.some(i=>i.id===itemId))itemSelect.value=itemId;
+ if(depositId&&targets.some(d=>d.id===depositId))depositSelect.value=depositId;
+ $("milouTransferFeedback").innerHTML="";
+ const update=()=>{
+  const i=eligible.find(i=>i.id===itemSelect.value),d=targets.find(d=>d.id===depositSelect.value);
+  const c=d&&consignors.find(c=>c.id===d.consignor_id);
+  const old=deposits.find(x=>x.id===i?.deposits?.id);
+  const rate=d?(d.commission_pct??c?.default_commission_pct):null;
+  $("milouTransferSummary").innerHTML=i&&d?'<b>Article :</b> '+esc(i.sku)+
+    '<div>Origine : '+esc(old?.code||"Sans dépôt")+' — '+esc(i.consignors?.full_name||"Stock boutique")+'</div>'+
+    '<div>Destination : '+esc(d.code)+' — '+esc(c?.full_name||"Consignateur")+'</div>'+
+    '<div>Nouvelle part consignateur : '+esc(rate==null?"Taux à définir avant déplacement":rate+" %")+'</div>':'Choisis un article et un lot.';
+  $("milouTransferSave").disabled=!i||!d||rate==null;
+ };
+ itemSelect.onchange=update;depositSelect.onchange=update;update();
+ $("milouTransferSave").onclick=async()=>{
+  const i=eligible.find(x=>x.id===itemSelect.value),d=targets.find(x=>x.id===depositSelect.value);
+  if(!i||!d)return;
+  if(!confirm("Déplacer "+i.sku+" vers le lot "+d.code+" ? Le consignateur et le taux de commission seront remplacés, mais les ventes passées seront conservées."))return;
+  const button=$("milouTransferSave");button.disabled=true;button.textContent="Déplacement…";
+  try{
+   const {data,error}=await sb.rpc("milou_reassign_item",{p_item_id:i.id,p_deposit_id:d.id});
+   if(error)throw error;
+   if(!data||!["updated","unchanged"].includes(data.status))throw new Error("Confirmation serveur inattendue");
+   modal.classList.add("hidden");
+   await refreshAll();
+   if($("deposits").classList.contains("active"))renderDepositDetail(d.id);
+   toast(data.status==="unchanged"?"Article déjà dans ce lot.":data.sku+" déplacé vers "+data.deposit_code+" ("+data.consignor_name+")");
+  }catch(error){note($("milouTransferFeedback"),"Déplacement refusé : "+esc(error.message||String(error)),"err")}
+  finally{button.disabled=false;button.textContent="Confirmer le déplacement"}
+ };
+ modal.classList.remove("hidden");itemSelect.focus();
 }
 
 function renderConsignors(){
@@ -2275,8 +2348,10 @@ function showStockItemDetails(id){
  show("Commission article",i.commission_pct!=null?String(i.commission_pct)+" %":d?.commission_pct!=null?"Héritée du dépôt : "+d.commission_pct+" %":c?.default_commission_pct!=null?"Par défaut consignateur : "+c.default_commission_pct+" %":"Non définie")+show("Statut",statusLabel(i.status))+
  show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
  show("Dépôt",i.deposits?.code||d?.code)+show("Consignateur",i.consignors?.full_name||c?.full_name)+
- '<div class="notice">Fiche en lecture seule. Un brouillon Shopify peut être disponible à la caisse physique.</div>';
+ '<div class="notice">Fiche article. Les changements de consignateur et de lot sont historisés; un article déjà vendu ne peut pas être transféré.</div>'+
+ (["to_process","ai_ready","validated","shopify_draft","online","returned"].includes(i.status)&&!i.deleted_at?'<button type="button" class="btn primary" id="articleReassign">Changer de consignateur / lot</button>':'');
  modal.classList.remove("hidden");$("articleInfoClose").focus();
+ const transfer=$("articleReassign");if(transfer)transfer.onclick=()=>{closeStockItemDetails();openMilouItemReassignment(null,i.id)};
 }
 function closeStockItemDetails(){$("articleInfoModal").classList.add("hidden")}
 $("articleInfoClose").onclick=closeStockItemDetails;
@@ -3419,6 +3494,11 @@ function initPosModern(){
   $("posModernCashReceived").value=(posCartCents()/100).toFixed(2);
   renderPosModern();
  };
+ document.querySelectorAll("#posModernCashShortcuts [data-value]").forEach(button=>button.onclick=()=>{
+  $("posModernCashReceived").dataset.userEdited="yes";
+  $("posModernCashReceived").value=Number(button.dataset.value).toFixed(2);
+  renderPosModern();
+ });
  renderPosModern();
 }
 function organizeMilouUI(){
