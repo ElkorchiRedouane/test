@@ -1969,6 +1969,16 @@ function showSummary(d){
 
 let selectedLabelIds=new Set();
 let labelPreviewItemId=null;
+function milouLabelConsignorCode(item){
+ // Use the current article owner, not the historical owner of a previously assigned lot.
+ const fromArticle=String(item?.consignors?.code||"").trim();
+ const fromDeposit=deposits.find(d=>d.id===item?.deposits?.id);
+ const owner=consignors.find(c=>c.id===fromDeposit?.consignor_id);
+ return fromArticle||(item?.consignors?.id?"":String(owner?.code||"").trim())||"BOUTIQUE";
+}
+function milouLabelReference(item){
+ return String(item.sku||"").trim()+"  |  "+milouLabelConsignorCode(item);
+}
 function labelAvailableItems(){
  return stock.filter(i=>["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at&&i.sku);
 }
@@ -1990,7 +2000,7 @@ function renderLabelList(){
  $("labelsSelectionCount").textContent=count+" étiquette"+(count===1?"":"s")+" sélectionnée"+(count===1?"":"s")+" pour impression";
  if($("labelsPageEstimate"))milou30Update();
  $("labelsList").innerHTML=visible.length?visible.map(i=>
-  '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+' • Ajout '+esc(milouLabelDate(i.created_at))+' • '+(i.label_generated_at?'Étiquette générée '+esc(milouLabelDate(i.label_generated_at)):'Jamais générée')+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
+  '<label class="check-row" style="min-width:0"><input type="checkbox" class="labelPick" data-id="'+esc(i.id)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+'><span style="flex:1;min-width:0;overflow-wrap:anywhere"><b style="display:block;overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</b><small style="display:block;color:var(--muted);overflow-wrap:anywhere">'+esc(i.sku)+' • Consignateur '+esc(milouLabelConsignorCode(i))+' • '+esc(i.brand||"—")+' • '+esc(i.size||"Taille non précisée")+' • Ajout '+esc(milouLabelDate(i.created_at))+' • '+(i.label_generated_at?'Étiquette générée '+esc(milouLabelDate(i.label_generated_at)):'Jamais générée')+'</small></span><strong style="white-space:nowrap;flex-shrink:0">'+money(i.sale_price)+'</strong></label>'
  ).join(""):'<div class="empty">Aucun article imprimable pour ce dépôt ou ce filtre. Les articles supprimés de Shopify ne sont pas automatiquement remis en vente.</div>';
  document.querySelectorAll(".labelPick").forEach(el=>el.onchange=()=>{
  if(el.checked)selectedLabelIds.add(el.dataset.id)
@@ -2025,9 +2035,9 @@ function labelPageHtml(items,format){
   const sku=String(i.sku||"").trim();
   const title=String(i.title||i.brand||"Vêtement").slice(0,50);
   const description=[i.brand,i.size].filter(Boolean).join(" • ").slice(0,52);
-  return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div></div></div>';
+  return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div></div><div class="label-ref">'+esc(milouLabelReference(i))+'</div></div>';
  }).join("");
- return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center} .barcode svg{max-width:100%;height:'+(format==="brother-dk1201"?"12mm":"17mm")+' ;width:auto;display:inline-block}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
+ return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center} .barcode svg{max-width:100%;height:'+(format==="brother-dk1201"?"12mm":"17mm")+' ;width:auto;display:inline-block}.label-ref{text-align:center;font:700 6.5pt Arial,sans-serif;white-space:nowrap;overflow:hidden}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
 }
 
 function milouBrotherPDF(items){
@@ -2076,7 +2086,8 @@ function milouBrotherPDF(items){
   stream+=txt(3,13.0,6.1,title.slice(0,30));
   // Preserve Code128 quiet zones; 48mm gives larger narrow bars than the browser-scaled version.
   stream+=bars(sku,5,15.1,48,8.3);
-  stream+=txt(18,26.5,7.2,sku,true);
+  // Reference and owner printed together; barcode encodes only SKU, scanner behavior unchanged.
+  stream+=txt(5,26.5,6.7,ascii(milouLabelReference(item)).slice(0,33),true);
   stream+="Q\n";
   const content=obj("<< /Length "+new TextEncoder().encode(stream).length+" >>\nstream\n"+stream+"endstream");
   const page=obj("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+fmt(mm(W))+" "+fmt(mm(H))+"] /Resources << /Font << /F1 "+font+" 0 R /F2 "+bold+" 0 R >> >> /Contents "+content+" 0 R >>");
@@ -2267,7 +2278,7 @@ function milou30PDF(items,opts,calibration=false){
    stream+=posText(x+width-2-Math.min(price.length*1.8,16),y+4.8,9,price,true);
    stream+=posText(x+2,y+8.6,7,title.slice(0,39));
    stream+=barcodeCommands(sku,x+4,y+10.2,width-8,9);
-   stream+=posText(x+width/2-Math.min(sku.length*0.85,18),y+21.7,6.9,sku);
+   stream+=posText(x+4,y+21.7,6.6,ascii(milouLabelReference(item)).slice(0,42));
   }
   stream+="Q\n";
   const streamNumber=obj("<< /Length "+new TextEncoder().encode(stream).length+" >>\nstream\n"+stream+"endstream");
@@ -2352,7 +2363,7 @@ function previewMilouLabel(){
   const cards=items.map(i=>'<div style="width:min(100%,340px);padding:12px;background:white;color:#111;border:1px solid #bbb;border-radius:8px;text-align:center;overflow:hidden">'+
    '<b>FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+' — '+esc(i.size||"")+'</div>'+
    '<strong>'+money(i.sale_price)+'</strong><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;min-width:0;overflow:hidden">'+labelSvg(i.sku)+'</div></div>'+
-   '<small>APERÇU — '+esc(i.sku)+'</small></div>').join("");
+   '<small>APERÇU — '+esc(milouLabelReference(i))+'</small></div>').join("");
   box.classList.remove("hidden");
   box.innerHTML='<div><b>'+items.length+' étiquette(s) en aperçu'+(selected.length?' — sélection pour impression':' — exemple (aucune sélection)')+'</b></div>'+
    '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:10px">'+cards+'</div>';
