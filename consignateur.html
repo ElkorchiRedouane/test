@@ -24,7 +24,7 @@ footer{text-align:center;padding:20px;color:#617875}
 <p id="loginStatus" role="status" aria-live="polite"></p><p class="muted">Vous ne pouvez consulter que vos propres informations. Adresse courriel incorrecte ? Contactez Friperie Milou.</p></section>
 <section id="dashboard" class="hide"><div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
 <div><h2 style="margin:0" id="welcome">Mon suivi</h2><span class="muted" id="code"></span></div><button id="logout">Déconnexion</button></div>
-<p class="muted">Les informations affichées sont en lecture seule. Les ventes annulées sont exclues des montants.</p>
+<p class="muted">Les informations affichées sont en lecture seule. La valeur des articles en vente est la somme des prix affichés, et non une somme à verser. Les ventes annulées sont exclues des gains.</p>
 <div id="metrics" class="cards"></div></div>
 <div class="panel"><h3>Mes articles</h3><div class="scroll"><table><thead><tr><th>Article</th><th>Référence</th><th>Dépôt</th><th>Prix</th><th>État</th></tr></thead><tbody id="items"></tbody></table></div></div>
 <div class="panel"><h3>Historique de mes ventes</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Article</th><th>Prix vendu</th><th>Ma part</th><th>État</th></tr></thead><tbody id="sales"></tbody></table></div></div>
@@ -50,9 +50,11 @@ async function render(){
  $("login").classList.add("hide");$("dashboard").classList.remove("hide");
  $("welcome").textContent="Bienvenue, "+data.name;$("code").textContent="Code consignateur : "+data.code;
  const items=data.items||[],sales=(data.sales||[]).filter(s=>!s.is_voided),payouts=data.payouts||[];
+ const listed=items.filter(i=>["validated","shopify_draft","online"].includes(i.status));
+ const listedValue=listed.reduce((sum,i)=>sum+Number(i.sale_price||0),0);
  const sold=sales.reduce((s,x)=>s+Number(x.consignor_amount||0),0);
  const paid=payouts.filter(p=>p.status==="completed"||p.status==="paid").reduce((s,x)=>s+Number(x.amount||0),0);
- $("metrics").innerHTML=[["Articles en vente",items.filter(i=>["validated","shopify_draft","online"].includes(i.status)).length],["Articles vendus",sales.length],["Gains des ventes",fmt(sold)],["Versements enregistrés",fmt(paid)],["Solde indicatif",fmt(sold-paid)]].map(m=>'<div class="metric"><span>'+html(m[0])+'</span><b>'+html(m[1])+'</b></div>').join("");
+ $("metrics").innerHTML=[["Articles en vente",listed.length],["Valeur des articles en vente",fmt(listedValue)],["Articles vendus",sales.length],["Gains des ventes",fmt(sold)],["Versements enregistrés",fmt(paid)],["Solde indicatif",fmt(sold-paid)]].map(m=>'<div class="metric"><span>'+html(m[0])+'</span><b>'+html(m[1])+'</b></div>').join("");
  $("items").innerHTML=items.length?items.map(i=>row([html(i.title),html(i.sku),html(i.deposit_code),fmt(i.sale_price),'<span class="chip">'+html(i.status)+'</span>'])).join(""):row(["Aucun article","","","",""]);
  $("sales").innerHTML=sales.length?sales.map(i=>row([date(i.sold_at),html(i.title||i.sku),fmt(i.gross_amount),fmt(i.consignor_amount),html(i.payout_status)])).join(""):row(["Aucune vente","","","",""]);
  $("payouts").innerHTML=payouts.length?payouts.map(i=>row([date(i.created_at),fmt(i.amount),html(i.status)])).join(""):row(["Aucun versement","",""]);
