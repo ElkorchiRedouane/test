@@ -337,7 +337,15 @@ details.milou-secondary .panel{margin:10px 0 0}
    <h3 style="margin:0 0 6px">💵 Paiement en espèces</h3>
    <p class="caption" style="margin:0 0 10px">Vente réelle : confirme les espèces reçues, calcule la monnaie à rendre, puis enregistre la vente, le stock et la part consignateur.</p>
    <div class="field"><label for="posModernCashReceived">Montant reçu du client ($)</label>
-    <input id="posModernCashReceived" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="Saisir le montant reçu, ex. 20,00" aria-describedby="posModernCashChange"></div>
+    <input id="posModernCashReceived" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="Saisir le montant reçu, ex. 20,00" aria-describedby="posModernCashChange posModernCashHelp"></div>
+   <p id="posModernCashHelp" class="caption" style="margin:6px 0 8px">Lecteur Bluetooth connecté ? Le clavier de l’iPad peut être masqué. Utilise le pavé numérique ci-dessous.</p>
+   <div id="posModernCashKeypad" role="group" aria-label="Pavé numérique pour le montant reçu" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-width:350px;margin:6px 0 12px">
+   <button class="btn ghost" type="button" data-cash-key="1" style="min-height:49px;font-size:20px">1</button><button class="btn ghost" type="button" data-cash-key="2" style="min-height:49px;font-size:20px">2</button><button class="btn ghost" type="button" data-cash-key="3" style="min-height:49px;font-size:20px">3</button>
+   <button class="btn ghost" type="button" data-cash-key="4" style="min-height:49px;font-size:20px">4</button><button class="btn ghost" type="button" data-cash-key="5" style="min-height:49px;font-size:20px">5</button><button class="btn ghost" type="button" data-cash-key="6" style="min-height:49px;font-size:20px">6</button>
+   <button class="btn ghost" type="button" data-cash-key="7" style="min-height:49px;font-size:20px">7</button><button class="btn ghost" type="button" data-cash-key="8" style="min-height:49px;font-size:20px">8</button><button class="btn ghost" type="button" data-cash-key="9" style="min-height:49px;font-size:20px">9</button>
+   <button class="btn ghost" type="button" data-cash-key="clear" style="min-height:49px">Effacer</button><button class="btn ghost" type="button" data-cash-key="0" style="min-height:49px;font-size:20px">0</button><button class="btn ghost" type="button" data-cash-key="back" style="min-height:49px;font-size:20px">⌫</button>
+   <button class="btn ghost" type="button" data-cash-key="decimal" style="min-height:49px;font-size:20px;grid-column:span 3">, — Décimales</button>
+   </div>
    <div class="actions" id="posModernCashShortcuts"><button id="posModernCashExact" type="button" class="btn ghost small">Montant exact</button><button class="btn ghost small" type="button" data-value="20">20 $</button><button class="btn ghost small" type="button" data-value="50">50 $</button><button class="btn ghost small" type="button" data-value="100">100 $</button></div>
    <div id="posModernCashChange" class="caption" aria-live="polite">Ajoute un article pour calculer le montant.</div>
    <button id="posModernConfirm" type="button" class="pos-confirm" disabled>💵 CONFIRMER LA VENTE EN ESPÈCES</button>
@@ -3935,6 +3943,27 @@ function initPosModern(){
  $("posModernCashReceived").addEventListener("input",()=>{
   $("posModernCashReceived").dataset.userEdited="yes";renderPosModern();
  });
+ // In HID mode, iPadOS may hide the on-screen keyboard. This tactile keypad
+ // intentionally does not rely on hardware keyboard visibility or focus.
+ $("posModernCashKeypad").addEventListener("click",event=>{
+  const key=event.target.closest("button[data-cash-key]")?.dataset.cashKey;
+  if(!key)return;
+  const input=$("posModernCashReceived");
+  let value=String(input.value||"").replace(/\s/g,"").replace(",",".");
+  if(key==="clear")value="";
+  else if(key==="back")value=value.slice(0,-1);
+  else if(key==="decimal"){if(!value.includes("."))value=(value||"0")+".";}
+  else if(/^\d$/.test(key)){
+   const pieces=value.split(".");
+   if(pieces.length>1&&pieces[1].length>=2)return;
+   if(pieces[0].length>=8&&pieces.length===1)return;
+   value+=key;
+  }
+  input.value=value.replace(".",",");
+  input.dataset.userEdited="yes";
+  renderPosModern();
+ });
+
  $("posModernCashExact").onclick=()=>{
   $("posModernCashReceived").dataset.userEdited="no";
   $("posModernCashReceived").value=(posCartCents()/100).toFixed(2);
