@@ -3217,6 +3217,7 @@ function ensureSquareIosDirectLink(){
  link.hidden=true;
  link.addEventListener("click",(event)=>{
   if(!squareIosDevice()){event.preventDefault();note($("posModernStatus"),"Ce lien fonctionne uniquement sur un iPhone ou un iPad équipé de l’application Square.","warn");return}
+  localStorage.setItem("milou_square_sent",link.dataset.orderId||"");
   note($("posModernStatus"),"Ouverture de Square. Si rien ne se passe, vérifie que Square Point of Sale est installé et utilise Safari plutôt qu’un navigateur intégré.");
  });
  $("posSquareIosLaunch").after(link);
@@ -3245,7 +3246,9 @@ async function launchSquareIos(){
   link.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
   link.dataset.orderId=orderId;
   link.hidden=false;
-  sessionStorage.setItem("milou_square_pending",JSON.stringify({orderId,total,startedAt:Date.now()}));
+  const pendingData=JSON.stringify({orderId,total,startedAt:Date.now()});
+  sessionStorage.setItem("milou_square_pending",pendingData);
+  localStorage.setItem("milou_square_pending",pendingData);
   sessionStorage.removeItem("milou_square_return");
   note($("posModernStatus"),"Panier préparé ("+money(total/100)+"). Appuie maintenant sur « OUVRIR SQUARE POUR ENCAISSER ». Aucun paiement n’a encore été effectué.");
   link.scrollIntoView({block:"nearest",behavior:"smooth"});
@@ -3259,7 +3262,16 @@ function squareReturn(){
  try{return JSON.parse(sessionStorage.getItem("milou_square_return")||"null")}catch{return null}
 }
 function squarePending(){
- try{return JSON.parse(sessionStorage.getItem("milou_square_pending")||"null")}catch{return null}
+ try{
+  const pending=JSON.parse(sessionStorage.getItem("milou_square_pending")||localStorage.getItem("milou_square_pending")||"null");
+  return pending?.orderId&&Date.now()-Number(pending.startedAt)<86400000?pending:null;
+ }catch{return null}
+}
+function clearSquarePending(){
+ sessionStorage.removeItem("milou_square_pending");
+ sessionStorage.removeItem("milou_square_return");
+ localStorage.removeItem("milou_square_pending");
+ localStorage.removeItem("milou_square_sent");
 }
 async function restoreSquareCart(){
  const pending=squarePending();
@@ -3268,6 +3280,10 @@ async function restoreSquareCart(){
  if(error||!Array.isArray(data)||!data.length)return;
  const ids=data.map(x=>x.item_id).filter(id=>stock.some(i=>i.id===id));
  if(ids.length!==data.length)return;
+ if(posCartIds.length&&!ids.every(id=>posCartIds.includes(id))){
+  note($("posModernStatus"),"Un paiement Square précédent reste à vérifier. Ne refais pas payer avant de consulter ce panier.","warn");
+  return;
+ }
  posCartIds=ids;
  posDraftOrderId=pending.orderId;
  renderPosCart();
@@ -3275,18 +3291,21 @@ async function restoreSquareCart(){
 function renderSquareVerification(){
  const result=squareReturn(),button=$("posSquareIosVerify"),warn=$("posSquareIosWarning");
  if(!button||!warn)return;
- const canVerify=result?.status==="ok"&&result?.orderId&&result?.transactionId;
+ const pending=squarePending();
+ const canVerify=(result?.status==="ok"&&result?.orderId&&result?.transactionId)||!!pending?.orderId;
  button.hidden=!canVerify;button.disabled=squareVerificationRunning;
- if(canVerify)warn.textContent="Square a renvoyé un identifiant de transaction. Milou va interroger Square pour vérifier le paiement avant de modifier le stock. Référence : "+result.orderId;
+ button.textContent=squareVerificationRunning?"Vérification Square en cours…":"↻ Vérifier le paiement dans Square";
+ if(canVerify)warn.textContent="Panier Square en attente : "+(pending?.orderId||result.orderId)+". Vérifie le paiement avant de recommencer. Milou interrogera Square directement : une simple redirection ne confirme pas la vente.";
  else if(result)warn.textContent="Paiement non vérifié ou annulé. Aucune vente enregistrée. Vérifie Square avant toute nouvelle tentative.";
 }
 async function verifySquarePending(){
- const result=squareReturn();
- if(!result||result.status!=="ok"||!result.orderId||!result.transactionId||squareVerificationRunning)return;
+ const result=squareReturn(),pending=squarePending();
+ const orderId=result?.status==="ok"&&result?.orderId?result.orderId:pending?.orderId;
+ if(!orderId||squareVerificationRunning)return;
  squareVerificationRunning=true;renderSquareVerification();
  try{
   const {data,error}=await sb.functions.invoke("milou-square-verify",{
-   body:{order_id:result.orderId,transaction_id:result.transactionId}
+   body:{order_id:orderId,...(result?.status==="ok"&&result?.transactionId?{transaction_id:result.transactionId}:{})}
   });
   if(error)throw error;
   if(data?.status!=="paid"&&data?.status!=="already_paid")throw new Error(data?.error||"Paiement non confirmé par Square");
@@ -3294,8 +3313,7 @@ async function verifySquarePending(){
    const receipt=data.receipt;
    if(receipt)showPosReceipt(receipt,false,null,"posModernReceipt");
   }
-  sessionStorage.removeItem("milou_square_return");
-  sessionStorage.removeItem("milou_square_pending");
+  clearSquarePending();
   posCartIds=[];posDraftOrderId=null;
   await refreshAll();renderPosCart();
   note($("posModernStatus"),"✓ Paiement vérifié par Square. Stock et commissions actualisés.");
@@ -3306,13 +3324,22 @@ async function verifySquarePending(){
  }finally{squareVerificationRunning=false;renderSquareVerification()}
 }
 $("posSquareIosVerify").onclick=verifySquarePending;
+let squareResumeRunning=false;
 async function handleSquareReturnAfterLogin(){
- const result=squareReturn();
- if(!result)return;
- await restoreSquareCart();
- renderSquareVerification();
- go("cashier",{history:false});
- if(result.status==="ok")await verifySquarePending();
+ const result=squareReturn(),pending=squarePending();
+ if((!pending&&!result)||squareResumeRunning)return;
+ squareResumeRunning=true;
+ try{
+  if(pending)await restoreSquareCart();
+  renderSquareVerification();
+  go("cashier",{history:false});
+  if(result?.status==="ok"||(pending&&localStorage.getItem("milou_square_sent")===pending.orderId)){
+   note($("posModernStatus"),"Paiement Square en attente de rapprochement. Ne pas encaisser une seconde fois.","warn");
+   await verifySquarePending();
+  }else if(pending){
+   note($("posModernStatus"),"Panier Square préparé : vérifie la transaction dans Square avant de relancer un paiement.","warn");
+  }
+ }finally{squareResumeRunning=false}
 }
 
 async function confirmSquareManual(){
@@ -3692,6 +3719,7 @@ async function resumeMilouApp(){
       $("app").classList.remove("hidden");
       $("userEmail").textContent=session.user.email||"";
       await refreshAll();
+      await handleSquareReturnAfterLogin();
       await testShopifyConnection();
     }else{
       $("login").classList.remove("hidden");
