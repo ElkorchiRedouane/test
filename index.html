@@ -175,7 +175,7 @@ details.milou-secondary .panel{margin:10px 0 0}
 
 <div id="app" class="app hidden">
 <div id="qaModeNotice" class="notice warn hidden" style="margin:8px 12px"><strong>Synchronisations externes suspendues</strong></div>
-<header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><button id="logout">Déconnexion</button></header>
+<header class="top"><div class="brand"><div class="mark">M</div><div><b>Milou Ops</b><small id="userEmail"></small></div></div><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end"><button id="refreshMilouApp" type="button" class="btn ghost small" title="Recharger l’application sur cet iPad" style="white-space:nowrap">↻ Actualiser</button><button id="logout">Déconnexion</button></div></header>
 <main>
   <section id="home" class="page active">
     <div class="hero"><h1>Bienvenue chez Milou</h1><p>Que souhaitez-vous faire aujourd’hui ?</p></div>
@@ -3820,6 +3820,20 @@ function organizeMilouUI(){
 }
 organizeMilouUI();
 initPosModern();
+// iPad standalone web apps do not expose Safari's reload control.
+$("refreshMilouApp").onclick=()=>{
+ // A full refresh loses the unsaved, in-memory basket. Never surprise a cashier.
+ if(posCartIds.length){
+  const message=posDraftOrderId
+   ?"Ce panier contient "+posCartIds.length+" article(s). Actualiser effacera l'affichage actuel. Vous pourrez reprendre le panier préparé depuis Caisse → Historique. Continuer ?"
+   :"ATTENTION : "+posCartIds.length+" article(s) sont dans un panier non préparé. Actualiser fera perdre ce panier. Préparez-le d'abord pour le retrouver dans l'historique. Actualiser quand même ?";
+  if(!window.confirm(message))return;
+ }
+ if(typeof squarePending==="function"&&squarePending()){
+  if(!window.confirm("Un paiement Square pourrait être en attente. Vérifiez Square et l'historique avant toute nouvelle tentative. Actualiser l'application ?"))return;
+ }
+ window.location.reload();
+};
 setupPWA();
 authState();
 </script>
