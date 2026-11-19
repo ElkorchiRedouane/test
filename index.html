@@ -2966,13 +2966,34 @@ function renderPosHistory(){
  '<div class="row" style="align-items:center"><div class="row-main"><b>'+esc(posOrderStatus(o.status))+'</b><small>'+esc(formatQuebecDateTime(o.completed_at||o.created_at))+' • '+esc(o.id.slice(0,8))+'</small></div>'+
  '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong>'+(o.status==="draft"?'<button type="button" class="btn green small posHistoryResume" data-id="'+esc(o.id)+'">↩ Reprendre</button>':'')+'<button class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
  ).join(""):'<div class="empty">Aucune commande dans cette catégorie.</div>';
- document.querySelectorAll(".posHistoryDetails").forEach(b=>b.onclick=()=>showPosHistoryDetail(b.dataset.id));
+ // Event delegation keeps Details buttons reliable after re-rendering on iPad.
  document.querySelectorAll(".posHistoryResume").forEach(b=>b.onclick=async()=>{
   b.disabled=true;
   try{await resumePosDraft(b.dataset.id)}
   finally{if(b.isConnected)b.disabled=false}
  });
 }
+$("posHistoryList").addEventListener("click",async event=>{
+ const button=event.target.closest("button.posHistoryDetails");
+ if(!button||!$("posHistoryList").contains(button))return;
+ event.preventDefault();
+ const id=button.dataset.id;
+ if(!id)return;
+ button.disabled=true;
+ button.textContent="Ouverture…";
+ const detail=$("posHistoryDetail");
+ try{
+  detail.innerHTML='<div class="notice">Chargement des détails de la vente…</div>';
+  detail.scrollIntoView({behavior:"auto",block:"start"});
+  await showPosHistoryDetail(id);
+  detail.scrollIntoView({behavior:"auto",block:"start"});
+ }catch(error){
+  detail.innerHTML='<div class="notice err">Erreur lors de l’ouverture : '+esc(error?.message||String(error))+'</div>';
+  detail.scrollIntoView({behavior:"auto",block:"start"});
+ }finally{
+  if(button.isConnected){button.disabled=false;button.textContent="Détails";}
+ }
+});
 // Only unpaid draft orders can be resumed. Never silently replace a live cart.
 async function resumePosDraft(id,knownLines=null){
  try{
