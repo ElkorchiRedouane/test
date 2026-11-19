@@ -3029,6 +3029,7 @@ async function showPosHistoryDetail(id){
  '<div class="notice warn">Aucun reçu de paiement disponible : cette commande n’est pas une vente comptant confirmée.</div>')+
  (order.status==="draft"?'<div class="actions"><button id="posHistoryResumeDraft" class="btn green small">Reprendre ce panier en caisse</button></div><div class="actions"><button id="posHistoryCancelDraft" class="btn danger small">Annuler ce brouillon (aucune vente)</button></div><div id="posHistoryCancelConfirm" class="hidden" role="status"></div>':'')+
  (order.status==="paid"?'<div class="panel" style="margin-top:12px"><div class="panel-head"><h2>↩ Demande de retour</h2></div><div class="panel-body"><div class="field"><label>Article</label><select id="returnItem">'+lines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div><div class="field"><label>Motif</label><textarea id="returnReason" maxlength="500" placeholder="Motif du retour"></textarea></div><label class="check-row"><input type="checkbox" id="returnRestock">Demander la remise en rayon après inspection</label><div class="actions"><button id="returnRequest" class="btn ghost">Enregistrer la demande</button></div><div id="returnResult"></div></div></div>':'')+
+ (order.status==="paid"&&order.payment_method==="square"&&activeLines.length?'<div class="panel" style="margin-top:12px;border:1px solid #d6bdbd"><div class="panel-head"><h2>Annuler une vente Square déjà remboursée</h2></div><div class="panel-body"><p class="caption">Cette opération annule la vente dans Milou, corrige la part consignateur et remet les articles en stock. Elle NE rembourse PAS le client dans Square.</p><div class="field"><label>Motif de l’annulation</label><input id="posSquareCancelReason" maxlength="500" placeholder="Ex. Vente test remboursée dans Square"></div><label class="check-row"><input id="posSquareRefundAttest" type="checkbox"> Je confirme que le remboursement intégral a été effectué dans Square et correspond à cette vente.</label><label class="check-row"><input id="posSquareRestock" type="checkbox" checked> Remettre les articles en stock après inspection</label><button id="posSquareCancelSale" type="button" class="btn danger">Annuler dans Milou — aucun remboursement Square</button><div id="posSquareCancelResult" role="status"></div></div></div>':'')+
  (order.status==="paid"&&order.payment_method==="cash"&&activeLines.length?'<div class="panel" style="margin-top:12px;border:1px solid #d6bdbd"><div class="panel-head"><h2>Annuler la vente en espèces</h2></div><div class="panel-body"><p class="caption">Pour les tests ou une erreur de caisse : la vente est contrepassée, les articles remis en stock et les parts des consignateurs annulées si aucun versement n’est déjà engagé. Aucun mouvement d’argent physique n’est réalisé.</p><div class="field"><label>Motif d’annulation</label><input id="posCashCancelReason" maxlength="500" placeholder="Ex. Annulation vente de test"></div><button id="posCashCancelSale" type="button" class="btn danger">Annuler cette vente et remettre en stock</button><div id="posCashCancelResult" role="status"></div></div></div>':'')+
  (order.status==="sold"?'<div class="panel"><div class="panel-head"><h2>Corriger une vente</h2></div><div class="panel-body">'+
  '<div class="field"><label>Article à retourner</label><select id="posAdjustItem">'+activeLines.map(x=>'<option value="'+esc(x.item_id)+'">'+esc(x.sku+' — '+(x.item_title||"Article"))+'</option>').join("")+'</select></div>'+
@@ -3051,6 +3052,24 @@ async function showPosHistoryDetail(id){
  };
 
 
+ if(order.status==="paid"&&order.payment_method==="square"&&activeLines.length){
+  $("posSquareCancelSale").onclick=async()=>{
+   const reason=$("posSquareCancelReason").value.trim(),btn=$("posSquareCancelSale");
+   if(reason.length<5){note($("posSquareCancelResult"),"Indique un motif d’au moins 5 caractères.","warn");return}
+   if(!$("posSquareRefundAttest").checked){note($("posSquareCancelResult"),"Confirme le remboursement dans Square avant de procéder.","warn");return}
+   if(!window.confirm("Confirmer l'annulation dans Milou seulement ? Aucun remboursement bancaire ne sera effectué. Les articles et les commissions seront corrigés."))return;
+   btn.disabled=true;
+   try{
+    const {data,error}=await sb.rpc("milou_pos_reverse_sale",{p_order_id:id,p_item_id:null,p_reason:reason,p_restock:$("posSquareRestock").checked});
+    if(error)throw error;
+    if(!data?.reversed_count)throw new Error("Aucune contrepassation confirmée");
+    await refreshAll();
+    await loadPosHistory();
+    await loadPosReturns();
+    note($("posHistoryMessage"),"Vente annulée dans Milou; stock et commissions corrigés. Remboursement Square à conserver comme preuve.");
+   }catch(e){note($("posSquareCancelResult"),"Annulation impossible : "+esc(e.message||String(e)),"err");btn.disabled=false}
+  };
+ }
  if(order.status==="paid"&&order.payment_method==="cash"&&activeLines.length){
   $("posCashCancelSale").onclick=async()=>{
    const reason=$("posCashCancelReason").value.trim(),button=$("posCashCancelSale");
