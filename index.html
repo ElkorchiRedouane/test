@@ -810,11 +810,12 @@ async function loadLocations(){
  if(error)throw new Error("Emplacements : "+error.message);
  locations=data||[];
 }
+function depositFilterLabel(d){return (d.code||"Dépôt")+" — "+(d.consignors?.full_name||consignors.find(c=>c.id===d.consignor_id)?.full_name||"Sans consignateur");}
 function fillFilters(){
  const opts=consignors.filter(c=>c.status==="active").map(c=>'<option value="'+c.id+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("");
  if($("depositConsignorFilter"))$("depositConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;
  if($("stockConsignorFilter"))$("stockConsignorFilter").innerHTML='<option value="">Tous consignateurs</option>'+opts;
- if($("stockDepositFilter"))$("stockDepositFilter").innerHTML='<option value="">Tous dépôts</option>'+deposits.filter(d=>d.status!=="deleted").map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||"Dépôt")+'</option>').join("");
+ if($("stockDepositFilter"))$("stockDepositFilter").innerHTML='<option value="">Tous dépôts</option>'+deposits.filter(d=>d.status!=="deleted").map(d=>'<option value="'+esc(d.id)+'">'+esc(depositFilterLabel(d))+'</option>').join("");
  // Payout choices are set by renderPayouts; never overwrite them here.
 }
 function renderStats(){
@@ -2006,7 +2007,7 @@ function labelVisibleItems(){
 function renderLabelOptions(){
  const select=$("labelsDeposit"),value=select.value;
  const options=deposits.filter(d=>(d.items||[]).length>0);
- select.innerHTML='<option value="">Tous les articles disponibles</option>'+options.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.code||d.id)+' — '+(d.items||[]).filter(i=>labelAvailableItems().some(x=>x.id===i.id)).length+' étiquette(s) disponible(s)</option>').join("");
+ select.innerHTML='<option value="">Tous les articles disponibles</option>'+options.map(d=>'<option value="'+esc(d.id)+'">'+esc(depositFilterLabel(d))+' — '+(d.items||[]).filter(i=>labelAvailableItems().some(x=>x.id===i.id)).length+' étiquette(s) disponible(s)</option>').join("");
  select.value=options.some(d=>d.id===value)?value:"";
  renderLabelList();
 }
