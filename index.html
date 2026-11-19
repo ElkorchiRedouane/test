@@ -275,8 +275,8 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
-    <div class="actions" style="margin:0 0 12px"><button id="stockLabels" class="btn green small">▥ Étiquettes codes-barres</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
-    <div id="locationSummary" class="notice hidden"></div>
+    <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Brother · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
+    <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
@@ -337,7 +337,7 @@ details.milou-secondary .panel{margin:10px 0 0}
    <h3 style="margin:0 0 6px">💵 Paiement en espèces</h3>
    <p class="caption" style="margin:0 0 10px">Vente réelle : confirme les espèces reçues, calcule la monnaie à rendre, puis enregistre la vente, le stock et la part consignateur.</p>
    <div class="field"><label for="posModernCashReceived">Montant reçu du client ($)</label>
-    <input id="posModernCashReceived" inputmode="decimal" autocomplete="off" placeholder="Ex. 20,00" aria-describedby="posModernCashChange"></div>
+    <input id="posModernCashReceived" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9]+([.,][0-9]{1,2})?" placeholder="Saisir le montant reçu, ex. 20,00" aria-describedby="posModernCashChange"></div>
    <div class="actions" id="posModernCashShortcuts"><button id="posModernCashExact" type="button" class="btn ghost small">Montant exact</button><button class="btn ghost small" type="button" data-value="20">20 $</button><button class="btn ghost small" type="button" data-value="50">50 $</button><button class="btn ghost small" type="button" data-value="100">100 $</button></div>
    <div id="posModernCashChange" class="caption" aria-live="polite">Ajoute un article pour calculer le montant.</div>
    <button id="posModernConfirm" type="button" class="pos-confirm" disabled>💵 CONFIRMER LA VENTE EN ESPÈCES</button>
@@ -2175,6 +2175,21 @@ function printMilouLabels(){
  note($("labelsStatus"),items.length+" étiquette(s) préparée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante. La génération ne garantit pas une impression physique.");
  void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error){console.warn("Historique étiquettes",error);note($("labelsStatus"),"Étiquettes préparées, mais suivi de génération non enregistré : "+esc(error.message),"warn")}else void refreshAll()});
 }
+$("stockPickVisible").onclick=()=>{
+ const checkItems=new Set(labelAvailableItems().map(i=>i.id));
+ document.querySelectorAll("#stockList .stockLabelPick").forEach(el=>{if(checkItems.has(el.dataset.id))selectedLabelIds.add(el.dataset.id)});
+ renderStock();
+};
+$("stockPickClear").onclick=()=>{selectedLabelIds.clear();renderStock();};
+$("stockPrintBrother").onclick=()=>{
+ if(!selectedLabelIds.size)return;
+ $("labelsFormat").value="brother-dk1201";
+ $("labelsStatus").textContent="";
+ printMilouLabels();
+ const msg=$("labelsStatus").textContent.trim();
+ if(msg)note($("stockLabelsStatus"),msg);
+ else note($("stockLabelsStatus"),"PDF Brother demandé pour "+selectedLabelIds.size+" article(s). Vérifie les téléchargements.");
+};
 $("stockLabels").onclick=()=>{renderLabelOptions();go("labels")};
 $("labelsBack").onclick=()=>go("stock");
 $("labelsDeposit").onchange=()=>{labelPreviewItemId=null;$("labelsStatus").innerHTML="";renderLabelList();if(!$("labelsPreview").classList.contains("hidden"))previewMilouLabel()};
@@ -2554,12 +2569,20 @@ function closeStockItemDetails(){$("articleInfoModal").classList.add("hidden")}
 $("articleInfoClose").onclick=closeStockItemDetails;
 $("articleInfoModal").addEventListener("click",e=>{if(e.target===$("articleInfoModal"))closeStockItemDetails()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("articleInfoModal").classList.contains("hidden"))closeStockItemDetails()});
+function stockUpdateLabelCount(){
+ const valid=new Set(labelAvailableItems().map(item=>item.id));
+ for(const id of selectedLabelIds)if(!valid.has(id))selectedLabelIds.delete(id);
+ const count=selectedLabelIds.size;
+ const btn=$("stockPrintBrother");if(btn){btn.disabled=count===0;btn.textContent="🖨 Brother · "+count;}
+ const status=$("stockLabelsStatus");if(status)status.textContent=count+" article(s) sélectionné(s) pour les étiquettes.";
+}
 function renderStock(){
  const q=($("stockSearch")?.value||"").toLowerCase(),st=$("stockStatusFilter")?.value||"",sz=$("stockSizeFilter")?.value||"",cid=$("stockConsignorFilter")?.value||"",did=$("stockDepositFilter")?.value||"",date=$("stockDateFilter")?.value||"";
  const rows=stock.filter(i=>{
    const text=[i.sku,i.title,i.brand,i.size,i.location_code,i.deposits?.code,i.consignors?.full_name,shopifyNumber(i.shopify_product_id)].join(" ").toLowerCase();
    return (!q||text.includes(q))&&(st?i.status===st:i.status!=="deleted_milou")&&(!sz||i.age_band===sz)&&(!cid||i.consignors?.id===cid)&&(!did||i.deposits?.id===did)&&(!date||String(i.created_at||"").slice(0,10)===date);
  });
+ stockUpdateLabelCount();
  const counts={};stock.filter(i=>!["sold","returned","rejected","archived","deleted_shopify","deleted_milou"].includes(i.status)).forEach(i=>{if(i.location_code)counts[i.location_code]=(counts[i.location_code]||0)+1});
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques (stock actif, hors articles supprimés ou archivés) :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>{
@@ -2569,11 +2592,17 @@ function renderStock(){
      : (!i.shopify_product_id
      ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
      : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')));
-   return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
+   const printable=["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at&&!!i.sku;
+   const pick=printable?'<label style="display:flex;align-items:center;padding:4px;cursor:pointer"><input type="checkbox" class="stockLabelPick" data-id="'+esc(i.id)+'" aria-label="Imprimer une étiquette pour '+esc(i.sku)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+' style="width:23px;height:23px"></label>':'';
+   return '<div class="row">'+pick+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
    '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — Détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • '+esc(i.size||"—")+' • Ajout '+esc(milouLabelDate(i.created_at))+'</small>'+
    '<div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_status?'<span class="badge gray">'+esc(i.shopify_status)+'</span>':'')+(i.shopify_inventory!=null?'<span class="badge gray">Stock Shopify '+i.shopify_inventory+'</span>':'')+'</div></div>'+
    '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
  }).join(""):'<div class="empty">Aucun article.</div>';
+ document.querySelectorAll(".stockLabelPick").forEach(el=>el.onchange=()=>{
+  if(el.checked)selectedLabelIds.add(el.dataset.id);else selectedLabelIds.delete(el.dataset.id);
+  stockUpdateLabelCount();
+ });
  document.querySelectorAll(".stockDetails").forEach(b=>b.onclick=()=>showStockItemDetails(b.dataset.id));
  document.querySelectorAll(".retryShopify").forEach(b=>b.onclick=()=>retryShopify(b.dataset.id));
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id));
@@ -3852,9 +3881,8 @@ function renderPosModern(){
  const b=$("posModernConfirm"),input=$("posModernCashReceived"),status=$("posModernCashChange");
  if(!b||!input)return;
  const total=posCartCents();
- if(input.dataset.userEdited!=="yes"&&document.activeElement!==input){
-  input.value=posCartIds.length?(total/100).toFixed(2):"";
- }
+ // Cash is never implicitly assumed received: the cashier enters the amount
+ // or explicitly chooses a quick amount / exact amount.
  const received=posCentsFromInput(input.value);
  const hasPendingSquare=!!squarePending()&&squarePending()?.orderId===posDraftOrderId;
  const canSell=posLiveCashEnabled&&!posModernBusy&&!posCashBusy&&posCartIds.length>0&&!hasPendingSquare
