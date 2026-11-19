@@ -234,10 +234,8 @@ details.milou-secondary .panel{margin:10px 0 0}
   
   <div class="actions" style="margin-top:0">
     <button id="openCamera" type="button" class="btn green">📷 Ouvrir la caméra</button>
-    <label class="btn ghost" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">
-      🖼️ Photothèque
-      <input id="galleryPhotos" type="file" accept="image/*" multiple style="display:none">
-    </label>
+    <button id="openGallery" class="btn ghost" type="button">🖼️ Photothèque</button>
+    <input id="galleryPhotos" type="file" accept="image/*,.heic,.heif" multiple aria-label="Choisir des photos" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden">
   </div>
 </div>
 <div id="photoPreview" class="photos"></div>
@@ -1718,13 +1716,18 @@ async function rotatePhotoAt(index){
   finally{setPhotoProcessing(-1)}
 }
 async function addPhotos(files){
-  const incoming=Array.from(files||[]).filter(f=>f.type.startsWith("image/"));
+  const chosen=Array.from(files||[]);
+  const incoming=chosen.filter(f=>f.type.startsWith("image/")||/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.name));
+  let added=0;
   for(const original of incoming){
     if(photos.length>=8){toast("Maximum 8 photos");break}
+    if(!original.size){continue}
     photoMeta.set(original,{ready:true,bytes:original.size,raw:true,originalFile:original});
-    photos.push(original);
+    photos.push(original);added++;
   }
   renderPhotos();updateCameraCount();
+  if(added)toast(added+" photo"+(added>1?"s":"")+" ajoutée"+(added>1?"s":""));
+  else if(chosen.length)toast("Aucune photo compatible. Essaie une image JPEG ou PNG.");
 }
 function renderPhotos(){
   const el=$("photoPreview");
@@ -1767,7 +1770,14 @@ function renderPhotos(){
     el.appendChild(card);
   });
 }
-$("galleryPhotos").onchange=async e=>{const files=e.target.files;e.target.value="";await addPhotos(files)};
+$("openGallery").onclick=()=>{$("galleryPhotos").click()};
+$("galleryPhotos").addEventListener("change",async e=>{
+ // FileList may be live. Copy File objects before resetting the input so Safari/Chrome cannot clear the selection.
+ const input=e.currentTarget;
+ const selected=Array.from(input.files||[]);
+ input.value="";
+ if(selected.length)await addPhotos(selected);
+});
 
 let cameraStream=null;
 async function openCameraSession(){
