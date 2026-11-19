@@ -565,6 +565,7 @@ async function authState(){
    window.history.replaceState({milouPage:destination},"",window.location.pathname+window.location.search+"#"+destination);
    go(destination,{history:false});
    await handleSquareReturnAfterLogin();
+   await showSquareDraftRecovery();
   }catch(e){
    $("app").classList.add("hidden");$("login").classList.remove("hidden");
    note($("authMsg"),"Chargement impossible : "+esc(e.message||String(e)),"err");
@@ -3288,6 +3289,60 @@ async function restoreSquareCart(){
  posDraftOrderId=pending.orderId;
  renderPosCart();
 }
+// Server-side recovery for a Square checkout started before this iPad's PWA
+// could persist its local pending marker (or when the callback opened in Safari).
+let squareDraftRecoveryBusy=false;
+function ensureSquareDraftRecoveryPanel(){
+ let panel=$("posSquareDraftRecovery");
+ if(panel)return panel;
+ panel=document.createElement("div");
+ panel.id="posSquareDraftRecovery";
+ panel.className="notice warn";
+ panel.style.cssText="margin:12px 0;padding:12px;border-radius:12px;";
+ panel.hidden=true;
+ $("posScanStatus").insertAdjacentElement("afterend",panel);
+ return panel;
+}
+async function showSquareDraftRecovery(){
+ if(squareDraftRecoveryBusy||squarePending()||squareReturn()?.status==="ok"||$("app").classList.contains("hidden"))return;
+ const panel=ensureSquareDraftRecoveryPanel();
+ squareDraftRecoveryBusy=true;
+ try{
+  const session=await ensureFreshSession();
+  if(!session)return;
+  const since=new Date(Date.now()-36*60*60*1000).toISOString();
+  const {data,error}=await sb.from("milou_pos_orders")
+   .select("id,status,created_at,subtotal_cents,created_by")
+   .eq("created_by",session.user.id).eq("status","draft")
+   .gte("created_at",since).order("created_at",{ascending:false}).limit(12);
+  if(error)throw error;
+  const drafts=(data||[]).filter(o=>o.subtotal_cents>0);
+  if(!drafts.length){panel.hidden=true;return}
+  panel.hidden=false;
+  panel.innerHTML='<b>⚠️ Paniers Square à vérifier</b><div class="caption">Un paiement peut avoir été encaissé alors que la vente est encore en brouillon. Ne fais pas payer deux fois. Choisis le panier correspondant au reçu Square.</div>'+
+   drafts.map(o=>'<div style="margin-top:9px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span><strong>'+money(Number(o.subtotal_cents)/100)+'</strong><small style="display:block">'+esc(formatQuebecDateTime(o.created_at))+' · '+esc(o.id.slice(0,8))+'</small></span><button type="button" class="btn ghost small squareRecoverDraft" data-id="'+esc(o.id)+'">Récupérer</button></div>').join("");
+  panel.querySelectorAll("button.squareRecoverDraft").forEach(button=>button.onclick=async()=>{
+   const order=drafts.find(o=>o.id===button.dataset.id);
+   if(!order)return;
+   button.disabled=true;
+   try{
+    const pendingData=JSON.stringify({orderId:order.id,total:order.subtotal_cents,startedAt:Date.now()});
+    sessionStorage.setItem("milou_square_pending",pendingData);
+    localStorage.setItem("milou_square_pending",pendingData);
+    // Do not mark the draft as paid or auto-run verification: the operator must
+    // explicitly choose the matching receipt and click Verify.
+    await restoreSquareCart();
+    if(posDraftOrderId!==order.id)throw new Error("Panier non récupéré : vérifie les articles et réessaie.");
+    renderSquareVerification();
+    panel.hidden=true;
+    note($("posModernStatus"),"Panier récupéré. Si le paiement figure déjà dans Square, appuie sur « Vérifier le paiement dans Square » sans réencaisser.","warn");
+   }catch(e){clearSquarePending();note($("posModernStatus"),"Récupération impossible : "+esc(e.message||String(e)),"err");button.disabled=false}
+  });
+ }catch(e){
+  panel.hidden=false;
+  panel.textContent="Impossible de rechercher les paniers Square : "+String(e.message||e);
+ }finally{squareDraftRecoveryBusy=false}
+}
 function renderSquareVerification(){
  const result=squareReturn(),button=$("posSquareIosVerify"),warn=$("posSquareIosWarning");
  if(!button||!warn)return;
@@ -3720,6 +3775,7 @@ async function resumeMilouApp(){
       $("userEmail").textContent=session.user.email||"";
       await refreshAll();
       await handleSquareReturnAfterLogin();
+   await showSquareDraftRecovery();
       await testShopifyConnection();
     }else{
       $("login").classList.remove("hidden");
