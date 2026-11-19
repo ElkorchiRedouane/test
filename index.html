@@ -2963,9 +2963,46 @@ function renderPosHistory(){
  const orders=posHistoryOrders.filter(x=>filter==="all"||x.status===filter);
  $("posHistoryList").innerHTML=orders.length?orders.map(o=>
  '<div class="row" style="align-items:center"><div class="row-main"><b>'+esc(posOrderStatus(o.status))+'</b><small>'+esc(formatQuebecDateTime(o.completed_at||o.created_at))+' • '+esc(o.id.slice(0,8))+'</small></div>'+
- '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong><button class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
+ '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong>'+(o.status==="draft"?'<button type="button" class="btn green small posHistoryResume" data-id="'+esc(o.id)+'">↩ Reprendre</button>':'')+'<button class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
  ).join(""):'<div class="empty">Aucune commande dans cette catégorie.</div>';
  document.querySelectorAll(".posHistoryDetails").forEach(b=>b.onclick=()=>showPosHistoryDetail(b.dataset.id));
+ document.querySelectorAll(".posHistoryResume").forEach(b=>b.onclick=async()=>{
+  b.disabled=true;
+  try{await resumePosDraft(b.dataset.id)}
+  finally{if(b.isConnected)b.disabled=false}
+ });
+}
+// Only unpaid draft orders can be resumed. Never silently replace a live cart.
+async function resumePosDraft(id,knownLines=null){
+ try{
+  const {data:order,error:orderError}=await sb.from("milou_pos_orders").select("id,status,subtotal_cents,total_cents").eq("id",id).single();
+  if(orderError)throw orderError;
+  if(order?.status!=="draft"){note($("posHistoryMessage"),"Ce panier n'est plus en cours : actualise l'historique.","warn");await loadPosHistory();return}
+  let lines=knownLines;
+  if(!lines){
+   const {data,error}=await sb.from("milou_pos_order_items").select("item_id,sku,item_title,price_cents").eq("order_id",id);
+   if(error)throw error;
+   lines=data||[];
+  }
+  const ids=lines.map(line=>line.item_id);
+  const eligible=lines.length>0&&new Set(ids).size===lines.length&&lines.every(line=>stock.some(item=>
+   item.id===line.item_id&&!item.deleted_at&&["validated","shopify_draft","online"].includes(item.status)&&
+   Math.round(Number(item.sale_price||0)*100)===Number(line.price_cents)
+  ));
+  if(!eligible){note($("posHistoryMessage"),"Impossible de reprendre : article vendu, indisponible, en double ou prix modifié. Vérifie les détails.","err");return}
+  if(posCartIds.length&&!(posDraftOrderId===id&&posCartIds.length===ids.length&&ids.every(x=>posCartIds.includes(x)))){
+   if(!window.confirm("Un panier est déjà en cours en caisse. Le remplacer par le panier sélectionné ? Le panier actuel ne sera pas encaissé."))return;
+  }
+  // No data is modified in the database while resuming an unpaid draft.
+  posCartIds=ids;
+  posClearPrepared();
+  posDraftOrderId=id;
+  $("posSquareAmount").value=(Number(order.subtotal_cents||0)/100).toFixed(2);
+  $("posScanSuccess").classList.add("hidden");
+  go("cashier");
+  renderPosCart();updateSquareManualButton();
+  note($("posPreparedStatus"),"Panier repris depuis l'historique. Vérifie le total avant le paiement.");
+ }catch(e){note($("posHistoryMessage"),"Impossible de reprendre le panier : "+esc(e.message||String(e)),"err")}
 }
 async function showPosHistoryDetail(id){
  const order=posHistoryOrders.find(o=>o.id===id);
@@ -3061,20 +3098,7 @@ async function showPosHistoryDetail(id){
   $("posAdjustCorrect").onclick=()=>adjust("correct");
  }
 
- if(order.status==="draft")$("posHistoryResumeDraft").onclick=()=>{
-  const eligible=lines.length>0&&lines.every(line=>stock.some(item=>item.id===line.item_id&&["validated","shopify_draft","online"].includes(item.status)&&Math.round(Number(item.sale_price||0)*100)===Number(line.price_cents)));
-  if(!eligible){note($("posHistoryMessage"),"Impossible de reprendre ce panier : un article est absent, vendu ou son prix a changé.","err");return;}
-  posCartIds=lines.map(x=>x.item_id);
-  posDraftOrderId=id;
-  $("posSquareReceipt").innerHTML="";
-  $("posSquareStatus").textContent="";
-  $("posSquareAmount").value=(Number(order.subtotal_cents)/100).toFixed(2);
-  $("posSquareReference").value="";
-  $("posSquareAttest").checked=false;
-  go("cashier");
-  renderPosCart();updateSquareManualButton();
-  note($("posPreparedStatus"),"Panier repris. Ajoutez ou retirez des articles, puis confirmez la vente.");
- };
+ if(order.status==="draft")$("posHistoryResumeDraft").onclick=()=>resumePosDraft(id,lines);
  if(order.status==="draft")$("posHistoryCancelDraft").onclick=()=>{
   const surface=$("posHistoryCancelConfirm");
   surface.classList.remove("hidden");
