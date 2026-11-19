@@ -242,7 +242,7 @@ details.milou-secondary .panel{margin:10px 0 0}
 </div>
 <div id="photoPreview" class="photos"></div>
       <div class="note-row" style="margin-top:12px"><div class="field"><label>Note libre</label><textarea id="rawText" placeholder="Gap fille 6 ans hoodie bleu très bon état 14$ petite trace manche bac A3"></textarea></div><button id="micBtn" class="mic" title="Dicter">🎙️</button></div>
-      <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div>
+      <div class="actions"><button id="analyzeBtn" class="btn green">✨ Analyser</button></div><p class="caption">Astuce : photographie aussi l’étiquette intérieure pour identifier correctement la marque et la taille. Sinon, ces champs resteront vides.</p>
       <div id="analysisMsg"></div>
     </div></div>
 
@@ -1817,14 +1817,14 @@ $("cameraShutter").onclick=async()=>{
   }catch(e){toast("La photo n’a pas pu être préparée")}
   finally{setPhotoProcessing(-1);btn.disabled=false}
 };
-async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=720,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c.toDataURL("image/jpeg",.58))};img.onerror=()=>{URL.revokeObjectURL(url);resolve(null)};img.src=url})}
+async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=1400,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c.toDataURL("image/jpeg",.8))};img.onerror=()=>{URL.revokeObjectURL(url);resolve(null)};img.src=url})}
 $("analyzeBtn").onclick=async()=>{
  if(photoProcessing>0){toast("Attends une seconde, les photos sont encore en préparation");return}
  const text=$("rawText").value.trim();
  if(!text&&!photos.length){toast("Ajoute une photo ou une note");return}
  $("analyzeBtn").disabled=true;$("analyzeBtn").textContent="Préparation…";
- note($("analysisMsg"),"Analyse des photos et préparation de la fiche Shopify…","");
- const images=(await Promise.all(photos.slice(0,3).map(imageDataUrl))).filter(Boolean);
+ note($("analysisMsg"),"Identification du vêtement et lecture des étiquettes (marque, taille) si elles sont visibles…","");
+ const images=(await Promise.all(photos.slice(0,4).map(imageDataUrl))).filter(Boolean);
  $("analyzeBtn").textContent="Analyse IA…";
  const started=performance.now();
  const{data,error}=await sb.functions.invoke("analyze-item",{body:{text,images}});
@@ -1836,17 +1836,26 @@ $("analyzeBtn").onclick=async()=>{
  $("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");
  const warnings=data?.data?.warnings||[];
  note($("analysisMsg"),
-   (data?.message||("Fiche remplie en "+sec+" s. Vérifie surtout taille, état et prix."))+
+   (data?.message||("Analyse terminée en "+sec+" s. Les champs non confirmés restent vides : vérifie-les avant d’enregistrer."))+
    (warnings.length?("<br><small>À vérifier : "+esc(warnings.join(" • "))+"</small>"):""),
    data?.mode==="fallback"?"warn":""
  );
 };
 function fillAnalysis(x){
- const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fPrice:"sale_price",fLocation:"location_code",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};
- Object.entries(m).forEach(([id,k])=>{if(x[k]!=null&&x[k]!=="")$(id).value=x[k]});
- if((!$("fPrice").value||Number($("fPrice").value)===0)&&x.suggested_price!=null)$("fPrice").value=x.suggested_price;
- if(x.description_html){
-   $("fDescription").value=x.description_html
+ // Never carry previous unverified guesses into the next analysis.
+ const m={fTitle:"title",fBrand:"brand",fCategory:"category",fSize:"size",fCondition:"condition",fSection:"section",fAge:"age_band",fColor:"color",fSeason:"season",fMaterial:"material",fDefects:"defects"};
+ Object.entries(m).forEach(([id,k])=>{
+   if(!Object.prototype.hasOwnProperty.call(x,k))return;
+   const val=x[k]??"";
+   if(id==="fCategory")$(id).value=val||"Autre";
+   else if(id==="fSeason")$(id).value=val||"Toute saison";
+   else $(id).value=val;
+ });
+ // A manually entered price or location is retained if the AI cannot verify it.
+ if(x.sale_price!=null&&Number.isFinite(Number(x.sale_price)))$("fPrice").value=x.sale_price;
+ if(x.location_code)$("fLocation").value=x.location_code;
+ if(Object.prototype.hasOwnProperty.call(x,"description_html")){
+   $("fDescription").value=String(x.description_html||"")
      .replace(/<br\s*\/?>/gi,"\n")
      .replace(/<\/p>/gi,"\n\n")
      .replace(/<li>/gi,"• ")
@@ -1856,10 +1865,7 @@ function fillAnalysis(x){
      .replace(/&amp;/g,"&")
      .replace(/&lt;/g,"<")
      .replace(/&gt;/g,">")
-     .replace(/Pièce unique de seconde main\s*[—-]?\s*disponible en un seul exemplaire\.?/gi,"")
-     .replace(/Disponible en un seul exemplaire\.?/gi,"")
-     .replace(/\n{3,}/g,"\n\n")
-     .trim();
+     .replace(/\n{3,}/g,"\n\n").trim();
  }
 }
 let recorder=null,audioChunks=[],micStream=null,micStartedAt=0;
