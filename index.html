@@ -2964,7 +2964,7 @@ function renderPosHistory(){
  const orders=posHistoryOrders.filter(x=>filter==="all"||x.status===filter);
  $("posHistoryList").innerHTML=orders.length?orders.map(o=>
  '<div class="row" style="align-items:center"><div class="row-main"><b>'+esc(posOrderStatus(o.status))+'</b><small>'+esc(formatQuebecDateTime(o.completed_at||o.created_at))+' • '+esc(o.id.slice(0,8))+'</small></div>'+
- '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong>'+(o.status==="draft"?'<button type="button" class="btn green small posHistoryResume" data-id="'+esc(o.id)+'">↩ Reprendre</button>':'')+'<button class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
+ '<div class="row-actions"><strong>'+money(Number(o.total_cents??o.subtotal_cents)/100)+'</strong>'+(o.status==="draft"?'<button type="button" class="btn green small posHistoryResume" data-id="'+esc(o.id)+'">↩ Reprendre</button>':'')+(o.status==="paid"&&o.payment_method==="square"?'<button type="button" class="btn danger small posHistorySquareCancel" data-id="'+esc(o.id)+'">↩ Annuler après remboursement</button>':'')+'<button type="button" class="btn ghost small posHistoryDetails" data-id="'+esc(o.id)+'">Détails</button></div></div>'
  ).join(""):'<div class="empty">Aucune commande dans cette catégorie.</div>';
  // Event delegation keeps Details buttons reliable after re-rendering on iPad.
  document.querySelectorAll(".posHistoryResume").forEach(b=>b.onclick=async()=>{
@@ -2973,6 +2973,25 @@ function renderPosHistory(){
   finally{if(b.isConnected)b.disabled=false}
  });
 }
+$("posHistoryList").addEventListener("click",async event=>{
+ const button=event.target.closest("button.posHistorySquareCancel");
+ if(!button||!$("posHistoryList").contains(button))return;
+ event.preventDefault();
+ const order=posHistoryOrders.find(o=>o.id===button.dataset.id);
+ if(!order||order.status!=="paid"||order.payment_method!=="square")return;
+ button.disabled=true;
+ try{
+  await showPosHistoryDetail(order.id);
+  const cancellation=$("posSquareCancelSale");
+  if(cancellation){
+   cancellation.scrollIntoView({behavior:"auto",block:"center"});
+   cancellation.focus({preventScroll:true});
+  }else{
+   note($("posHistoryMessage"),"Le formulaire d’annulation n’est pas disponible pour cette vente. Vérifie que les articles n’ont pas déjà fait l’objet d’un retour.","warn");
+  }
+ }catch(e){note($("posHistoryMessage"),"Détails indisponibles : "+esc(e.message||String(e)),"err")}
+ finally{if(button.isConnected)button.disabled=false;}
+});
 $("posHistoryList").addEventListener("click",async event=>{
  const button=event.target.closest("button.posHistoryDetails");
  if(!button||!$("posHistoryList").contains(button))return;
