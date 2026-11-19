@@ -610,7 +610,7 @@ function go(id,options={}){
  if(id==="deposits"){if(options.keepDepositDetail!==true)$("depositDetail").innerHTML="";renderDeposits();}
  if(id==="consignors")renderConsignors();
  if(id==="payouts")renderPayouts();
- if(id==="cashier")requestAnimationFrame(()=>{if($("cashier").classList.contains("active"))$("posSku").focus({preventScroll:true})});
+ if(id==="cashier")requestAnimationFrame(posWakeScannerFocus);
  if(id==="poshistory"){void loadPosHistory();void loadPosReturns()}
  if(options.history!==false && window.history.state?.milouPage!==id){
   window.history.pushState({milouPage:id},"","#"+id);
@@ -3311,6 +3311,29 @@ $("posSquareReceiptDemo").onclick=()=>{
 };
 $("posAdd").onclick=()=>addPosSku();
 // Lecture NETUM en mode clavier Bluetooth : ajout automatique après saisie du SKU.
+// Restore the POS scanner input after browser inactivity without interrupting other forms.
+function posScannerReady(){
+ return document.visibilityState==="visible"&&!$("app").classList.contains("hidden")&&$("cashier").classList.contains("active");
+}
+function posScannerEditable(target){
+ return !!(target?.isContentEditable||target?.matches?.("input,textarea,select")||target?.closest?.('[contenteditable="true"],.modal:not(.hidden)'));
+}
+function posScannerStatus(message){
+ const status=$("posScanStatus");if(status)status.textContent=message;
+}
+function posWakeScannerFocus(){
+ if(!posScannerReady())return;
+ const active=document.activeElement;
+ if(active===$("posSku")){posScannerStatus("Lecteur prêt : scanne une étiquette.");return}
+ if(posScannerEditable(active)){
+  posScannerStatus("Pour scanner, clique sur « Code de l’article » ou ferme la saisie en cours.");
+  return;
+ }
+ try{$("posSku").focus({preventScroll:true})}catch(e){}
+ posScannerStatus(document.activeElement===$("posSku")?"Lecteur prêt : scanne une étiquette.":"Scanner : clique sur « Code de l’article » avant de lire.");
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")requestAnimationFrame(posWakeScannerFocus)});
+window.addEventListener("focus",()=>requestAnimationFrame(posWakeScannerFocus));
 let posAutoScanTimer=null;
 function acceptPosKeyboardScan(){
  clearTimeout(posAutoScanTimer);posAutoScanTimer=null;
@@ -3326,6 +3349,7 @@ function acceptPosKeyboardScan(){
   posScanFeedback("✓ Article ajouté : "+sku);
  }
 }
+$("posSku").addEventListener("focus",()=>{if(posScannerReady())posScannerStatus("Lecteur prêt : scanne une étiquette.");});
 $("posSku").addEventListener("input",()=>{
  clearTimeout(posAutoScanTimer);
  const sku=$("posSku").value.trim().toUpperCase();
@@ -3340,30 +3364,31 @@ function flushPosHidBuffer(){
  const value=posHidBuffer.trim().toUpperCase();
  posHidBuffer="";
  clearTimeout(posHidIdleTimer);posHidIdleTimer=null;
- if(!/^MIL-[A-Z0-9-]{3,35}$/.test(value))return;
- $("posSku").value=value;
+ const match=value.match(/MIL-[A-Z0-9-]{3,35}$/);
+ if(!match){if(value.includes("MIL"))posScannerStatus("Lecture incomplète après la veille : scanne de nouveau.");return}
+ $("posSku").value=match[0];
  acceptPosKeyboardScan();
 }
 document.addEventListener("keydown",event=>{
- if(!$("cashier").classList.contains("active")||$("app").classList.contains("hidden"))return;
+ if(!posScannerReady())return;
  if(event.ctrlKey||event.metaKey||event.altKey||event.isComposing)return;
  const target=event.target;
  if(target=== $("posSku"))return; // Gestion du champ existant, pas de double ajout.
- if(target?.isContentEditable||target?.matches?.("input,textarea,select"))return;
+ if(posScannerEditable(target))return;
  if(target?.closest?.(".modal:not(.hidden)"))return;
  if(event.key==="Enter"||event.key==="Tab"){
-  if(posHidBuffer.startsWith("MIL-")){event.preventDefault();flushPosHidBuffer()}
+  if(/MIL-[A-Z0-9-]{3,35}$/.test(posHidBuffer)){event.preventDefault();flushPosHidBuffer()}
   else posHidBuffer="";
   return;
  }
  if(event.key.length!==1||!/^[a-zA-Z0-9-]$/.test(event.key))return;
  const now=performance.now();
- if(now-posHidLastAt>140)posHidBuffer="";
+ if(now-posHidLastAt>400)posHidBuffer="";
  posHidLastAt=now;
  posHidBuffer+=event.key.toUpperCase();
  if(posHidBuffer.length>48)posHidBuffer=posHidBuffer.slice(-48);
  clearTimeout(posHidIdleTimer);
- posHidIdleTimer=setTimeout(flushPosHidBuffer,220);
+ posHidIdleTimer=setTimeout(flushPosHidBuffer,480);
 },true);
 
 $("posSku").onkeydown=e=>{
