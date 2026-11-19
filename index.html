@@ -3327,7 +3327,8 @@ $("posSquareReceiptDemo").onclick=()=>{
 };
 $("posAdd").onclick=()=>addPosSku();
 // Lecture NETUM en mode clavier Bluetooth : ajout automatique après saisie du SKU.
-// Restore the POS scanner input after browser inactivity without interrupting other forms.
+// Scanner Bluetooth HID: use a single stock-aware SKU recognizer for focused inputs
+// and document-level keyboard capture. A resumed iPad PWA can retain old input text.
 function posScannerReady(){
  return document.visibilityState==="visible"&&!$("app").classList.contains("hidden")&&$("cashier").classList.contains("active");
 }
@@ -3337,64 +3338,86 @@ function posScannerEditable(target){
 function posScannerStatus(message){
  const status=$("posScanStatus");if(status)status.textContent=message;
 }
+let posAutoScanTimer=null,posHidBuffer="",posHidLastAt=0,posHidIdleTimer=null;
+function posResetScanner(message="Lecteur prêt : scanne une étiquette."){
+ clearTimeout(posAutoScanTimer);posAutoScanTimer=null;
+ clearTimeout(posHidIdleTimer);posHidIdleTimer=null;
+ posHidBuffer="";posHidLastAt=0;
+ $("posSku").value="";
+ posScannerStatus(message);
+}
+function posKnownSkuSuffix(raw){
+ const value=String(raw||"").trim().toUpperCase();
+ if(!value)return "";
+ // Prefer the longest SKU to avoid selecting a short SKU that is a suffix of another.
+ const candidates=stock.map(i=>String(i.sku||"").trim().toUpperCase()).filter(Boolean).sort((a,b)=>b.length-a.length);
+ return candidates.find(sku=>value.endsWith(sku))||"";
+}
 function posWakeScannerFocus(){
  if(!posScannerReady())return;
+ // The iPad may suspend the home-screen web app in the middle of a HID scan.
+ // Discard partial characters on resume, but never clear the customer basket.
+ posResetScanner();
  const active=document.activeElement;
- if(active===$("posSku")){posScannerStatus("Lecteur prêt : scanne une étiquette.");return}
- if(posScannerEditable(active)){
-  posScannerStatus("Pour scanner, clique sur « Code de l’article » ou ferme la saisie en cours.");
+ if(posScannerEditable(active)&&active!==$("posSku")){
+  posScannerStatus("Ferme la saisie en cours pour utiliser le lecteur.");
   return;
  }
  try{$("posSku").focus({preventScroll:true})}catch(e){}
- posScannerStatus(document.activeElement===$("posSku")?"Lecteur prêt : scanne une étiquette.":"Scanner : clique sur « Code de l’article » avant de lire.");
+ posScannerStatus(document.activeElement===$("posSku")?"Lecteur prêt : scanne une étiquette.":"Scanner : touche le champ « Code de l’article ».");
 }
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")requestAnimationFrame(posWakeScannerFocus)});
+document.addEventListener("visibilitychange",()=>{
+ if(document.visibilityState==="visible")requestAnimationFrame(posWakeScannerFocus);
+ else {clearTimeout(posAutoScanTimer);clearTimeout(posHidIdleTimer);posHidBuffer="";}
+});
 window.addEventListener("focus",()=>requestAnimationFrame(posWakeScannerFocus));
-let posAutoScanTimer=null;
+window.addEventListener("pageshow",()=>requestAnimationFrame(posWakeScannerFocus));
 function acceptPosKeyboardScan(){
  clearTimeout(posAutoScanTimer);posAutoScanTimer=null;
- const sku=$("posSku").value.trim().toUpperCase();
- if(!sku)return;
+ const sku=posKnownSkuSuffix($("posSku").value);
+ if(!sku)return false;
  const item=stock.find(x=>String(x.sku||"").toUpperCase()===sku);
- if(!item)return;
+ $("posSku").value=sku;
  const added=addPosSku(true);
+ // Always clear stale characters, including if item is already in the basket.
+ $("posSku").value="";
  if(added){
   const banner=$("posScanSuccess");
   banner.innerHTML='<span class="scan-check">✓</span><div><strong>'+esc(item.title||item.sku)+'</strong><small>'+esc(item.sku)+' · '+money(item.sale_price)+' · '+posCartIds.length+' article(s) au panier</small></div>';
   banner.classList.remove("hidden");
   posScanFeedback("✓ Article ajouté : "+sku);
  }
+ return added;
 }
 $("posSku").addEventListener("focus",()=>{if(posScannerReady())posScannerStatus("Lecteur prêt : scanne une étiquette.");});
 $("posSku").addEventListener("input",()=>{
  clearTimeout(posAutoScanTimer);
- const sku=$("posSku").value.trim().toUpperCase();
- if(sku&&stock.some(x=>String(x.sku||"").toUpperCase()===sku)){
+ // Use an idle gap to wait for the complete barcode; do not accept an early prefix.
+ if(posKnownSkuSuffix($("posSku").value)){
   posAutoScanTimer=setTimeout(acceptPosKeyboardScan,180);
  }
 });
-// Les scanners Bluetooth HID peuvent envoyer leurs touches même si un bouton a le focus.
-// Capture uniquement des rafales de caractères ressemblant à un SKU Milou sur la page Caisse.
-let posHidBuffer="",posHidLastAt=0,posHidIdleTimer=null;
 function flushPosHidBuffer(){
- const value=posHidBuffer.trim().toUpperCase();
+ const raw=posHidBuffer;
  posHidBuffer="";
  clearTimeout(posHidIdleTimer);posHidIdleTimer=null;
- const match=value.match(/MIL-[A-Z0-9-]{3,35}$/);
- if(!match){if(value.includes("MIL"))posScannerStatus("Lecture incomplète après la veille : scanne de nouveau.");return}
- $("posSku").value=match[0];
+ const sku=posKnownSkuSuffix(raw);
+ if(!sku){
+  if(raw.trim())posScannerStatus("Code non reconnu. Réessaie le scan.");
+  return;
+ }
+ $("posSku").value=sku;
  acceptPosKeyboardScan();
 }
 document.addEventListener("keydown",event=>{
  if(!posScannerReady())return;
  if(event.ctrlKey||event.metaKey||event.altKey||event.isComposing)return;
  const target=event.target;
- if(target=== $("posSku"))return; // Gestion du champ existant, pas de double ajout.
+ if(target===$("posSku"))return; // Focused input is handled by the input/Enter listeners.
  if(posScannerEditable(target))return;
- if(target?.closest?.(".modal:not(.hidden)"))return;
  if(event.key==="Enter"||event.key==="Tab"){
-  if(/MIL-[A-Z0-9-]{3,35}$/.test(posHidBuffer)){event.preventDefault();flushPosHidBuffer()}
-  else posHidBuffer="";
+  if(posKnownSkuSuffix(posHidBuffer)){event.preventDefault();flushPosHidBuffer()}
+  else {posHidBuffer="";clearTimeout(posHidIdleTimer);}
   return;
  }
  if(event.key.length!==1||!/^[a-zA-Z0-9-]$/.test(event.key))return;
@@ -3402,10 +3425,17 @@ document.addEventListener("keydown",event=>{
  if(now-posHidLastAt>400)posHidBuffer="";
  posHidLastAt=now;
  posHidBuffer+=event.key.toUpperCase();
- if(posHidBuffer.length>48)posHidBuffer=posHidBuffer.slice(-48);
+ if(posHidBuffer.length>96)posHidBuffer=posHidBuffer.slice(-96);
  clearTimeout(posHidIdleTimer);
  posHidIdleTimer=setTimeout(flushPosHidBuffer,480);
 },true);
+// Recovery control for iPad home-screen mode, where Safari's reload button is absent.
+const posResetButton=document.createElement("button");
+posResetButton.type="button";posResetButton.id="posResetScanner";
+posResetButton.className="btn ghost small";
+posResetButton.textContent="↻ Réinitialiser le scanner";
+posResetButton.onclick=()=>{posResetScanner();posWakeScannerFocus();};
+$("posScanStatus").insertAdjacentElement("afterend",posResetButton);
 
 $("posSku").onkeydown=e=>{
  if(e.key!=="Enter"&&e.key!=="Tab")return;
