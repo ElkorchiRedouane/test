@@ -2042,6 +2042,10 @@ function labelSvg(sku){
  svg.removeAttribute("id");
  return new XMLSerializer().serializeToString(svg);
 }
+function milouLabelSize(item){
+ const size=String(item?.size??"").trim();
+ return "Taille : "+(size||"—");
+}
 function labelPageHtml(items,format){
  const css=format==="brother-dk1201"?
  '@page{size:90mm 29mm;margin:0}html,body{width:90mm;margin:0;padding:0}.sheet{display:block}.label{width:90mm;height:29mm;page-break-after:always;break-after:page;padding:1.3mm 2.5mm}':
@@ -2051,8 +2055,8 @@ function labelPageHtml(items,format){
  const cards=items.map(i=>{
   const sku=String(i.sku||"").trim();
   const title=String(i.title||i.brand||"Vêtement").slice(0,50);
-  const description=[i.brand,i.size].filter(Boolean).join(" • ").slice(0,52);
-  return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+'</div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div></div><div class="label-ref">'+esc(milouLabelReference(i))+'</div></div>';
+  const description=[i.brand].filter(Boolean).join(" • ").slice(0,52);
+  return '<div class="label"><div class="brandname">FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</div><div class="head"><span class="title">'+esc(title)+'</span><b class="price">'+esc(money(i.sale_price))+'</b></div><div class="description">'+esc(description||"Vêtement enfant")+' · <b>'+esc(milouLabelSize(i))+'</b></div><div class="codes"><div class="barcode">'+labelSvg(sku)+'</div></div><div class="label-ref">'+esc(milouLabelReference(i))+'</div></div>';
  }).join("");
  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Étiquettes Milou</title><style>*{box-sizing:border-box}body{font:9pt Arial,sans-serif;color:#111;background:white}.sheet{align-items:start}.label{overflow:hidden;background:#fff}.brandname{text-align:center;font-weight:800;color:#245a59;font-size:9pt;border-bottom:1px solid #ddd;padding-bottom:1mm}.head{display:flex;justify-content:space-between;align-items:center;gap:1mm;margin-top:1mm}.title{font-size:8pt;font-weight:700;max-width:33mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price{font-size:12pt;white-space:nowrap}.description{font-size:7pt;color:#444;height:3mm}.codes{display:flex;align-items:center;gap:1mm;margin-top:.5mm}.barcode{flex:1;min-width:0;overflow:hidden;text-align:center} .barcode svg{max-width:100%;height:'+(format==="brother-dk1201"?"12mm":"17mm")+' ;width:auto;display:inline-block}.label-ref{text-align:center;font:700 6.5pt Arial,sans-serif;white-space:nowrap;overflow:hidden}.qr{width:17mm;height:17mm;display:block;flex-shrink:0;image-rendering:pixelated}'+css+'</style></head><body><div class="sheet">'+cards+'</div></body></html>';
 }
@@ -2091,7 +2095,7 @@ function milouBrotherPDF(items){
   const sku=String(item.sku||"").trim();
   if(!sku)throw new Error("SKU manquant.");
   const price=ascii(money(item.sale_price));
-  const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - ")).slice(0,45);
+  const title=ascii(item.title||item.brand||"Vetement").slice(0,38);
   const date=ascii(milouLabelDate(item.created_at));
   let stream="q\n0 g\n";
   // Only the left ~58mm of the 90mm DK-1201 label is printed:
@@ -2099,6 +2103,7 @@ function milouBrotherPDF(items){
   stream+=txt(3,5.2,7.8,"FRIPERIE MILOU",true);
   stream+=txt(39,5.2,9.5,price,true);
   stream+=txt(3,9.3,6.3,"Ajout : "+date);
+  stream+=txt(34,9.3,7.2,ascii(milouLabelSize(item)).slice(0,19),true);
   // Restrict product name to the printable left zone; avoid running onto the empty section.
   stream+=txt(3,13.0,6.1,title.slice(0,30));
   // Preserve Code128 quiet zones; 48mm gives larger narrow bars than the browser-scaled version.
@@ -2287,13 +2292,14 @@ function milou30PDF(items,opts,calibration=false){
    const item=items[ix],sku=String(item.sku||"").trim();
    if(!sku)throw new Error("Un article n'a pas de SKU.");
    const price=ascii(money(item.sale_price));
-   const title=ascii([item.title||item.brand||"Vetement",item.size||""].filter(Boolean).join(" - "));
+   const title=ascii(item.title||item.brand||"Vetement");
    const addedOn=milouLabelDate(item.created_at);
    const header="MILOU - Ajout "+(addedOn==="—"?"date inconnue":addedOn);
    stream+="0 g\n";
    stream+=posText(x+2,y+4.8,6.1,header,true);
    stream+=posText(x+width-2-Math.min(price.length*1.8,16),y+4.8,9,price,true);
-   stream+=posText(x+2,y+8.6,7,title.slice(0,39));
+   stream+=posText(x+2,y+8.6,7,title.slice(0,24));
+   stream+=posText(x+43,y+8.6,6.7,ascii(milouLabelSize(item)).slice(0,18),true);
    stream+=barcodeCommands(sku,x+4,y+10.2,width-8,9);
    stream+=posText(x+4,y+21.7,6.6,ascii(milouLabelReference(item)).slice(0,42));
   }
@@ -2378,7 +2384,7 @@ function previewMilouLabel(){
  try{
   // Preview the same selection used by the print button, not just the last clicked item.
   const cards=items.map(i=>'<div style="width:min(100%,340px);padding:12px;background:white;color:#111;border:1px solid #bbb;border-radius:8px;text-align:center;overflow:hidden">'+
-   '<b>FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+' — '+esc(i.size||"")+'</div>'+
+   '<b>FRIPERIE MILOU · '+esc(milouLabelDate(i.created_at))+'</b><div style="overflow-wrap:anywhere">'+esc(i.title||i.sku)+'</div><div style="font-weight:bold">'+esc(milouLabelSize(i))+'</div>'+
    '<strong>'+money(i.sale_price)+'</strong><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;min-width:0;overflow:hidden">'+labelSvg(i.sku)+'</div></div>'+
    '<small>APERÇU — '+esc(milouLabelReference(i))+'</small></div>').join("");
   box.classList.remove("hidden");
