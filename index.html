@@ -1035,7 +1035,7 @@ function openMilouItemReassignment(depositId=null,itemId=null){
 
 
 const MILOU_SALEABLE_STATUSES=new Set(["validated","shopify_draft","online"]);
-const MILOU_PORTAL_URL="https://milou-ops.vercel.app/consignateur.html";
+const MILOU_PORTAL_URL="https://app.friperiemilou.ca/consignateur.html";
 function milouConsignorInventory(cid){
  const relevantDeposits=new Set(deposits.filter(d=>d.consignor_id===cid).map(d=>d.id));
  const items=stock.filter(i=>!i.deleted_at&&i.status!=="deleted_milou"&&i.status!=="deleted_shopify"&&
@@ -1067,8 +1067,24 @@ function openConsignorDetail(id){
   matches!==1?"Cette adresse est utilisée sur plusieurs fiches actives. Il faut une adresse unique pour accéder au portail.":
   "Accès autorisé avec cette adresse courriel vérifiée : "+email;
  $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+(c.default_commission_pct==null?"Taux par défaut non défini — taux propre aux dépôts/articles possible":esc(String(c.default_commission_pct)+" % par défaut"))+'</small></div><div class="row-actions"><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(inv.total)+'</strong><span>Valeur des '+inv.count+' articles en vente (prix affichés)</span></div><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes réalisées</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser au consignateur</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div>'+
- '<div class="panel" style="margin-top:14px"><div class="panel-head"><h3>Accès au portail consignateur</h3></div><div class="panel-body"><p class="caption">Le consignateur utilise son courriel enregistré pour recevoir un lien de connexion. Aucun mot de passe à communiquer.</p><div class="notice">'+esc(portalStatus)+'</div><div class="actions"><a class="btn ghost small" target="_blank" rel="noopener" href="'+MILOU_PORTAL_URL+'">Ouvrir le portail</a><button type="button" class="btn primary small" id="copyConsPortal"'+(c.status==="active"&&email&&matches===1?"":" disabled")+'>Copier le message d’accès</button></div><p class="caption">Le lien de connexion est envoyé par le portail lui-même au courriel du consignateur. Vérifier également les courriels indésirables.</p></div></div>'+
+ '<div class="panel" style="margin-top:14px"><div class="panel-head"><h3>Accès au portail consignateur</h3></div><div class="panel-body"><p class="caption">Le consignateur utilise son courriel enregistré pour recevoir un lien de connexion. Aucun mot de passe à communiquer.</p><div class="notice">'+esc(portalStatus)+'</div><div class="actions"><a class="btn ghost small" target="_blank" rel="noopener" href="'+MILOU_PORTAL_URL+'">Ouvrir le portail</a><button type="button" class="btn primary small" id="sendConsPortal"'+(c.status==="active"&&email&&matches===1?"":" disabled")+'>Envoyer le lien d’accès</button><button type="button" class="btn ghost small" id="copyConsPortal"'+(c.status==="active"&&email&&matches===1?"":" disabled")+'>Copier le message d’accès</button></div><p class="caption" id="sendConsPortalFeedback">L’invitation utilise le courriel Magic Link de Supabase, envoyé à l’adresse de la fiche. Le lien est personnel et temporaire.</p></div></div>'+
  '<h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
+ const sendButton=$("sendConsPortal");
+ sendButton.onclick=async()=>{
+  if(c.status!=="active"||!email||matches!==1){toast("Vérifie le statut du consignateur et l’unicité de son adresse courriel.");return}
+  if(!confirm("Envoyer le courriel de connexion Friperie Milou à "+email+" ?"))return;
+  sendButton.disabled=true;sendButton.textContent="Envoi en cours…";
+  const feedback=$("sendConsPortalFeedback");
+  try{
+   const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:MILOU_PORTAL_URL,shouldCreateUser:true}});
+   if(error)throw error;
+   feedback.textContent="Demande d’envoi acceptée pour "+email+". Vérifier la boîte de réception et les indésirables.";
+   toast("Lien de connexion demandé pour "+email+".");
+  }catch(e){
+   feedback.textContent="Envoi impossible : "+(e.message||String(e));
+   toast("Impossible d’envoyer le lien : "+(e.message||String(e)));
+  }finally{sendButton.disabled=false;sendButton.textContent="Envoyer le lien d’accès"}
+ };
  const copyButton=$("copyConsPortal");
  copyButton.onclick=async()=>{
   const message="Bonjour "+c.full_name+",\n\nPour consulter vos articles, vos ventes et vos versements chez Friperie Milou, ouvrez ce lien :\n"+MILOU_PORTAL_URL+"\n\nSaisissez votre adresse courriel ("+email+") et cliquez sur « Recevoir mon lien de connexion ». Ouvrez le courriel reçu et cliquez sur le lien pour accéder à votre espace personnel.\n\nFriperie Milou";
@@ -1082,7 +1098,7 @@ function openConsignorDetail(id){
 }
 $("newConsignor").onclick=()=>openConsignor(null);
 function openConsignor(id){currentConsignorId=id;const c=id?consignors.find(x=>x.id===id):null;$("consignorModalTitle").textContent=c?"Modifier le consignateur":"Nouveau consignateur";$("cName").value=c?.full_name||"";$("cEmail").value=c?.email||"";$("cPhone").value=c?.phone||"";$("cCommission").value=c?.default_commission_pct??"";$("cNotes").value=c?.notes||"";$("consignorModal").classList.remove("hidden")}
-$("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}if(!qaMode)sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll()};
+$("saveConsignor").onclick=async()=>{const p={full_name:$("cName").value.trim(),email:$("cEmail").value.trim()||null,phone:$("cPhone").value.trim()||null,default_commission_pct:$("cCommission").value?Number($("cCommission").value):null,notes:$("cNotes").value.trim()||null};if(!p.full_name){toast("Nom requis");return}const r=currentConsignorId?await sb.from("consignors").update(p).eq("id",currentConsignorId).select().single():await sb.from("consignors").insert(p).select().single();if(r.error){toast(r.error.message);return}if(!qaMode)sb.functions.invoke("sync-shopify-ops",{body:{kind:"consignor",id:r.data.id}}).catch(()=>{});$("consignorModal").classList.add("hidden");toast(currentConsignorId?"Consignateur modifié":"Consignateur créé");currentConsignorId=null;await refreshAll();openConsignorDetail(r.data.id)};
 async function deleteConsignorSafe(id){
   const c=consignors.find(x=>x.id===id);if(!c)return;
   const ds=deposits.filter(d=>d.consignor_id===id||d.consignors?.id===id);
