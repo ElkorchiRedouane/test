@@ -7,14 +7,20 @@
  let data={};const params=new URLSearchParams(location.search);
  try{const raw=params.get("data");if(raw&&raw.length<10000)data=JSON.parse(raw)}catch(e){data={error_code:"invalid_response",status:"error"}}
  const pending=(()=>{try{return JSON.parse(sessionStorage.getItem("milou_square_pending")||"null")}catch(e){return null}})();
- const known=!!pending&&typeof pending.orderId==="string"&&data.state===pending.orderId&&Date.now()-pending.startedAt<86400000;
- const success=known&&data.status==="ok"&&typeof data.transaction_id==="string"&&data.transaction_id.length>0;
- const offline=known&&data.status==="ok"&&!data.transaction_id;
+ // iOS can return to Safari instead of the installed home-screen web app.
+ // Session storage is then isolated; use Square's state only as an untrusted
+ // order reference. The authenticated server checks ownership and verifies
+ // the actual payment with Square before any inventory update.
+ const state=typeof data.state==="string"&&/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(data.state)?data.state:null;
+ const known=!!pending&&typeof pending.orderId==="string"&&state===pending.orderId&&Date.now()-pending.startedAt<86400000;
+ const orderId=known?pending.orderId:state;
+ const success=!!orderId&&data.status==="ok"&&typeof data.transaction_id==="string"&&/^[A-Za-z0-9_-]{6,120}$/.test(data.transaction_id);
+ const offline=!!orderId&&data.status==="ok"&&!data.transaction_id;
  const status=success?"ok":offline?"offline":"pending";
  const text=success?"Square indique un paiement effectué. Vérifiez la transaction dans le tableau de bord Square avant de clôturer la vente dans Milou.":offline?"Paiement possiblement hors ligne : il n’est pas encore vérifiable. Conservez le panier en attente.":data.status==="error"?"Paiement annulé ou refusé par Square. Le panier doit rester en attente.":"Retour non reconnu ou ne correspondant pas au panier préparé. Ne confirmez pas la vente.";
  document.getElementById("result").textContent=text;
- document.getElementById("reference").textContent=known?"Panier Milou : "+pending.orderId:"Aucune référence de panier validée";
- try{sessionStorage.setItem("milou_square_return",JSON.stringify({orderId:known?pending.orderId:null,status,transactionId:success?data.transaction_id:null,receivedAt:Date.now()}))}catch(e){}
+ document.getElementById("reference").textContent=orderId?"Panier Milou : "+orderId:"Aucune référence de panier valide";
+ try{sessionStorage.setItem("milou_square_return",JSON.stringify({orderId:orderId||null,status,transactionId:success?data.transaction_id:null,receivedAt:Date.now()}))}catch(e){}
  if(known&&data.status==="error")sessionStorage.removeItem("milou_square_pending");
  // Do not persist transaction identifiers or accept callback data as proof of payment.
  history.replaceState(null,"","/square/callback");
