@@ -289,7 +289,13 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
       <div class="field"><label>Taille</label><input id="fSize"></div>
       <div class="field"><label>État</label><select id="fCondition"><option value="">—</option><option>Comme neuf</option><option>Excellent état</option><option>Très bon état</option><option>Bon état</option></select></div>
-      <div class="field"><label>Prix ($)</label><input id="fPrice" type="number" min="0" step=".01"></div>
+      <div class="field"><label>Prix de vente ($)</label><input id="fPrice" type="number" min="0" step=".01" inputmode="decimal"><small class="caption">Prix proposé modifiable — valide-le avant d’enregistrer.</small></div>
+      <div class="field full" id="priceAdvicePanel" style="padding:12px;border:1px solid var(--line);border-radius:14px;background:#f7faf8">
+       <b>💰 Suggestion de prix</b>
+       <p id="priceAdviceText" class="caption" style="margin:7px 0">Ajoute une photo puis appuie sur Analyser. Milou comparera d’abord les articles similaires du stock.</p>
+       <div class="actions" style="margin-top:8px"><button id="marketPriceLookup" type="button" class="btn ghost small">Comparer sur eBay / Poshmark</button></div>
+       <div id="marketPriceResults" role="status" aria-live="polite"></div>
+      </div>
       <div class="field"><label>Emplacement</label><input id="fLocation" placeholder="BAC-A03"></div>
       <details class="advanced full"><summary>Plus de détails</summary><div class="grid">
         <div class="field"><label>Section</label><select id="fSection"><option value="">—</option><option>Fille</option><option>Garçon</option><option>Unisexe</option></select></div>
@@ -1990,6 +1996,51 @@ $("cameraShutter").onclick=async()=>{
   finally{setPhotoProcessing(-1);btn.disabled=false}
 };
 async function imageDataUrl(file){if(!/^image\/(jpeg|png|webp)$/i.test(file.type))return null;return await new Promise(resolve=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=1400,s=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);resolve(c.toDataURL("image/jpeg",.8))};img.onerror=()=>{URL.revokeObjectURL(url);resolve(null)};img.src=url})}
+let milouLatestPriceReference=null;
+$("fPrice").addEventListener("input",()=>{$("fPrice").dataset.userEdited="yes"});
+function safeMarketplaceUrl(url){
+ try{const u=new URL(url);return u.protocol==="https:"&&["ebay.ca","www.ebay.ca","ebay.com","www.ebay.com","poshmark.ca","www.poshmark.ca"].includes(u.hostname)?u.href:null}catch{return null}
+}
+function showPriceAdvice(reference,answer){
+ milouLatestPriceReference=reference||null;
+ const el=$("priceAdviceText");
+ if(reference){
+  const examples=(reference.examples||[]).slice(0,3).map(i=>esc(i.sku)+" : "+money(i.price)).join(" · ");
+  el.innerHTML="<b>Prix proposé : "+money(reference.price)+"</b> · "+esc(reference.source_label||"Stock Milou")+
+   " ("+Number(reference.match_count||0)+" articles comparables)."+
+   "<br><small>"+esc(reference.comparison_kind||"Prix affichés, non ventes confirmées")+
+   (examples?" · Exemples : "+examples:"")+"</small>";
+ }else{
+  el.textContent="Pas assez de références Milou pour une proposition fiable. Vérifie le type et consulte des annonces externes.";
+ }
+ const links=reference?.market_links||[];
+ $("marketPriceResults").innerHTML=links.map(x=>{
+  const safe=safeMarketplaceUrl(x.url);
+  return safe?'<a href="'+esc(safe)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:7px 12px 0 0">'+esc(x.source)+" : comparer les annonces</a>":'';
+ }).join("");
+}
+$("marketPriceLookup").onclick=async()=>{
+ const btn=$("marketPriceLookup");
+ const item={title:$("fTitle").value.trim(),category:$("fCategory").value,brand:$("fBrand").value.trim(),size:$("fSize").value.trim()};
+ if(!item.category||item.category==="Autre"){
+  $("marketPriceResults").textContent="Choisis le type du vêtement avant de comparer les annonces.";return;
+ }
+ btn.disabled=true;btn.textContent="Recherche du marché…";
+ $("marketPriceResults").textContent="Recherche d’annonces eBay et Poshmark en cours. Les prix indiqués seront des prix demandés, pas des ventes confirmées.";
+ try{
+  const {data,error}=await sb.functions.invoke("analyze-item",{body:{mode:"market",item}});
+  if(error)throw error;
+  const listings=(data?.listings||[]).filter(x=>safeMarketplaceUrl(x.url)&&Number(x.price_cad)>0).slice(0,5);
+  const links=(data?.market_links||milouLatestPriceReference?.market_links||[]).map(x=>{const safe=safeMarketplaceUrl(x.url);return safe?'<a target="_blank" rel="noopener noreferrer" href="'+esc(safe)+'">'+esc(x.source)+"</a>":""}).filter(Boolean).join(" · ");
+  const rows=listings.map(x=>'<div style="padding:7px 0;border-bottom:1px solid var(--line)"><b>'+money(x.price_cad)+'</b> · '+esc(x.source||"Annonce")+
+   ' — <a target="_blank" rel="noopener noreferrer" href="'+esc(safeMarketplaceUrl(x.url))+'">'+esc(x.title||"Voir l’annonce")+'</a></div>').join("");
+  $("marketPriceResults").innerHTML=listings.length?
+   '<p class="caption">Annonces de seconde main : prix demandés en CAD, à vérifier sur le site. Ils ne représentent pas nécessairement des ventes réalisées.</p>'+rows:
+   '<p class="caption">'+esc(data?.message||"Aucun prix externe vérifiable pour le moment.")+'</p>';
+  $("marketPriceResults").innerHTML+='<p class="caption" style="margin-top:8px">Consulter directement : '+links+'</p>';
+ }catch(error){$("marketPriceResults").textContent="Recherche externe indisponible : "+String(error.message||error)+". Utilise la suggestion Milou ou compare manuellement.";}
+ finally{btn.disabled=false;btn.textContent="Comparer sur eBay / Poshmark"}
+};
 $("analyzeBtn").onclick=async()=>{
  if(photoProcessing>0){toast("Attends une seconde, les photos sont encore en préparation");return}
  const text=$("rawText").value.trim();
@@ -2003,6 +2054,7 @@ $("analyzeBtn").onclick=async()=>{
  $("analyzeBtn").disabled=false;$("analyzeBtn").textContent="✨ Analyser";
  if(error){note($("analysisMsg"),esc(error.message||"Erreur"),"err");return}
  fillAnalysis(data?.data||{});
+ showPriceAdvice(data?.price_reference||null,data?.data||{});
  const sec=((performance.now()-started)/1000).toFixed(1);
  $("analysisMode").textContent=data?.mode==="ai"?"IA optimisée":"Analyse rapide";
  $("analysisMode").className="badge "+(data?.mode==="ai"?"pink":"yellow");
@@ -2024,7 +2076,7 @@ function fillAnalysis(x){
    else $(id).value=val;
  });
  // A manually entered price or location is retained if the AI cannot verify it.
- if(x.sale_price!=null&&Number.isFinite(Number(x.sale_price)))$("fPrice").value=x.sale_price;
+ if(x.sale_price!=null&&Number.isFinite(Number(x.sale_price))&&$("fPrice").dataset.userEdited!=="yes")$("fPrice").value=x.sale_price;
  if(x.location_code)$("fLocation").value=x.location_code;
  if(Object.prototype.hasOwnProperty.call(x,"description_html")){
    $("fDescription").value=String(x.description_html||"")
@@ -4089,7 +4141,7 @@ $("payoutExact").onclick=()=>{
 };
 $("payoutPreview").onclick=preparePayoutStatement;
 $("payoutReload").onclick=async()=>{await refreshAll();toast("Finances actualisées")};
-function clearArticle(){photos=[];photoProcessing=0;if($("photoProcessingStatus"))$("photoProcessingStatus").classList.add("hidden");if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
+function clearArticle(){milouLatestPriceReference=null;if($("priceAdviceText"))$("priceAdviceText").textContent="Ajoute une photo puis appuie sur Analyser. Milou comparera les articles similaires du stock.";if($("marketPriceResults"))$("marketPriceResults").textContent="";if($("fPrice"))$("fPrice").dataset.userEdited="";photos=[];photoProcessing=0;if($("photoProcessingStatus"))$("photoProcessingStatus").classList.add("hidden");if($("cameraThumbs"))$("cameraThumbs").innerHTML="";if($("cameraPhoto"))if($('galleryPhotos'))$('galleryPhotos').value='';$("photoPreview").innerHTML="";["rawText","fTitle","fBrand","fSize","fPrice","fLocation","fCommission","fColor","fMaterial","fCost","fDefects","fDescription"].forEach(id=>$(id).value="");$("fCategory").value="T-shirt";$("fCondition").value="";$("fSection").value="";$("fAge").value="";$("fSeason").value="Toute saison";$("analysisMode").textContent="Manuel";$("analysisMode").className="badge yellow";$("analysisMsg").innerHTML=""}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$(b.dataset.close).classList.add("hidden"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.add("hidden")});
 
 ["depositSearch","depositStatusFilter","depositConsignorFilter"].forEach(id=>{if($(id))$(id).oninput=renderDeposits});
