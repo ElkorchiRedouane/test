@@ -276,7 +276,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
     <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Brother · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
-    <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div class="actions" style="margin:6px 0"><button id="stockReloadPhotos" type="button" class="btn ghost small">↻ Recharger les photos</button><span id="stockPhotosStatus" class="caption" role="status" aria-live="polite"></span></div><div id="locationSummary" class="notice hidden"></div>
+    <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div class="actions" style="margin:6px 0"><button id="stockReloadData" type="button" class="btn green small">↻ Recharger les articles</button><button id="stockReloadPhotos" type="button" class="btn ghost small">↻ Recharger les photos</button><span id="stockPhotosStatus" class="caption" role="status" aria-live="polite"></span></div><div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
@@ -572,6 +572,7 @@ async function authState(){
    const destination=document.getElementById(requested)?.classList.contains("page")?requested:"home";
    window.history.replaceState({milouPage:destination},"",window.location.pathname+window.location.search+"#"+destination);
    go(destination,{history:false});
+   if(!loaded&&destination==="stock")void reloadStockForView();
    await handleSquareReturnAfterLogin();
    await showSquareDraftRecovery();
   }catch(e){
@@ -614,7 +615,11 @@ function go(id,options={}){
  if(id!=="cashier")void stopPosCamera();
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));
  document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
- if(id==="stock"){renderStock();void hydrateMilouPhotos().catch(e=>console.warn("Photos stock:",e));}
+ if(id==="stock"){
+  renderStock();
+  if(!stock.length)void reloadStockForView().catch(e=>console.warn("Chargement Stock:",e));
+  else void hydrateMilouPhotos().catch(e=>console.warn("Photos stock:",e));
+ }
  if(id==="labels")renderLabelOptions();
  if(id==="deposits"){if(options.keepDepositDetail!==true)$("depositDetail").innerHTML="";renderDeposits();}
  if(id==="consignors")renderConsignors();
@@ -790,6 +795,7 @@ async function hydrateMilouPhotos(force=false){
  const myRun=++photoHydrationRun;
  try{
   const entries=[...stock,...deposits.flatMap(d=>d.items||[])];
+  if(!stock.length){stockPhotoStatus("Stock non chargé. Appuie sur « Recharger les articles ».",true);return}
   const paths=new Map();
   const missing=[];
   for(const item of entries){
@@ -2228,7 +2234,8 @@ function printMilouLabels(){
  note($("labelsStatus"),items.length+" étiquette(s) préparée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante. La génération ne garantit pas une impression physique.");
  void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error){console.warn("Historique étiquettes",error);note($("labelsStatus"),"Étiquettes préparées, mais suivi de génération non enregistré : "+esc(error.message),"warn")}else void refreshAll()});
 }
-$("stockReloadPhotos").onclick=()=>{photoSignedCache.clear();stockPhotoStatus("Actualisation des photos…");void hydrateMilouPhotos(true).catch(e=>stockPhotoStatus("Erreur de photos : "+String(e.message||e),true));};
+$("stockReloadData").onclick=()=>{void reloadStockForView();};
+$("stockReloadPhotos").onclick=()=>{if(!stock.length){void reloadStockForView();return}photoSignedCache.clear();stockPhotoStatus("Actualisation des photos…");void hydrateMilouPhotos(true).catch(e=>stockPhotoStatus("Erreur de photos : "+String(e.message||e),true));};
 $("stockPickVisible").onclick=()=>{
  const checkItems=new Set(labelAvailableItems().map(i=>i.id));
  document.querySelectorAll("#stockList .stockLabelPick").forEach(el=>{if(checkItems.has(el.dataset.id))selectedLabelIds.add(el.dataset.id)});
@@ -2623,6 +2630,33 @@ function closeStockItemDetails(){$("articleInfoModal").classList.add("hidden")}
 $("articleInfoClose").onclick=closeStockItemDetails;
 $("articleInfoModal").addEventListener("click",e=>{if(e.target===$("articleInfoModal"))closeStockItemDetails()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("articleInfoModal").classList.contains("hidden"))closeStockItemDetails()});
+let stockManualLoadRunning=false;
+async function reloadStockForView(){
+ if(stockManualLoadRunning)return;
+ stockManualLoadRunning=true;
+ const btn=$("stockReloadData");
+ if(btn){btn.disabled=true;btn.textContent="Chargement des articles…";}
+ stockPhotoStatus("Chargement du stock en cours…");
+ try{
+  // Load Stock independently from other dashboard modules: an unrelated
+  // consignor/payment fetch error must never hide the inventory.
+  await loadStock();
+  if(!stock.length)throw new Error("La requête a retourné zéro article. Aucune donnée n’a été supprimée.");
+  renderStock();
+  stockPhotoStatus(stock.length+" articles chargés. Chargement des photos…");
+  await hydrateMilouPhotos();
+  // The reloaded Stock objects may differ from those in Deposits; refresh
+  // filters opportunistically, without blocking inventory visibility.
+  try{fillFilters()}catch(error){console.warn("Filtres stock:",error)}
+ }catch(error){
+  const message=String(error?.message||error);
+  stockPhotoStatus("Erreur de chargement des articles : "+message+". Vérifie la connexion et réessaie.",true);
+  if(!stock.length)$("stockList").innerHTML='<div class="notice warn">Impossible de charger les articles : '+esc(message)+'. Aucune donnée supprimée.</div>';
+ }finally{
+  stockManualLoadRunning=false;
+  if(btn){btn.disabled=false;btn.textContent="↻ Recharger les articles";}
+ }
+}
 function stockUpdateLabelCount(){
  const valid=new Set(labelAvailableItems().map(item=>item.id));
  for(const id of selectedLabelIds)if(!valid.has(id))selectedLabelIds.delete(id);
