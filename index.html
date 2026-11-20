@@ -781,6 +781,10 @@ async function fetchMilouPages(table,fields,orderColumn,label){
  }
  throw new Error(label+" : limite de 10 000 lignes atteinte. La synchronisation complète doit être adaptée avant de continuer.");
 }
+async function loadStock(){
+ stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,condition,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,label_generated_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
+ // Photos are signed asynchronously after data loads; inventory should not wait for them.
+}
 let photoHydrationActive=false,photoHydrationQueued=false,photoHydrationRun=0;
 const photoSignedCache=new Map();
 function stockPhotoStatus(text,isWarning=false){
