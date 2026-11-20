@@ -2574,7 +2574,8 @@ async function openMilouArticleEditor(id){
    '<div class="modal-head"><h2 id="miTitle">Modifier l’article</h2><button type="button" id="miClose">×</button></div>'+
    '<p class="caption">Modifie les informations et l’attribution directement ici. Le SKU et l’historique restent protégés; les transferts sont journalisés.</p>'+
    '<form id="miForm"><div class="panel" style="margin-bottom:12px"><div class="panel-head"><h3>Consignateur et dépôt</h3></div><div class="panel-body">'+
-   '<div class="field"><label for="miAssignment">Attribuer l’article à</label><select id="miAssignment"></select></div>'+
+   '<div class="field"><label for="miConsignorSelect">Consignateur</label><select id="miConsignorSelect"></select></div>'+
+   '<div class="field" style="margin-top:9px"><label for="miDepositSelect">Dépôt du consignateur</label><select id="miDepositSelect"></select></div>'+
    '<div class="field hidden" id="miAssignmentRateBox" style="margin-top:8px"><label for="miAssignmentRate">Part du consignateur (%)</label><input id="miAssignmentRate" type="number" min="0" max="100" step=".01" inputmode="decimal"></div>'+
    '<p id="miAssignmentInfo" class="caption" style="margin-top:8px"></p></div></div><div class="grid" id="miFields"></div>'+
    '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Photos</h3></div><div class="panel-body"><div id="miPhotos"></div>'+
@@ -2601,42 +2602,59 @@ async function openMilouArticleEditor(id){
  }).join("");
  $("mi_title").required=true;$("mi_sale_price").required=true;
  const currentDestination=item.deposit_id?"deposit:"+item.deposit_id:item.consignor_id?"consignor:"+item.consignor_id:"own";
+ const currentConsignorId=item.consignor_id||(item.deposit_id?deposits.find(d=>d.id===item.deposit_id)?.consignor_id:null)||"";
  const activeCons=consignors.filter(c=>c.status==="active"&&!c.deleted_at);
  const activeIds=new Set(activeCons.map(c=>c.id));
- const destinationOptions=['<option value="own" disabled>Stock boutique (sans consignateur)</option>'];
- for(const c of activeCons)destinationOptions.push('<option value="consignor:'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name+" (sans dépôt)")+'</option>');
- for(const d of deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeIds.has(d.consignor_id)&&!d.deleted_at&&d.status!=="deleted")){
-  const c=activeCons.find(c=>c.id===d.consignor_id);
-  destinationOptions.push('<option value="deposit:'+esc(d.id)+'">'+esc(d.code+" — "+(c?.full_name||"Consignateur"))+'</option>');
+ const validDeposits=deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeIds.has(d.consignor_id)&&!d.deleted_at&&d.status!=="deleted");
+ const consignorSelect=$("miConsignorSelect"),depositSelect=$("miDepositSelect");
+ const consOptions=['<option value=""'+(currentConsignorId?' disabled':'')+'>Stock boutique (aucun consignateur)</option>'];
+ for(const c of activeCons)consOptions.push('<option value="'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name)+'</option>');
+ if(currentConsignorId&&!activeCons.some(c=>c.id===currentConsignorId)){
+  consOptions.push('<option value="'+esc(currentConsignorId)+'">Consignateur actuel (inactif)</option>');
  }
- const assignmentSelect=$("miAssignment");
- assignmentSelect.innerHTML=destinationOptions.join("");
- if(!Array.from(assignmentSelect.options).some(o=>o.value===currentDestination)){
-  assignmentSelect.insertAdjacentHTML("afterbegin",'<option value="'+esc(currentDestination)+'">Attribution actuelle (indisponible)</option>');
- }
- assignmentSelect.value=currentDestination;
+ consignorSelect.innerHTML=consOptions.join("");
+ consignorSelect.value=currentConsignorId;
  const assignmentRate=$("miAssignmentRate"),assignmentRateBox=$("miAssignmentRateBox"),assignmentInfo=$("miAssignmentInfo");
- const updateAssignment=()=>{
-  const destination=assignmentSelect.value;
-  const changing=destination!==currentDestination;
-  const direct=destination.startsWith("consignor:");
-  const d=destination.startsWith("deposit:")?deposits.find(d=>d.id===destination.slice(8)):null;
-  const c=direct?activeCons.find(c=>c.id===destination.slice(11)):d?activeCons.find(c=>c.id===d.consignor_id):null;
-  assignmentRateBox.classList.toggle("hidden",!direct);
-  if(assignmentSelect.dataset.previous!==destination){
-   assignmentRate.value=direct?(changing?(c?.default_commission_pct??""):(item.commission_pct??c?.default_commission_pct??"")):"";
-   assignmentSelect.dataset.previous=destination;
+ let previousSelection="";
+ const chosenDestination=()=>depositSelect.value?("deposit:"+depositSelect.value):consignorSelect.value?("consignor:"+consignorSelect.value):"own";
+ const populateDeposits=(keepId="")=>{
+  const cid=consignorSelect.value;
+  const matches=validDeposits.filter(d=>d.consignor_id===cid);
+  const options=['<option value="">Sans dépôt (directement au consignateur)</option>'];
+  for(const d of matches)options.push('<option value="'+esc(d.id)+'">'+esc(d.code+" — "+(d.received_on||"dépôt"))+'</option>');
+  if(keepId&&!matches.some(d=>d.id===keepId)){
+   options.push('<option value="'+esc(keepId)+'">Dépôt actuel (indisponible)</option>');
   }
-  const rate=d?(d.commission_pct??c?.default_commission_pct):direct?assignmentRate.value:"";
-  assignmentInfo.textContent=!changing?"Attribution actuelle conservée.":d?"Transfert vers "+d.code+" / "+(c?.full_name||"")+" ; taux du dépôt : "+(rate??"non défini")+
-   " %.":direct?"Transfert direct vers "+(c?.full_name||"consignateur")+" sans dépôt. Indique sa part ci-dessus.":"Choisis un consignateur ou un dépôt valide.";
+  depositSelect.innerHTML=options.join("");
+  depositSelect.value=keepId||"";
+  depositSelect.disabled=!cid;
+ };
+ const updateAssignment=()=>{
+  const destination=chosenDestination(),changing=destination!==currentDestination;
+  const d=depositSelect.value?deposits.find(d=>d.id===depositSelect.value):null;
+  const c=activeCons.find(c=>c.id===consignorSelect.value);
+  const direct=!!consignorSelect.value&&!depositSelect.value;
+  const rate=d?(d.commission_pct??c?.default_commission_pct):c?.default_commission_pct;
+  assignmentRateBox.classList.toggle("hidden",!direct);
+  if(previousSelection!==destination){
+   assignmentRate.value=direct?(changing?(c?.default_commission_pct??""):(item.commission_pct??c?.default_commission_pct??"")):"";
+   previousSelection=destination;
+  }
+  assignmentInfo.textContent=!changing?"Attribution actuelle conservée.":d?
+   "Transfert vers le dépôt "+(d.code||"")+" du consignateur "+(c?.full_name||"")+" ; taux du dépôt : "+(rate??"non défini")+" %.":direct?
+   "Article directement attribué à "+(c?.full_name||"ce consignateur")+" sans dépôt. Indique sa part ci-dessus.":"Attribution inchangée.";
   $("mi_commission_pct").disabled=changing;
-  if(changing&&rate!==""&&rate!=null)$("mi_commission_pct").value=rate;
+  if(changing&&rate!=null)$("mi_commission_pct").value=rate;
   else if(!changing)$("mi_commission_pct").value=item.commission_pct??"";
  };
- assignmentSelect.dataset.previous="";
- assignmentSelect.onchange=updateAssignment;
- assignmentRate.oninput=()=>{if(assignmentSelect.value.startsWith("consignor:"))$("mi_commission_pct").value=assignmentRate.value;};
+ consignorSelect.onchange=()=>{
+  populateDeposits();
+  previousSelection="";
+  updateAssignment();
+ };
+ depositSelect.onchange=updateAssignment;
+ assignmentRate.oninput=()=>{if(consignorSelect.value&&!depositSelect.value)$("mi_commission_pct").value=assignmentRate.value;};
+ populateDeposits(item.deposit_id||"");
  updateAssignment();
  const photos=await sb.from("item_photos").select("id,storage_path,file_name,is_primary,sort_order").eq("item_id",id).order("sort_order");
  if(photos.error){message.textContent="Photos indisponibles : "+photos.error.message;return}
@@ -2660,9 +2678,10 @@ async function openMilouArticleEditor(id){
   }
   if(!changes.title||changes.sale_price==null||!Number.isFinite(changes.sale_price)||changes.sale_price<0){
    message.textContent="Titre et prix de vente valide obligatoires.";return}
-  const assignmentChanged=assignmentSelect.value!==currentDestination;
-  const assignmentType=assignmentChanged?(assignmentSelect.value.startsWith("deposit:")?"deposit":assignmentSelect.value.startsWith("consignor:")?"consignor":null):null;
-  const targetId=assignmentType?assignmentSelect.value.slice(assignmentType==="deposit"?8:11):null;
+  const selectedDestination=chosenDestination();
+  const assignmentChanged=selectedDestination!==currentDestination;
+  const assignmentType=assignmentChanged?(selectedDestination.startsWith("deposit:")?"deposit":selectedDestination.startsWith("consignor:")?"consignor":null):null;
+  const targetId=assignmentType?selectedDestination.slice(assignmentType==="deposit"?8:11):null;
   const directRate=assignmentType==="consignor"&&assignmentRate.value.trim()!==""?Number(assignmentRate.value):null;
   if(assignmentChanged&&!assignmentType){message.textContent="Choisis un consignateur ou un dépôt actif.";return}
   if(assignmentType==="consignor"&&(directRate==null||!Number.isFinite(directRate)||directRate<0||directRate>100)){
