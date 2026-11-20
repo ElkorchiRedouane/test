@@ -2572,8 +2572,11 @@ async function openMilouArticleEditor(id){
   modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
   modal.innerHTML='<div class="modal-box" style="max-width:780px;max-height:90vh;overflow-y:auto">'+
    '<div class="modal-head"><h2 id="miTitle">Modifier l’article</h2><button type="button" id="miClose">×</button></div>'+
-   '<p class="caption">SKU, date d’ajout, statut de vente et historique protégés. Pour modifier le consignateur ou le lot, utilise le bouton prévu dans la fiche article.</p>'+
-   '<form id="miForm"><div class="grid" id="miFields"></div>'+
+   '<p class="caption">Modifie les informations et l’attribution directement ici. Le SKU et l’historique restent protégés; les transferts sont journalisés.</p>'+
+   '<form id="miForm"><div class="panel" style="margin-bottom:12px"><div class="panel-head"><h3>Consignateur et dépôt</h3></div><div class="panel-body">'+
+   '<div class="field"><label for="miAssignment">Attribuer l’article à</label><select id="miAssignment"></select></div>'+
+   '<div class="field hidden" id="miAssignmentRateBox" style="margin-top:8px"><label for="miAssignmentRate">Part du consignateur (%)</label><input id="miAssignmentRate" type="number" min="0" max="100" step=".01" inputmode="decimal"></div>'+
+   '<p id="miAssignmentInfo" class="caption" style="margin-top:8px"></p></div></div><div class="grid" id="miFields"></div>'+
    '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Photos</h3></div><div class="panel-body"><div id="miPhotos"></div>'+
    '<div class="field"><label>Ajouter des photos (JPG, PNG, WebP)</label><input id="miUpload" type="file" multiple accept="image/jpeg,image/png,image/webp"></div></div></div>'+
    '<div id="miMessage" role="status"></div><div class="actions"><button type="submit" class="btn primary" id="miSave">Enregistrer</button><button type="button" class="btn ghost" id="miCancel">Annuler</button></div></form></div>';
@@ -2597,6 +2600,44 @@ async function openMilouArticleEditor(id){
   return '<div class="field'+(MILOU_EDIT_LONG.has(key)?' full':'')+'"><label for="'+fid+'">'+esc(label)+'</label>'+input+'</div>';
  }).join("");
  $("mi_title").required=true;$("mi_sale_price").required=true;
+ const currentDestination=item.deposit_id?"deposit:"+item.deposit_id:item.consignor_id?"consignor:"+item.consignor_id:"own";
+ const activeCons=consignors.filter(c=>c.status==="active"&&!c.deleted_at);
+ const activeIds=new Set(activeCons.map(c=>c.id));
+ const destinationOptions=['<option value="own" disabled>Stock boutique (sans consignateur)</option>'];
+ for(const c of activeCons)destinationOptions.push('<option value="consignor:'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name+" (sans dépôt)")+'</option>');
+ for(const d of deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeIds.has(d.consignor_id)&&!d.deleted_at&&d.status!=="deleted")){
+  const c=activeCons.find(c=>c.id===d.consignor_id);
+  destinationOptions.push('<option value="deposit:'+esc(d.id)+'">'+esc(d.code+" — "+(c?.full_name||"Consignateur"))+'</option>');
+ }
+ const assignmentSelect=$("miAssignment");
+ assignmentSelect.innerHTML=destinationOptions.join("");
+ if(!Array.from(assignmentSelect.options).some(o=>o.value===currentDestination)){
+  assignmentSelect.insertAdjacentHTML("afterbegin",'<option value="'+esc(currentDestination)+'">Attribution actuelle (indisponible)</option>');
+ }
+ assignmentSelect.value=currentDestination;
+ const assignmentRate=$("miAssignmentRate"),assignmentRateBox=$("miAssignmentRateBox"),assignmentInfo=$("miAssignmentInfo");
+ const updateAssignment=()=>{
+  const destination=assignmentSelect.value;
+  const changing=destination!==currentDestination;
+  const direct=destination.startsWith("consignor:");
+  const d=destination.startsWith("deposit:")?deposits.find(d=>d.id===destination.slice(8)):null;
+  const c=direct?activeCons.find(c=>c.id===destination.slice(11)):d?activeCons.find(c=>c.id===d.consignor_id):null;
+  assignmentRateBox.classList.toggle("hidden",!direct);
+  if(assignmentSelect.dataset.previous!==destination){
+   assignmentRate.value=direct?(changing?(c?.default_commission_pct??""):(item.commission_pct??c?.default_commission_pct??"")):"";
+   assignmentSelect.dataset.previous=destination;
+  }
+  const rate=d?(d.commission_pct??c?.default_commission_pct):direct?assignmentRate.value:"";
+  assignmentInfo.textContent=!changing?"Attribution actuelle conservée.":d?"Transfert vers "+d.code+" / "+(c?.full_name||"")+" ; taux du dépôt : "+(rate??"non défini")+
+   " %.":direct?"Transfert direct vers "+(c?.full_name||"consignateur")+" sans dépôt. Indique sa part ci-dessus.":"Choisis un consignateur ou un dépôt valide.";
+  $("mi_commission_pct").disabled=changing;
+  if(changing&&rate!==""&&rate!=null)$("mi_commission_pct").value=rate;
+  else if(!changing)$("mi_commission_pct").value=item.commission_pct??"";
+ };
+ assignmentSelect.dataset.previous="";
+ assignmentSelect.onchange=updateAssignment;
+ assignmentRate.oninput=()=>{if(assignmentSelect.value.startsWith("consignor:"))$("mi_commission_pct").value=assignmentRate.value;};
+ updateAssignment();
  const photos=await sb.from("item_photos").select("id,storage_path,file_name,is_primary,sort_order").eq("item_id",id).order("sort_order");
  if(photos.error){message.textContent="Photos indisponibles : "+photos.error.message;return}
  const pics=photos.data||[];
@@ -2619,6 +2660,15 @@ async function openMilouArticleEditor(id){
   }
   if(!changes.title||changes.sale_price==null||!Number.isFinite(changes.sale_price)||changes.sale_price<0){
    message.textContent="Titre et prix de vente valide obligatoires.";return}
+  const assignmentChanged=assignmentSelect.value!==currentDestination;
+  const assignmentType=assignmentChanged?(assignmentSelect.value.startsWith("deposit:")?"deposit":assignmentSelect.value.startsWith("consignor:")?"consignor":null):null;
+  const targetId=assignmentType?assignmentSelect.value.slice(assignmentType==="deposit"?8:11):null;
+  const directRate=assignmentType==="consignor"&&assignmentRate.value.trim()!==""?Number(assignmentRate.value):null;
+  if(assignmentChanged&&!assignmentType){message.textContent="Choisis un consignateur ou un dépôt actif.";return}
+  if(assignmentType==="consignor"&&(directRate==null||!Number.isFinite(directRate)||directRate<0||directRate>100)){
+   message.textContent="Un taux de consignation valide entre 0 et 100 % est requis.";return;
+  }
+  if(assignmentChanged)delete changes.commission_pct;
   if(changes.commission_pct!=null&&(changes.commission_pct>100||changes.commission_pct<0)){
    message.textContent="Commission invalide (0 à 100 %).";return}
   const removed=[...modal.querySelectorAll(".miDelete:checked")].map(x=>x.value);
@@ -2628,7 +2678,9 @@ async function openMilouArticleEditor(id){
    message.textContent="Photos : formats JPG/PNG/WebP, maximum 10 Mo chacune.";return}
   btn.disabled=true;message.textContent="Enregistrement…";
   try{
-   const updated=await sb.rpc("milou_edit_item",{p_item_id:id,p_changes:changes});
+   const updated=assignmentChanged
+    ?await sb.rpc("milou_edit_item_with_assignment",{p_item_id:id,p_changes:changes,p_target_type:assignmentType,p_target_id:targetId,p_target_commission:directRate})
+    :await sb.rpc("milou_edit_item",{p_item_id:id,p_changes:changes});
    if(updated.error)throw updated.error;
    if(updated.data?.status!=="updated")throw Error("Réponse serveur invalide");
    const failures=[];
@@ -2678,10 +2730,9 @@ function showStockItemDetails(id){
  show("Prix",money(i.sale_price))+show("Emplacement",i.location_code)+
  show("Dépôt",i.deposits?.code||d?.code)+show("Consignateur",i.consignors?.full_name||c?.full_name)+
  '<div class="notice">Fiche article. Les changements de consignateur et de lot sont historisés; un article déjà vendu ne peut pas être transféré.</div>'+
- (["to_process","ai_ready","validated","shopify_draft","online","returned"].includes(i.status)&&!i.deleted_at?'<div class="actions"><button type="button" class="btn primary" id="articleEdit">✎ Modifier l’article</button><button type="button" class="btn ghost" id="articleReassign">Changer de consignateur / lot</button></div>':'');
+ (["to_process","ai_ready","validated","shopify_draft","online","returned"].includes(i.status)&&!i.deleted_at?'<div class="actions"><button type="button" class="btn primary" id="articleEdit">✎ Modifier l’article</button></div>':'');
  modal.classList.remove("hidden");$("articleInfoClose").focus();
- const transfer=$("articleReassign");if(transfer)transfer.onclick=()=>{closeStockItemDetails();openMilouItemReassignment(null,i.id)};
- const edit=$("articleEdit");if(edit)edit.onclick=()=>{closeStockItemDetails();openMilouArticleEditor(i.id)};
+  const edit=$("articleEdit");if(edit)edit.onclick=()=>{closeStockItemDetails();openMilouArticleEditor(i.id)};
 }
 function closeStockItemDetails(){$("articleInfoModal").classList.add("hidden")}
 $("articleInfoClose").onclick=closeStockItemDetails;
