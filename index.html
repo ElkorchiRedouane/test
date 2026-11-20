@@ -2838,17 +2838,37 @@ async function deleteItemFlow(id,depositId=null){
 }
 
 async function deleteDepositFlow(id){
-  const d=deposits.find(x=>x.id===id);if(!d)return;
-  const sent=(d.items||[]).filter(i=>i.shopify_product_id);
-  if(sent.length){toast("Ce dépôt contient des articles déjà envoyés à Shopify : il doit être conservé.");return}
-  const n=(d.items||[]).length;
-  if(!confirm("Retirer "+d.code+" et ses "+n+" article(s) non envoyés ? Une trace restera dans l’historique et le registre Google Sheets."))return;
-  const {data,error}=await sb.functions.invoke("delete-deposit",{body:{deposit_id:id}});
-  if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
+ const d=deposits.find(x=>x.id===id);if(!d)return;
+ if(d.deleted_at||d.status==="deleted"){toast("Ce dépôt est déjà retiré.");return}
+ const sent=(d.items||[]).filter(i=>i.shopify_product_id);
+ if(sent.length){toast("Ce dépôt contient des articles déjà envoyés à Shopify : il doit être conservé.");return}
+ const n=(d.items||[]).length;
+ if(!confirm(n===0
+  ?"Retirer le dépôt vide "+d.code+" ? Il disparaîtra des dépôts actifs, mais restera dans l’historique."
+  :"Retirer "+d.code+" et ses "+n+" article(s) non envoyés ? Une trace restera dans l’historique et le registre Google Sheets."))return;
+ const btn=$("depDelete");if(btn){btn.disabled=true;btn.textContent="Suppression…";}
+ try{
+  if(n===0){
+   // Server verifies the deposit is still empty. No destructive action on items.
+   const {data,error}=await sb.rpc("milou_delete_empty_deposit",{p_deposit_id:id});
+   if(error)throw error;
+   if(data?.status!=="deleted"&&data?.status!=="already_deleted")throw Error("Confirmation serveur inattendue");
+  }else{
+   const {data,error}=await sb.functions.invoke("delete-deposit",{body:{deposit_id:id}});
+   if(error||data?.error){
+    let details=data?.error||error?.message||"Erreur du serveur";
+    if(error?.context?.json){try{const payload=await error.context.json();details=payload?.error||details}catch{}}
+    throw Error(details);
+   }
+   if(data?.ok!==true)throw Error("La suppression du dépôt n’a pas été confirmée");
+  }
   activeDeposit=null;
-  toast("Dépôt retiré et conservé dans l’historique");
-  await refreshAll();
   $("depositDetail").innerHTML="";
+  toast("Dépôt "+d.code+" retiré, historique conservé.");
+  await refreshAll();
+ }catch(e){
+  toast("Suppression impossible : "+(e?.message||String(e)));
+ }finally{if(btn&&btn.isConnected){btn.disabled=false;btn.textContent="Supprimer le dépôt";}}
 }
 
 async function retryShopify(id){
