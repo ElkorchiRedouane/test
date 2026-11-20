@@ -119,6 +119,44 @@ input,select,textarea{border-radius:11px;min-height:43px}
 .bottom button{font-size:.76rem;padding:10px 3px 9px}
 .bottom button.active{color:var(--green);background:#eef6f2;border-radius:12px}
 .bottom button span{font-size:1.26rem}
+/* Stable iOS navigation: only the content area scrolls. The bottom tabs never
+   participate in the scrolling viewport, including when Safari hides its bars. */
+.app:not(.hidden){
+ display:flex;
+ flex-direction:column;
+ height:100vh;
+ height:100dvh;
+ min-height:0;
+ padding-bottom:0;
+ overflow:hidden;
+}
+.app:not(.hidden) > .top{
+ flex:0 0 auto;
+ position:relative;
+ top:auto;
+}
+.app:not(.hidden) > main{
+ display:block;
+ flex:1 1 auto;
+ min-height:0;
+ width:100%;
+ overflow-y:auto;
+ overflow-x:hidden;
+ margin:0 auto;
+ overscroll-behavior-y:contain;
+ -webkit-overflow-scrolling:touch;
+ padding-bottom:calc(18px + env(safe-area-inset-bottom, 0px));
+}
+.app:not(.hidden) > .bottom{
+ position:relative;
+ left:auto;
+ right:auto;
+ bottom:auto;
+ flex:0 0 auto;
+ width:100%;
+ z-index:30;
+ padding-bottom:env(safe-area-inset-bottom, 0px);
+}
 .stats{margin-top:10px}.stat{box-shadow:none}
 .notice{font-size:.84rem}
 #cashier .cashier-primary>.panel-body>.actions:first-of-type{margin-top:10px}
