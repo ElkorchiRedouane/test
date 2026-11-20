@@ -1125,7 +1125,7 @@ function openMilouItemReassignment(depositId=null,itemId=null){
  const update=()=>{
   const items=selectedItems(),v=targetSelect.value;
   const d=v.startsWith("deposit:")?targetDeposits.find(x=>x.id===v.slice(8)):null;
-  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(11)):d?active.find(x=>x.id===d.consignor_id):null;
+  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(10)):d?active.find(x=>x.id===d.consignor_id):null;
   const rate=d?(d.commission_pct??c?.default_commission_pct):c?.default_commission_pct;
   const direct=!!c&&!d;
   $("milouTransferCommissionBox").classList.toggle("hidden",!direct);
@@ -1145,7 +1145,7 @@ function openMilouItemReassignment(depositId=null,itemId=null){
  $("milouTransferSave").onclick=async()=>{
   const items=selectedItems(),v=targetSelect.value;
   const d=v.startsWith("deposit:")?targetDeposits.find(x=>x.id===v.slice(8)):null;
-  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(11)):d?active.find(x=>x.id===d.consignor_id):null;
+  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(10)):d?active.find(x=>x.id===d.consignor_id):null;
   if(!items.length||!c)return;
   const rate=Number(rateInput.value);
   if(!d&&(rateInput.value.trim()===""||!Number.isFinite(rate)||rate<0||rate>100)){
@@ -1307,7 +1307,7 @@ function fillArticleDestination(defaultValue){
 function updateArticleDestination(){
  const value=$("articleDestination").value;
  const d=value.startsWith("deposit:")?deposits.find(x=>x.id===value.slice(8)):null;
- const c=value.startsWith("consignor:")?consignors.find(x=>x.id===value.slice(11)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
+ const c=value.startsWith("consignor:")?consignors.find(x=>x.id===value.slice(10)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
  const rate=d?(d.commission_pct??c?.default_commission_pct):c?.default_commission_pct;
  const hint=$("articleDestinationHelp");
  hint.textContent=d?"Dépôt "+d.code+" — "+(c?.full_name||"stock boutique")+".":c?"Consignateur "+c.full_name+" sans dépôt.":"L’article appartient au stock boutique.";
@@ -2198,7 +2198,7 @@ async function saveArticle(toShopify){
  if(photoProcessing>0){toast("Attends la fin de l’optimisation des photos");return}
  const destination=$("articleDestination").value;
  const d=destination.startsWith("deposit:")?deposits.find(x=>x.id===destination.slice(8)):null;
- const c=destination.startsWith("consignor:")?consignors.find(x=>x.id===destination.slice(11)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
+ const c=destination.startsWith("consignor:")?consignors.find(x=>x.id===destination.slice(10)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
  if(destination.startsWith("deposit:")&&!d){toast("Dépôt introuvable. Actualise la page.");return}
  if(destination.startsWith("consignor:")&&!c){toast("Consignateur introuvable. Actualise la page.");return}
  const manualRate=$("fCommission").value.trim();
@@ -2792,9 +2792,12 @@ async function openMilouArticleEditor(id){
   const selectedDestination=chosenDestination();
   const assignmentChanged=selectedDestination!==currentDestination;
   const assignmentType=assignmentChanged?(selectedDestination.startsWith("deposit:")?"deposit":selectedDestination.startsWith("consignor:")?"consignor":null):null;
-  const targetId=assignmentType?selectedDestination.slice(assignmentType==="deposit"?8:11):null;
+  const targetId=assignmentType?selectedDestination.slice(assignmentType==="deposit"?8:10):null;
   const directRate=assignmentType==="consignor"&&assignmentRate.value.trim()!==""?Number(assignmentRate.value):null;
   if(assignmentChanged&&!assignmentType){message.textContent="Choisis un consignateur ou un dépôt actif.";return}
+  if(assignmentChanged&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId||"")){
+   message.textContent="Identifiant du consignateur ou du dépôt invalide : actualise l'application puis réessaie.";return;
+  }
   if(assignmentType==="consignor"&&(directRate==null||!Number.isFinite(directRate)||directRate<0||directRate>100)){
    message.textContent="Un taux de consignation valide entre 0 et 100 % est requis.";return;
   }
