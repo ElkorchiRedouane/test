@@ -246,6 +246,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div class="stat"><strong id="stOpenDep">0</strong><span>Dépôts ouverts</span></div>
       <div class="stat"><strong id="stPending">0</strong><span>En stock</span></div>
       <div class="stat"><strong id="stOnline">0</strong><span>Vendus</span></div>
+      <div class="stat" style="grid-column:1/-1;background:#eaf4ef"><strong id="stStockValue" style="font-size:1.65rem">0,00 $</strong><span>Valeur du stock disponible — total des prix de vente affichés, hors articles vendus ou supprimés</span></div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Derniers dépôts</h2><button id="newDepositSmall" class="btn primary small">+ Nouveau</button></div><div class="panel-body"><div id="homeDepositList" class="list"></div></div></div>
   </section>
@@ -930,7 +931,9 @@ function fillFilters(){
 function renderStats(){
  $("stCons").textContent=consignors.filter(c=>c.status==="active").length;
  $("stOpenDep").textContent=deposits.filter(d=>!["closed","deleted"].includes(d.status)).length;
- $("stPending").textContent=stock.filter(i=>["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at).length;
+ const available=stock.filter(i=>["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at);
+ $("stPending").textContent=available.length;
+ $("stStockValue").textContent=money(available.reduce((sum,item)=>sum+(Number.isFinite(Number(item.sale_price))&&Number(item.sale_price)>0?Number(item.sale_price):0),0));
  $("stOnline").textContent=stock.filter(i=>i.status==="sold").length;
 }
 function fillDepositSelect(){
