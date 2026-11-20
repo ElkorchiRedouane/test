@@ -276,7 +276,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
     <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Brother · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
-    <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div id="locationSummary" class="notice hidden"></div>
+    <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div class="actions" style="margin:6px 0"><button id="stockReloadPhotos" type="button" class="btn ghost small">↻ Recharger les photos</button><span id="stockPhotosStatus" class="caption" role="status" aria-live="polite"></span></div><div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
@@ -614,7 +614,7 @@ function go(id,options={}){
  if(id!=="cashier")void stopPosCamera();
  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));
  document.querySelectorAll(".bottom button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
- if(id==="stock")renderStock();
+ if(id==="stock"){renderStock();void hydrateMilouPhotos().catch(e=>console.warn("Photos stock:",e));}
  if(id==="labels")renderLabelOptions();
  if(id==="deposits"){if(options.keepDepositDetail!==true)$("depositDetail").innerHTML="";renderDeposits();}
  if(id==="consignors")renderConsignors();
@@ -776,40 +776,85 @@ async function fetchMilouPages(table,fields,orderColumn,label){
  }
  throw new Error(label+" : limite de 10 000 lignes atteinte. La synchronisation complète doit être adaptée avant de continuer.");
 }
-let photoHydrationActive=false;
-async function loadStock(){
- stock=await fetchMilouPages("items","id,sku,title,brand,size,age_band,condition,status,sale_price,commission_pct,acquisition_mode,location_code,shopify_url,shopify_admin_url,shopify_product_id,shopify_status,shopify_inventory,shopify_synced_at,shopify_deleted_at,deleted_at,deleted_from,created_at,label_generated_at,deposits(code,id),consignors(code,full_name,id),item_photos(storage_path,is_primary,sort_order)","created_at","Stock");
- // Photo URLs will load after the initial dashboard render to avoid blocking startup.
+let photoHydrationActive=false,photoHydrationQueued=false,photoHydrationRun=0;
+const photoSignedCache=new Map();
+function stockPhotoStatus(text,isWarning=false){
+ const el=$("stockPhotosStatus");
+ if(!el)return;
+ el.textContent=text;
+ el.style.color=isWarning?"#8a4d12":"";
 }
-async function hydrateMilouPhotos(){
- if(photoHydrationActive)return;
+async function hydrateMilouPhotos(force=false){
+ if(photoHydrationActive){photoHydrationQueued=true;return;}
  photoHydrationActive=true;
+ const myRun=++photoHydrationRun;
  try{
   const entries=[...stock,...deposits.flatMap(d=>d.items||[])];
   const paths=new Map();
-  for(const i of entries){
-   const pics=(i.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
+  const missing=[];
+  for(const item of entries){
+   const pics=(item.item_photos||[]).slice().sort((a,b)=>(Number(b.is_primary)-Number(a.is_primary))||((a.sort_order||0)-(b.sort_order||0)));
    const path=pics[0]?.storage_path;
-   if(path){
-    if(!paths.has(path))paths.set(path,[]);
-    paths.get(path).push(i);
-   }
+   if(!path)continue;
+   if(!paths.has(path))paths.set(path,[]);
+   paths.get(path).push(item);
   }
-  const queue=[...paths.keys()];
-  const workers=Array.from({length:8},async()=>{
+  const live=Date.now();
+  for(const [path,items] of paths){
+   const cached=!force&&photoSignedCache.get(path);
+   if(cached&&cached.expiry>live){
+    items.forEach(item=>item.photo_url=cached.url);
+   }else missing.push(path);
+  }
+  // Render cached photo thumbnails immediately, not only after the last signed URL.
+  if($("stock")?.classList.contains("active"))renderStock();
+  let loaded=0,failed=0,firstError="";
+  stockPhotoStatus(missing.length?"Chargement des photos : "+missing.length+" image(s)…":"Photos du stock actualisées.");
+  let renderQueued=false;
+  const refreshVisible=()=>{
+   if(renderQueued)return;
+   renderQueued=true;
+   requestAnimationFrame(()=>{
+    renderQueued=false;
+    if($("app").classList.contains("hidden"))return;
+    if($("stock").classList.contains("active"))renderStock();
+    if($("deposits").classList.contains("active"))renderDeposits();
+   });
+  };
+  // Priority: newest stock rows (visible first), with moderate concurrency on mobile.
+  const queue=[...missing];
+  const workers=Array.from({length:4},async()=>{
    while(queue.length){
     const path=queue.shift();
-    const {data,error}=await sb.storage.from("item-photos").createSignedUrl(path,3600);
-    if(!error && data?.signedUrl)for(const item of paths.get(path))item.photo_url=data.signedUrl;
+    try{
+     const {data,error}=await sb.storage.from("item-photos").createSignedUrl(path,3600);
+     if(error||!data?.signedUrl)throw error||new Error("Lien absent");
+     photoSignedCache.set(path,{url:data.signedUrl,expiry:Date.now()+50*60*1000});
+     for(const item of paths.get(path)||[])item.photo_url=data.signedUrl;
+     // Also attach the URL to newer stock/deposit objects if refreshAll
+     // replaced the arrays during the network request.
+     for(const item of [...stock,...deposits.flatMap(d=>d.items||[])]){
+      if((item.item_photos||[]).some(p=>p.storage_path===path&&p.is_primary))item.photo_url=data.signedUrl;
+     }
+     loaded++;
+     refreshVisible();
+    }catch(error){
+     failed++;
+     if(!firstError)firstError=String(error?.message||error);
+    }
    }
   });
   await Promise.all(workers);
-  // Preserve user's current filters and view; update images only after they become ready.
-  if(!$("app").classList.contains("hidden")){
-   if($("stock").classList.contains("active"))renderStock();
-   if($("deposits").classList.contains("active"))renderDeposits();
+  refreshVisible();
+  const currentlyMissing=stock.filter(item=>(item.item_photos||[]).length&&!item.photo_url).length;
+  stockPhotoStatus(failed?"Certaines photos ne sont pas accessibles ("+failed+"). "+firstError+" · Réessaie « Recharger les photos ».":currentlyMissing?"Photos en cours de synchronisation : "+currentlyMissing+" article(s) sans miniature.":"Photos chargées.",!!failed);
+ }finally{
+  photoHydrationActive=false;
+  if(photoHydrationQueued){
+   photoHydrationQueued=false;
+   void hydrateMilouPhotos().catch(e=>console.warn("Relance photos:",e));
   }
- }finally{photoHydrationActive=false}
+ }
 }
 async function loadSales(){
  sales=await fetchMilouPages("sales","*,items(sku,title,sale_price,shopify_product_id,location_code),consignors(code,full_name)","sold_at","Ventes");
@@ -2183,6 +2228,7 @@ function printMilouLabels(){
  note($("labelsStatus"),items.length+" étiquette(s) préparée(s). Dans la nouvelle fenêtre, utilise « Imprimer » pour choisir ton imprimante. La génération ne garantit pas une impression physique.");
  void sb.from("items").update({label_generated_at:new Date().toISOString()}).in("id",items.map(i=>i.id)).then(({error})=>{if(error){console.warn("Historique étiquettes",error);note($("labelsStatus"),"Étiquettes préparées, mais suivi de génération non enregistré : "+esc(error.message),"warn")}else void refreshAll()});
 }
+$("stockReloadPhotos").onclick=()=>{photoSignedCache.clear();stockPhotoStatus("Actualisation des photos…");void hydrateMilouPhotos(true).catch(e=>stockPhotoStatus("Erreur de photos : "+String(e.message||e),true));};
 $("stockPickVisible").onclick=()=>{
  const checkItems=new Set(labelAvailableItems().map(i=>i.id));
  document.querySelectorAll("#stockList .stockLabelPick").forEach(el=>{if(checkItems.has(el.dataset.id))selectedLabelIds.add(el.dataset.id)});
