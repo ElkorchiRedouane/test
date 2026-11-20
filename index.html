@@ -1006,11 +1006,15 @@ function renderDepositDetail(id){
  '</div></div><div class="panel-body">'+
  (items.length?'<div class="list">'+items.map(i=>{
    const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
+   const mayDelete=(!i.shopify_product_id||i.status==="deleted_shopify"||!!i.shopify_deleted_at)&&!deletedMilou&&i.status!=="sold";
+   const deleteAction=mayDelete?'<button type="button" class="btn danger small deleteItem" data-id="'+esc(i.id)+'">Supprimer de Milou</button>':'';
    const actions=deletedMilou
      ? '<span class="badge gray">Conservé pour historique</span>'
      : (!i.shopify_product_id
-     ? '<button class="btn primary small depPublishOne" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
-     : (deleted?'<span class="badge gray">Supprimé de Shopify</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'<span class="badge yellow">'+esc(statusLabel(i.status))+'</span>')));
+       ? '<button class="btn primary small depPublishOne" data-id="'+esc(i.id)+'">Envoyer Shopify</button>'+deleteAction
+       : (deleted?'<span class="badge gray">Supprimé de Shopify</span>'+deleteAction:
+          (i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Shopify</a>':'')+
+          (mayDelete?deleteAction:'')));
    return '<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="">':'<div class="item-thumb placeholder">👕</div>')+
      '<div class="row-main"><button type="button" class="btn ghost small stockDetails" data-id="'+esc(i.id)+'" style="text-align:left;white-space:normal">'+esc(i.title||i.sku)+' — détails</button><small>'+esc(i.sku)+' • Shopify #'+esc(shopifyNumber(i.shopify_product_id))+' • Ajout '+esc(milouLabelDate(i.created_at))+'</small><div class="mini-meta"><span class="badge '+(deleted?'gray':'')+'">'+esc(statusLabel(i.status))+'</span>'+(i.shopify_inventory!=null?'<span class="badge gray">Stock '+i.shopify_inventory+'</span>':'')+'</div></div>'+
      '<div class="row-actions"><strong>'+money(i.sale_price)+'</strong>'+actions+'</div></div>';
@@ -2892,11 +2896,15 @@ function renderStock(){
  if($("locationSummary"))$("locationSummary").innerHTML='<strong>Emplacements physiques (stock actif, hors articles supprimés ou archivés) :</strong> '+locations.map(l=>esc(l.code)+' '+(counts[l.code]||0)+'/'+l.capacity+' ('+esc(l.size_group)+')').join(' • ');
  $("stockList").innerHTML=rows.length?rows.map(i=>{
    const deleted=i.status==="deleted_shopify",deletedMilou=i.status==="deleted_milou";
+   const mayDelete=(!i.shopify_product_id||i.status==="deleted_shopify"||!!i.shopify_deleted_at)&&!deletedMilou&&i.status!=="sold";
+   const deleteAction=mayDelete?'<button type="button" class="btn danger small deleteItem" data-id="'+esc(i.id)+'">Supprimer de Milou</button>':'';
    const actions=deletedMilou
      ? '<span class="badge gray">Conservé pour historique</span>'
-     : (!i.shopify_product_id
-     ? '<button class="btn primary small retryShopify" data-id="'+i.id+'">Envoyer Shopify</button><button class="btn danger small deleteItem" data-id="'+i.id+'">Supprimer</button>'
-     : (deleted?'<span class="badge gray">Conservé dans Milou Ops</span>':(i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')));
+     :(!i.shopify_product_id
+       ?'<button class="btn primary small retryShopify" data-id="'+esc(i.id)+'">Envoyer Shopify</button>'+deleteAction
+       : (deleted?'<span class="badge gray">Supprimé de Shopify</span>'+deleteAction:
+          (i.shopify_admin_url?'<a class="btn ghost small" href="'+esc(i.shopify_admin_url)+'" target="_blank">Ouvrir Shopify</a>':'')+
+          (mayDelete?deleteAction:'')));
    const printable=["validated","shopify_draft","online"].includes(i.status)&&!i.deleted_at&&!!i.sku;
    const pick=printable?'<label style="display:flex;align-items:center;padding:4px;cursor:pointer"><input type="checkbox" class="stockLabelPick" data-id="'+esc(i.id)+'" aria-label="Imprimer une étiquette pour '+esc(i.sku)+'" '+(selectedLabelIds.has(i.id)?"checked":"")+' style="width:23px;height:23px"></label>':'';
    return '<div class="row">'+pick+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'">':'<div class="item-thumb placeholder">👕</div>')+
@@ -2913,18 +2921,24 @@ function renderStock(){
  document.querySelectorAll(".deleteItem").forEach(b=>b.onclick=()=>deleteItemFlow(b.dataset.id));
 }
 async function deleteItemFlow(id,depositId=null){
-  const item=stock.find(x=>x.id===id)||deposits.flatMap(d=>d.items||[]).find(x=>x.id===id);
-  if(!item)return;
-  if(item.shopify_product_id){
-    toast("Déjà envoyé à Shopify : supprime-le dans Shopify puis synchronise.");
-    return;
-  }
-  if(!confirm("Retirer "+(item.sku||"cet article")+" de Milou Ops ? Une trace sera conservée dans l’historique et le registre Google Sheets."))return;
-  const {data,error}=await sb.functions.invoke("delete-item",{body:{item_id:id}});
-  if(error||data?.error){toast(data?.error||error?.message||"Suppression impossible");return}
-  toast("Article retiré et conservé dans l’historique");
+ const item=stock.find(x=>x.id===id)||deposits.flatMap(d=>d.items||[]).find(x=>x.id===id);
+ if(!item)return;
+ if(item.status==="deleted_milou"||item.deleted_at){toast("Cet article est déjà supprimé de Milou Ops.");return}
+ if(item.shopify_product_id&&item.status!=="deleted_shopify"&&!item.shopify_deleted_at){
+  toast("Cet article est encore lié à Shopify. Supprime-le sur Shopify puis synchronise avant de le retirer de Milou Ops.");return;
+ }
+ if(!confirm("Supprimer "+(item.sku||"cet article")+" de l’inventaire Milou Ops ? L’article sera masqué du stock actif, sans suppression définitive des données. Cette action ne rembourse aucune vente et ne modifie pas Shopify."))return;
+ const button=Array.from(document.querySelectorAll(".deleteItem")).find(b=>b.dataset.id===id);
+ if(button){button.disabled=true;button.textContent="Suppression…"}
+ try{
+  const {data,error}=await sb.rpc("milou_soft_delete_item",{p_item_id:id});
+  if(error)throw error;
+  if(!data||!["deleted","already_deleted"].includes(data.status))throw Error("Suppression non confirmée par le serveur");
+  toast("Article "+(item.sku||"")+" retiré du stock. Historique conservé.");
   await refreshAll();
   if(depositId)renderDepositDetail(depositId);else go("stock");
+ }catch(e){toast("Suppression impossible : "+(e?.message||String(e)))}
+ finally{if(button&&button.isConnected){button.disabled=false;button.textContent="Supprimer de Milou"}}
 }
 
 async function deleteDepositFlow(id){
