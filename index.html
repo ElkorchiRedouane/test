@@ -1025,26 +1025,28 @@ async function publishDeposit(depositId){
 
 
 function openMilouItemReassignment(depositId=null,itemId=null){
- // One transfer form for multiple existing articles or a single article's ownership.
- const activeConsignorIds=new Set(consignors.filter(c=>c.status==="active"&&!c.deleted_at).map(c=>c.id));
- const targets=deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeConsignorIds.has(d.consignor_id)&&!d.deleted_at);
+ // Transfer existing articles to either a deposit or a consignor without a deposit.
+ const active=consignors.filter(c=>c.status==="active"&&!c.deleted_at);
+ const activeIds=new Set(active.map(c=>c.id));
+ const targetDeposits=deposits.filter(d=>d.acquisition_mode==="consignment"&&d.consignor_id&&activeIds.has(d.consignor_id)&&!d.deleted_at&&d.status!=="deleted");
  const eligible=stock.filter(i=>["to_process","ai_ready","validated","shopify_draft","online","returned"].includes(i.status)&&!i.deleted_at);
- if(!targets.length){toast("Crée d’abord un lot de consignation avec un taux valide.");return;}
- if(!eligible.length){toast("Aucun article non vendu disponible.");return;}
+ if(!active.length&&!targetDeposits.length){toast("Ajoute d’abord un consignateur actif.");return}
+ if(!eligible.length){toast("Aucun article non vendu disponible.");return}
  let modal=$("milouTransferModal");
  if(!modal){
   modal=document.createElement("div");
   modal.id="milouTransferModal";modal.className="modal hidden";
   modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
-  modal.setAttribute("aria-label","Déplacer des articles existants");
+  modal.setAttribute("aria-label","Changer le consignateur ou dépôt des articles");
   modal.innerHTML='<div class="modal-box" style="max-width:620px">'+
-   '<div class="modal-head"><h2>Ajouter / déplacer des articles existants</h2><button type="button" id="milouTransferClose" aria-label="Fermer">×</button></div>'+
-   '<p class="caption">Les SKU ne changent pas. Le nouveau lot détermine le consignateur et le pourcentage. Toutes les réaffectations sont historisées.</p>'+
-   '<div class="field"><label>Article(s) existant(s)</label><select id="milouTransferItem"></select><small id="milouTransferHelp" class="caption"></small></div>'+
-   '<div class="field" style="margin-top:12px"><label>Lot de destination (consignateur)</label><select id="milouTransferDeposit"></select></div>'+
-   '<div class="notice warn" style="margin-top:12px">Les articles vendus ou liés à un paiement en attente ne peuvent pas être déplacés. La transaction entière sera annulée si l’un des articles est inadmissible.</div>'+
+   '<div class="modal-head"><h2>Changer de consignateur ou de dépôt</h2><button type="button" id="milouTransferClose" aria-label="Fermer">×</button></div>'+
+   '<p class="caption">Tu peux déplacer un article vers un dépôt ou directement vers un consignateur, sans créer de dépôt. Son SKU ne change pas. Chaque transfert est historisé.</p>'+
+   '<div class="field"><label>Article(s) à déplacer</label><select id="milouTransferItem"></select><small id="milouTransferHelp" class="caption"></small></div>'+
+   '<div class="field" style="margin-top:12px"><label>Nouvelle attribution</label><select id="milouTransferDeposit"></select></div>'+
+   '<div class="field" id="milouTransferCommissionBox" style="margin-top:12px"><label for="milouTransferCommission">Part du consignateur (%)</label><input type="number" id="milouTransferCommission" min="0" max="100" step=".01" inputmode="decimal"><small class="caption">Pour un transfert sans dépôt, le taux de l’article suit celui choisi ici.</small></div>'+
+   '<div class="notice warn" style="margin-top:12px">Les articles déjà vendus, archivés ou inclus dans un paiement en attente ne peuvent pas être déplacés. Aucune vente ni commission déjà due ne sera modifiée.</div>'+
    '<div id="milouTransferSummary" class="notice" style="margin-top:12px"></div>'+
-   '<div class="actions" style="margin-top:12px"><button type="button" id="milouTransferSave" class="btn primary">Confirmer le déplacement</button><button type="button" id="milouTransferCancel" class="btn ghost">Annuler</button></div>'+
+   '<div class="actions" style="margin-top:12px"><button type="button" id="milouTransferSave" class="btn primary">Confirmer le transfert</button><button type="button" id="milouTransferCancel" class="btn ghost">Annuler</button></div>'+
    '<div id="milouTransferFeedback" role="status"></div>'+
    '</div>';
   document.body.appendChild(modal);
@@ -1052,52 +1054,70 @@ function openMilouItemReassignment(depositId=null,itemId=null){
   $("milouTransferCancel").onclick=()=>modal.classList.add("hidden");
   modal.addEventListener("click",e=>{if(e.target===modal)modal.classList.add("hidden")});
  }
- const itemSelect=$("milouTransferItem"),depositSelect=$("milouTransferDeposit");
+ const itemSelect=$("milouTransferItem"),targetSelect=$("milouTransferDeposit"),rateInput=$("milouTransferCommission");
  const single=!!itemId;
  itemSelect.multiple=!single;
  itemSelect.size=single?1:Math.min(8,Math.max(3,eligible.length));
- $("milouTransferHelp").textContent=single?"Transfert de cet article uniquement.":"Sur Windows : Ctrl + clic pour choisir plusieurs articles; Maj + clic pour sélectionner une plage.";
+ $("milouTransferHelp").textContent=single?"Transfert de cet article uniquement.":"Sur mobile, sélectionne les articles dans la liste. Sur ordinateur, Ctrl ou Maj + clic pour sélectionner plusieurs articles.";
  itemSelect.innerHTML=(single?'<option value="">Sélectionner un article</option>':'')+eligible.map(i=>
-  '<option value="'+esc(i.id)+'">'+esc(i.sku+" — "+(i.title||"Sans titre")+" ("+(i.consignors?.full_name||"Stock boutique")+")")+'</option>').join("");
+  '<option value="'+esc(i.id)+'">'+esc(i.sku+" — "+(i.title||"Sans titre")+" ("+(i.consignors?.full_name||"Stock boutique")+(i.deposits?.code?" / "+i.deposits.code:" / sans dépôt")+")")+'</option>').join("");
  if(!single)itemSelect.selectedIndex=-1;
- depositSelect.innerHTML=targets.map(d=>{
-  const c=consignors.find(c=>c.id===d.consignor_id);
-  const rate=d.commission_pct??c?.default_commission_pct;
-  return '<option value="'+esc(d.id)+'">'+esc((d.code||"Dépôt")+" — "+(c?.full_name||"Consignateur")+" — taux "+(rate==null?"à définir":rate+" %"))+'</option>';
- }).join("");
+ targetSelect.innerHTML='<optgroup label="Consignateurs sans dépôt">'+active.map(c=>
+  '<option value="consignor:'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name+" (sans dépôt)")+'</option>').join("")+'</optgroup>'+
+  '<optgroup label="Dépôts de consignation">'+targetDeposits.map(d=>{
+   const c=active.find(c=>c.id===d.consignor_id);
+   return '<option value="deposit:'+esc(d.id)+'">'+esc(d.code+" — "+(c?.full_name||"Consignateur"))+'</option>';
+  }).join("")+'</optgroup>';
  if(itemId&&eligible.some(i=>i.id===itemId))itemSelect.value=itemId;
- if(depositId&&targets.some(d=>d.id===depositId))depositSelect.value=depositId;
- $("milouTransferFeedback").innerHTML="";
+ if(depositId&&targetDeposits.some(d=>d.id===depositId))targetSelect.value="deposit:"+depositId;
+ $("milouTransferFeedback").textContent="";
  const selectedItems=()=>Array.from(itemSelect.selectedOptions).map(o=>eligible.find(i=>i.id===o.value)).filter(Boolean);
  const update=()=>{
-  const items=selectedItems(),d=targets.find(d=>d.id===depositSelect.value);
-  const c=d&&consignors.find(c=>c.id===d.consignor_id);
-  const rate=d?(d.commission_pct??c?.default_commission_pct):null;
-  $("milouTransferSummary").innerHTML=items.length&&d?'<b>'+items.length+' article(s) sélectionné(s)</b> : '+esc(items.slice(0,5).map(i=>i.sku).join(", "))+(items.length>5?"…":"")+
-    '<div>Destination : '+esc(d.code)+' — '+esc(c?.full_name||"Consignateur")+'</div>'+
-    '<div>Nouveau taux consignateur : '+esc(rate==null?"À définir avant le déplacement":rate+" %")+'</div>':'Sélectionne les articles et le lot de destination.';
-  $("milouTransferSave").disabled=!items.length||!d||rate==null;
+  const items=selectedItems(),v=targetSelect.value;
+  const d=v.startsWith("deposit:")?targetDeposits.find(x=>x.id===v.slice(8)):null;
+  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(11)):d?active.find(x=>x.id===d.consignor_id):null;
+  const rate=d?(d.commission_pct??c?.default_commission_pct):c?.default_commission_pct;
+  const direct=!!c&&!d;
+  $("milouTransferCommissionBox").classList.toggle("hidden",!direct);
+  if(targetSelect.dataset.previousValue!==v){
+   rateInput.value=direct?(rate??""):"";
+   targetSelect.dataset.previousValue=v;
+  }
+  const effectiveRate=direct?(rateInput.value.trim()===""?null:Number(rateInput.value)):rate;
+  const valid=effectiveRate!=null&&Number.isFinite(Number(effectiveRate))&&Number(effectiveRate)>=0&&Number(effectiveRate)<=100;
+  $("milouTransferSummary").innerHTML=items.length&&c?'<b>'+items.length+' article(s)</b> : '+esc(items.slice(0,5).map(i=>i.sku).join(", "))+(items.length>5?"…":"")+
+   '<div>Destination : '+esc(c.full_name)+(d?" — "+esc(d.code):" — sans dépôt")+'</div>'+
+   '<div>Part consignateur : '+esc(valid?effectiveRate+" %":"Taux à définir")+'</div>':"Sélectionne les articles et la destination.";
+  $("milouTransferSave").disabled=!items.length||!c||!valid||items.length>100;
  };
- itemSelect.onchange=update;depositSelect.onchange=update;update();
+ targetSelect.dataset.previousValue="";
+ itemSelect.onchange=update;targetSelect.onchange=update;rateInput.oninput=update;update();
  $("milouTransferSave").onclick=async()=>{
-  const items=selectedItems(),d=targets.find(x=>x.id===depositSelect.value);
-  if(!items.length||!d)return;
-  if(!confirm("Déplacer "+items.length+" article(s) vers "+d.code+" ? Le consignateur et le taux de commission seront remplacés. Les articles déjà vendus ne seront pas modifiés."))return;
-  const button=$("milouTransferSave");button.disabled=true;button.textContent="Déplacement…";
+  const items=selectedItems(),v=targetSelect.value;
+  const d=v.startsWith("deposit:")?targetDeposits.find(x=>x.id===v.slice(8)):null;
+  const c=v.startsWith("consignor:")?active.find(x=>x.id===v.slice(11)):d?active.find(x=>x.id===d.consignor_id):null;
+  if(!items.length||!c)return;
+  const rate=Number(rateInput.value);
+  if(!d&&(rateInput.value.trim()===""||!Number.isFinite(rate)||rate<0||rate>100)){
+   note($("milouTransferFeedback"),"Saisis un taux de consignation valide entre 0 et 100 %.","warn");return;
+  }
+  if(!confirm("Déplacer "+items.length+" article(s) vers "+c.full_name+(d?" / "+d.code:" sans dépôt")+" ? Les attributions et les taux de commission seront mis à jour. Les SKU restent identiques."))return;
+  const button=$("milouTransferSave");button.disabled=true;button.textContent="Transfert…";
   try{
-   const {data,error}=await sb.rpc("milou_reassign_items",{p_item_ids:items.map(i=>i.id),p_deposit_id:d.id});
+   const {data,error}=d
+    ?await sb.rpc("milou_reassign_items",{p_item_ids:items.map(i=>i.id),p_deposit_id:d.id})
+    :await sb.rpc("milou_reassign_items_to_consignor",{p_item_ids:items.map(i=>i.id),p_consignor_id:c.id,p_commission_pct:rate});
    if(error)throw error;
    if(!data||data.status!=="ok"||Number(data.item_count)!==items.length)throw new Error("Confirmation serveur inattendue");
    modal.classList.add("hidden");
    await refreshAll();
-   if($("deposits").classList.contains("active"))renderDepositDetail(d.id);
-   toast(data.moved_count+" article(s) ajouté(s) à "+d.code+(data.unchanged_count?" • "+data.unchanged_count+" déjà dans le lot":""));
-  }catch(error){note($("milouTransferFeedback"),"Déplacement refusé : "+esc(error.message||String(error)),"err")}
-  finally{button.disabled=false;button.textContent="Confirmer le déplacement"}
+   if(d&&$("deposits").classList.contains("active"))renderDepositDetail(d.id);
+   toast(data.moved_count+" article(s) transféré(s) vers "+c.full_name+(d?" / "+d.code:" sans dépôt")+(data.unchanged_count?" • "+data.unchanged_count+" inchangé(s)":""));
+  }catch(error){note($("milouTransferFeedback"),"Transfert refusé : "+esc(error.message||String(error)),"err")}
+  finally{button.disabled=false;button.textContent="Confirmer le transfert";}
  };
  modal.classList.remove("hidden");itemSelect.focus();
 }
-
 
 const MILOU_SALEABLE_STATUSES=new Set(["validated","shopify_draft","online"]);
 const MILOU_PORTAL_URL="https://app.friperiemilou.ca/consignateur.html";
