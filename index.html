@@ -245,6 +245,7 @@ details.milou-secondary .panel{margin:10px 0 0}
     </div></div>
 
     <div class="panel"><div class="panel-head"><h2>Informations de l’article</h2><span id="analysisMode" class="badge yellow">Manuel</span></div><div class="panel-body grid">
+      <div class="field full"><label for="articleDestination">Attribuer cet article à</label><select id="articleDestination"></select><small id="articleDestinationHelp" class="caption">Choisis un dépôt, un consignateur sans dépôt ou le stock boutique.</small></div>
       <div class="field full"><label>Titre</label><input id="fTitle"></div>
       <div class="field"><label>Marque</label><input id="fBrand"></div>
       <div class="field"><label>Type</label><select id="fCategory"><option>T-shirt</option><option>Chandail</option><option>Pantalon</option><option>Robe</option><option>Manteau</option><option>Pyjama</option><option>Ensemble</option><option>Chaussures</option><option>Accessoire</option><option>Autre</option></select></div>
@@ -1130,7 +1131,7 @@ function openConsignorDetail(id){
   !email?"Ajoute d’abord une adresse courriel sur la fiche du consignateur.":
   matches!==1?"Cette adresse est utilisée sur plusieurs fiches actives. Il faut une adresse unique pour accéder au portail.":
   "Accès autorisé avec cette adresse courriel vérifiée : "+email;
- $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+(c.default_commission_pct==null?"Taux par défaut non défini — taux propre aux dépôts/articles possible":esc(String(c.default_commission_pct)+" % par défaut"))+'</small></div><div class="row-actions"><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(inv.total)+'</strong><span>Valeur des '+inv.count+' articles en vente (prix affichés)</span></div><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes réalisées</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser au consignateur</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div>'+
+ $("consignorDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(c.full_name)+' — '+esc(c.code)+'</h2><small>'+(c.default_commission_pct==null?"Taux par défaut non défini — taux propre aux dépôts/articles possible":esc(String(c.default_commission_pct)+" % par défaut"))+'</small></div><div class="row-actions"><button class="btn primary small" id="consAddArticle">+ Article sans dépôt</button><button class="btn danger small" id="deleteConsDetail">Supprimer</button><button class="btn ghost small" id="deactivateConsDetail">Désactiver</button><button class="btn ghost small" id="closeConsDetail">Fermer</button></div></div><div class="panel-body"><div class="finance-grid"><div class="finance-card"><strong>'+money(inv.total)+'</strong><span>Valeur des '+inv.count+' articles en vente (prix affichés)</span></div><div class="finance-card"><strong>'+money(soldTotal)+'</strong><span>Ventes réalisées</span></div><div class="finance-card"><strong class="money-due">'+money(due)+'</strong><span>À verser au consignateur</span></div><div class="finance-card"><strong>'+money(paid)+'</strong><span>Déjà payé</span></div></div>'+
  '<div class="panel" style="margin-top:14px"><div class="panel-head"><h3>Accès au portail consignateur</h3></div><div class="panel-body"><p class="caption">Le consignateur utilise son courriel enregistré pour recevoir un lien de connexion. Aucun mot de passe à communiquer.</p><div class="notice">'+esc(portalStatus)+'</div><div class="actions"><a class="btn ghost small" target="_blank" rel="noopener" href="'+MILOU_PORTAL_URL+'">Ouvrir le portail</a><button type="button" class="btn primary small" id="sendConsPortal"'+(c.status==="active"&&email&&matches===1?"":" disabled")+'>Envoyer le lien d’accès</button><button type="button" class="btn ghost small" id="copyConsPortal"'+(c.status==="active"&&email&&matches===1?"":" disabled")+'>Copier le message d’accès</button></div><p class="caption" id="sendConsPortalFeedback">L’invitation utilise le courriel Magic Link de Supabase, envoyé à l’adresse de la fiche. Le lien est personnel et temporaire.</p></div></div>'+
  '<h3>Dépôts</h3><div class="list">'+(ds.length?ds.map(depRow).join(""):'<div class="empty">Aucun dépôt</div>')+'</div></div></div>';
  const sendButton=$("sendConsPortal");
@@ -1155,6 +1156,7 @@ function openConsignorDetail(id){
   try{await navigator.clipboard.writeText(message);toast("Message d’accès au portail copié. Tu peux le transmettre au consignateur.");}
   catch(e){window.prompt("Copie le message à transmettre :",message)}
  };
+ $("consAddArticle").onclick=()=>startQuick("consignor:"+c.id);
  $("closeConsDetail").onclick=()=>{$("consignorDetail").innerHTML=""};
  $("deleteConsDetail").onclick=()=>deleteConsignorSafe(id);
  $("deactivateConsDetail").onclick=()=>deactivateConsignor(id);
@@ -1206,10 +1208,31 @@ $("createDeposit").onclick=async()=>{
 };
 
 function startDepositSession(id){activeDeposit=deposits.find(x=>x.id===id)||null;if(!activeDeposit)return;articleMode="deposit";prepareArticle();go("article")}
-function startQuick(){activeDeposit=null;articleMode="quick";prepareArticle();go("article")}
+function startQuick(destination=null){activeDeposit=null;articleMode="quick";prepareArticle();if(typeof destination==="string"&&destination&&Array.from($("articleDestination").options).some(x=>x.value===destination)){$("articleDestination").value=destination;updateArticleDestination();}go("article")}
 $("quickItemHome").onclick=startQuick;$("quickItemStock").onclick=startQuick;
+function fillArticleDestination(defaultValue){
+ const opts=['<option value="own">Stock boutique (sans consignateur)</option>'];
+ const active=consignors.filter(c=>c.status==="active"&&!c.deleted_at);
+ for(const c of active)opts.push('<option value="consignor:'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name)+" (sans dépôt)</option>");
+ for(const d of deposits.filter(d=>d.status!=="deleted"&&!d.deleted_at))opts.push('<option value="deposit:'+esc(d.id)+'">'+esc(d.code+" — "+(d.consignors?.full_name||"Stock boutique")+" (dépôt)")+'</option>');
+ const select=$("articleDestination");select.innerHTML=opts.join("");
+ select.value=defaultValue&&Array.from(select.options).some(o=>o.value===defaultValue)?defaultValue:"own";
+ updateArticleDestination();
+}
+function updateArticleDestination(){
+ const value=$("articleDestination").value;
+ const d=value.startsWith("deposit:")?deposits.find(x=>x.id===value.slice(8)):null;
+ const c=value.startsWith("consignor:")?consignors.find(x=>x.id===value.slice(11)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
+ const rate=d?(d.commission_pct??c?.default_commission_pct):c?.default_commission_pct;
+ const hint=$("articleDestinationHelp");
+ hint.textContent=d?"Dépôt "+d.code+" — "+(c?.full_name||"stock boutique")+".":c?"Consignateur "+c.full_name+" sans dépôt.":"L’article appartient au stock boutique.";
+ $("fCommission").value=rate!=null?rate:"";
+ if(c&&rate==null)hint.textContent+=" Renseigne le taux dans « Plus de détails → Commission ».";
+}
+$("articleDestination").onchange=updateArticleDestination;
 function prepareArticle(){
  clearArticle();
+ fillArticleDestination(articleMode==="deposit"&&activeDeposit?"deposit:"+activeDeposit.id:"own");
  if(articleMode==="deposit"&&activeDeposit){const n=(activeDeposit.items?.length||0)+1;$("depositBanner").classList.remove("hidden");$("finishFromArticle").classList.remove("hidden");$("depositBanner").innerHTML='<div><b>'+esc(activeDeposit.code)+' — '+esc(activeDeposit.consignors?.full_name||"Sans consignateur")+'</b><small>'+esc(modeLabel(activeDeposit.acquisition_mode))+' • commission '+(activeDeposit.commission_pct??"—")+'%</small></div><div class="counter">#'+n+'</div>';$("articleTitle").textContent="Article "+n;$("articleSub").textContent="Enregistre, puis le formulaire repart automatiquement pour l’article suivant.";$("fCommission").value=activeDeposit.commission_pct??""}
  else{$("depositBanner").classList.add("hidden");$("finishFromArticle").classList.add("hidden");$("articleTitle").textContent="Article rapide";$("articleSub").textContent="Sans dépôt ni consignateur."}
 }
@@ -2042,7 +2065,17 @@ $("micBtn").onclick=async()=>{
 async function saveArticle(toShopify){
  if(qaMode&&toShopify){qaExternalBlocked();return}
  if(photoProcessing>0){toast("Attends la fin de l’optimisation des photos");return}
- const d=activeDeposit,p={deposit_id:d?.id||null,consignor_id:d?.consignor_id||null,acquisition_mode:d?.acquisition_mode||(articleMode==="quick"?"own_stock":null),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:$("fCommission").value?Number($("fCommission").value):(d?.commission_pct??null),section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
+ const destination=$("articleDestination").value;
+ const d=destination.startsWith("deposit:")?deposits.find(x=>x.id===destination.slice(8)):null;
+ const c=destination.startsWith("consignor:")?consignors.find(x=>x.id===destination.slice(11)):d?.consignor_id?consignors.find(x=>x.id===d.consignor_id):null;
+ if(destination.startsWith("deposit:")&&!d){toast("Dépôt introuvable. Actualise la page.");return}
+ if(destination.startsWith("consignor:")&&!c){toast("Consignateur introuvable. Actualise la page.");return}
+ const manualRate=$("fCommission").value.trim();
+ const effectiveRate=manualRate!==""?Number(manualRate):(d?.commission_pct??c?.default_commission_pct??null);
+ if((c||d?.acquisition_mode==="consignment")&&(effectiveRate===null||!Number.isFinite(effectiveRate)||effectiveRate<0||effectiveRate>100)){
+  toast("Définis un taux de consignation valide entre 0 et 100 % avant d’enregistrer.");return;
+ }
+ const p={deposit_id:d?.id||null,consignor_id:c?.id||null,acquisition_mode:d?.acquisition_mode||(c?"consignment":"own_stock"),raw_text:$("rawText").value.trim()||null,title:$("fTitle").value.trim()||null,brand:$("fBrand").value.trim()||null,category:$("fCategory").value||null,size:$("fSize").value.trim()||null,condition:$("fCondition").value||null,sale_price:$("fPrice").value?Number($("fPrice").value):null,suggested_price:$("fPrice").value?Number($("fPrice").value):null,location_code:$("fLocation").value.trim()||null,commission_pct:effectiveRate,section:$("fSection").value||null,age_band:$("fAge").value||null,color:$("fColor").value.trim()||null,season:$("fSeason").value||null,material:$("fMaterial").value.trim()||null,defects:$("fDefects").value.trim()||null,acquisition_cost:$("fCost").value?Number($("fCost").value):null,description_html:$("fDescription").value.trim()?'<p>'+esc($("fDescription").value.trim())+'</p>':null,status:"validated",validated:true};
  if(!p.title){toast("Titre requis");return}if(!p.sale_price){toast("Prix requis");return}
  const ins=await sb.from("items").insert(p).select().single();if(ins.error){toast(ins.error.message);return}
  for(let i=0;i<photos.length;i++){const f=photos[i],path=ins.data.id+"/"+crypto.randomUUID()+"-"+f.name.replace(/[^a-zA-Z0-9._-]/g,"_");const up=await sb.storage.from("item-photos").upload(path,f,{contentType:f.type});if(!up.error)await sb.from("item_photos").insert({item_id:ins.data.id,storage_path:path,file_name:f.name,mime_type:f.type,sort_order:i,is_primary:i===0})}
