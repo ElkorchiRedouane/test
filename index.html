@@ -329,7 +329,7 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
-    <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Feuille Avery · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
+    <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Brother · 0</button><button id="stockPrintAvery" class="btn ghost small" type="button" disabled>🖨 Avery · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
     <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div class="actions" style="margin:6px 0"><button id="stockReloadData" type="button" class="btn green small">↻ Recharger les articles</button><button id="stockReloadPhotos" type="button" class="btn ghost small">↻ Recharger les photos</button><span id="stockPhotosStatus" class="caption" role="status" aria-live="polite"></span></div><div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
@@ -2437,6 +2437,16 @@ $("stockPickVisible").onclick=()=>{
 $("stockPickClear").onclick=()=>{selectedLabelIds.clear();renderStock();};
 $("stockPrintBrother").onclick=()=>{
  if(!selectedLabelIds.size)return;
+ $("labelsFormat").value="brother-dk1201";
+ milou30Update();
+ $("labelsStatus").textContent="";
+ printMilouLabels();
+ const msg=$("labelsStatus").textContent.trim();
+ if(msg)note($("stockLabelsStatus"),msg);
+ else note($("stockLabelsStatus"),"PDF Brother demandé pour "+selectedLabelIds.size+" article(s). Vérifie les téléchargements.");
+};
+$("stockPrintAvery").onclick=()=>{
+ if(!selectedLabelIds.size)return;
  $("labelsFormat").value="letter30";
  milou30Update();
  $("labelsStatus").textContent="";
@@ -2650,7 +2660,7 @@ function milou30Init(){
   try{localStorage.setItem("milou_label_start","1")}catch(e){}
   milou30Update();
  };
- $("labelsFormat").value="letter30";
+ $("labelsFormat").value="brother-dk1201";
  $("labelsPrint").onclick=printMilouLabels;
  $("labelsDateFilter").onchange=renderLabelList;
  $("labelsGeneratedFilter").onchange=renderLabelList;
@@ -2933,7 +2943,8 @@ function stockUpdateLabelCount(){
  const valid=new Set(labelAvailableItems().map(item=>item.id));
  for(const id of selectedLabelIds)if(!valid.has(id))selectedLabelIds.delete(id);
  const count=selectedLabelIds.size;
- const btn=$("stockPrintBrother");if(btn){btn.disabled=count===0;btn.textContent="🖨 Feuille Avery · "+count;}
+ const btn=$("stockPrintBrother");if(btn){btn.disabled=count===0;btn.textContent="🖨 Brother · "+count;}
+ const averyBtn=$("stockPrintAvery");if(averyBtn){averyBtn.disabled=count===0;averyBtn.textContent="🖨 Avery · "+count;}
  const status=$("stockLabelsStatus");if(status)status.textContent=count+" article(s) sélectionné(s) pour les étiquettes.";
 }
 function renderStock(){
@@ -4550,7 +4561,7 @@ function organizeMilouUI(){
  }
  // Présentation des étapes de vente plus courte.
  const p=$("posPrepare");if(p)p.textContent="Préparer la vente";
- const label=$("labelsFormat");if(label){label.value="letter30";milou30Update()}
+ const label=$("labelsFormat");if(label){label.value="brother-dk1201";milou30Update()}
 }
 organizeMilouUI();
 initPosModern();
