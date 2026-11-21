@@ -396,6 +396,7 @@ details.milou-secondary .panel{margin:10px 0 0}
   <div class="pos-modern-title">Confirmer les articles vendus</div>
   <p class="caption">Milou met à jour le stock et les commissions. Encaissez séparément dans Square.</p>
   <button id="posSquareIosLaunch" type="button" class="pos-confirm" style="margin-top:10px" disabled>Ajoute un article pour payer avec Square</button>
+ <div id="posSquareTransferInfo" class="notice hidden" role="status" aria-live="polite" style="margin-top:10px"></div>
  <button id="posSquareIosVerify" type="button" class="btn green" style="margin-top:9px;width:100%" hidden>Vérifier le paiement Square</button>
  <div class="notice warn" id="posSquareIosWarning">Square transmettra le montant, mais une réponse de retour ne confirme pas automatiquement la vente dans Milou. Ne pas rescanner ou revendre les mêmes articles avant rapprochement.</div>
  <div class="panel" id="posModernCashPanel" style="margin-top:16px;border:1px solid #d5e3d4">
@@ -3846,7 +3847,7 @@ function refreshSquareIosButton(){
  button.disabled=!posCartIds.length||posFiscalMode!=="small_supplier_no_tax";
  button.textContent=!posCartIds.length?"Ajoute un article pour payer avec Square":posFiscalMode!=="small_supplier_no_tax"?"Paiement Square non disponible":"↗ Préparer le paiement Square";
  const link=$("posSquareIosDirect");
- if(link&&link.dataset.orderId!==String(posDraftOrderId||""))link.hidden=true;
+ if(link&&link.dataset.orderId!==String(posDraftOrderId||"")){link.hidden=true;const info=$("posSquareTransferInfo");if(info)info.classList.add("hidden");}
 }
 function ensureSquareIosDirectLink(){
  let link=$("posSquareIosDirect");
@@ -3859,8 +3860,19 @@ function ensureSquareIosDirectLink(){
  link.hidden=true;
  link.addEventListener("click",(event)=>{
   if(!squareIosDevice()){event.preventDefault();note($("posModernStatus"),"Ce lien fonctionne uniquement sur un iPhone ou un iPad équipé de l’application Square.","warn");return}
+  const amount=Number(link.dataset.totalCents);
+  if(!Number.isSafeInteger(amount)||amount<=0||!link.href.startsWith("square-commerce-v1://payment/create?data=")){
+   event.preventDefault();
+   note($("posModernStatus"),"Le montant Square ou le lien de paiement est invalide. Aucun encaissement lancé.","err");return;
+  }
+  try{
+   const data=JSON.parse(decodeURIComponent(link.getAttribute("href").split("?data=")[1]));
+   if(Number(data.amount_money?.amount)!==amount||data.amount_money?.currency_code!=="CAD"){
+    event.preventDefault();note($("posModernStatus"),"Le montant transféré vers Square diffère du total du panier. Paiement bloqué.","err");return;
+   }
+  }catch(error){event.preventDefault();note($("posModernStatus"),"Lien Square incorrect. Paiement bloqué.","err");return}
   localStorage.setItem("milou_square_sent",link.dataset.orderId||"");
-  note($("posModernStatus"),"Ouverture de Square. Si rien ne se passe, vérifie que Square Point of Sale est installé et utilise Safari plutôt qu’un navigateur intégré.");
+  note($("posModernStatus"),"Demande de paiement transmise : "+money(amount/100)+". Si Square s'ouvre sur une caisse vide, le transfert n'a PAS été accepté. Consulte l'erreur Square et ne relance pas un encaissement déjà effectué.");
  });
  $("posSquareIosLaunch").after(link);
  return link;
@@ -3877,6 +3889,10 @@ async function launchSquareIos(){
    posDraftOrderId=data.order_id;
   }
   const orderId=posDraftOrderId,total=posCartCents();
+  if(!Number.isSafeInteger(total)||total<=0)throw new Error("Total invalide, impossible de transmettre le montant à Square.");
+  const {data:storedOrder,error:orderErr}=await sb.from("milou_pos_orders").select("id,subtotal_cents,status").eq("id",orderId).single();
+  if(orderErr)throw orderErr;
+  if(storedOrder.status!=="draft"||Number(storedOrder.subtotal_cents)!==total)throw new Error("Le panier enregistré ne correspond plus au total affiché. Vérifie la caisse avant de payer.");
   const request={
    amount_money:{amount:String(total),currency_code:"CAD"},
    callback_url:MILOU_SQUARE_IOS.callback,client_id:MILOU_SQUARE_IOS.clientId,
@@ -3887,7 +3903,17 @@ async function launchSquareIos(){
   const link=ensureSquareIosDirectLink();
   link.href="square-commerce-v1://payment/create?data="+encodeURIComponent(JSON.stringify(request));
   link.dataset.orderId=orderId;
+  link.dataset.totalCents=String(total);
+  link.textContent="↗ OUVRIR SQUARE — "+money(total/100);
   link.hidden=false;
+  const info=$("posSquareTransferInfo");
+  info.classList.remove("hidden");
+  info.innerHTML='<b>Montant à transférer : '+esc(money(total/100))+'</b><div style="margin-top:5px">Si Square ouvre une caisse vide, le transfert ne fonctionne pas : saisir exactement ce montant dans Square <b>une seule fois</b> et conserver la référence du paiement pour rapprochement. Ne pas considérer cette ouverture comme une vente payée.</div><button type="button" id="posSquareCopyAmount" class="btn ghost small" style="margin-top:8px">Copier le montant</button>';
+  $("posSquareCopyAmount").onclick=()=>{
+   const amount=(total/100).toFixed(2);
+   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(amount).then(()=>toast("Montant copié : "+amount+" $")).catch(()=>toast("Montant à saisir : "+amount+" $"));
+   else toast("Montant à saisir : "+amount+" $");
+  };
   const pendingData=JSON.stringify({orderId,total,startedAt:Date.now()});
   sessionStorage.setItem("milou_square_pending",pendingData);
   localStorage.setItem("milou_square_pending",pendingData);
