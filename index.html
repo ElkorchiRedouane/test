@@ -377,9 +377,9 @@ details.milou-secondary .panel{margin:10px 0 0}
       <div class="panel" style="margin-top:12px;border:1px solid #d4e4dc"><div class="panel-body" style="padding:12px">
 <div style="font-weight:850;margin-bottom:8px">🏷️ Article sans étiquette</div>
 <div class="actions"><button type="button" id="posFindToggle" class="btn green small">🔎 Rechercher dans le stock</button><button type="button" id="posQuickToggle" class="btn ghost small">＋ Article non enregistré</button></div>
-<div id="posFindPanel" class="hidden" style="margin-top:10px"><label for="posFindQuery" class="caption">Rechercher par nom, taille, marque, SKU ou consignateur</label><input id="posFindQuery" placeholder="Ex. manteau 6 ans"><div id="posFindResults" class="list" style="margin-top:8px"></div></div>
-<div id="posQuickPanel" class="hidden" style="margin-top:10px"><div class="field"><label for="posQuickTitle">Description de l'article</label><input id="posQuickTitle" maxlength="150" placeholder="Ex. Chandail enfant 6 ans"></div>
-<div class="field"><label for="posQuickPrice">Prix de vente ($)</label><input id="posQuickPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="8.00"></div>
+<div id="posFindPanel" class="hidden" style="margin-top:10px"><label for="posFindQuery" class="caption">Rechercher par nom, taille, marque, SKU ou consignateur</label><input id="posFindQuery" placeholder="Ex. manteau 6 ans"><button type="button" class="btn ghost small" data-pos-keyboard-for="posFindQuery" style="margin-top:6px">⌨️ Clavier Milou (si clavier iPad absent)</button><div id="posFindResults" class="list" style="margin-top:8px"></div></div>
+<div id="posQuickPanel" class="hidden" style="margin-top:10px"><div class="field"><label for="posQuickTitle">Description de l'article</label><input id="posQuickTitle" maxlength="150" placeholder="Ex. Chandail enfant 6 ans"><button type="button" class="btn ghost small" data-pos-keyboard-for="posQuickTitle">⌨️ Clavier Milou</button></div>
+<div class="field"><label for="posQuickPrice">Prix de vente ($)</label><input id="posQuickPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="8.00"><button type="button" class="btn ghost small" data-pos-keyboard-for="posQuickPrice">⌨️ Pavé numérique Milou</button></div>
 <div class="field"><label for="posQuickOwner">Propriétaire de l'article</label><select id="posQuickOwner"><option value="">Choisir le propriétaire</option><option value="shop">Stock appartenant à Milou</option></select></div>
 <div class="notice warn" style="margin-top:6px">Si le propriétaire est inconnu, notez la vente sur papier et identifiez-le avant de l'enregistrer : ne la comptabilisez pas comme stock de Milou.</div>
 <button type="button" id="posQuickAdd" class="btn green" style="margin-top:10px">Ajouter cet article au panier</button><div id="posQuickStatus" role="status" aria-live="polite"></div></div>
@@ -895,6 +895,7 @@ async function hydrateMilouPhotos(force=false){
     if($("app").classList.contains("hidden"))return;
     if($("stock").classList.contains("active"))renderStock();
     if($("deposits").classList.contains("active"))renderDeposits();
+    if($("cashier").classList.contains("active")&&$("posFindQuery")?.value.trim().length>=2)posFindItems();
    });
   };
   // Priority: newest stock rows (visible first), with moderate concurrency on mobile.
@@ -3638,7 +3639,7 @@ function posTouchLayout(){
  }).join("");
  $("posTouchKeyboardLabel").textContent="Clavier tactile — "+(posTouchTarget.id==="posSku"?"Code article":posTouchTarget.id==="posQuickTitle"?"Description":posTouchTarget.id==="posQuickPrice"?"Prix":posTouchTarget.id==="posFindQuery"?"Recherche":"Saisie");
 }
-function posTouchOpen(input){if(!input||input.disabled||input.readOnly)return;posTouchTarget=input;posTouchPanel.classList.remove("hidden");posTouchLayout()}
+function posTouchOpen(input){if(!input||input.disabled||input.readOnly)return;posTouchTarget=input;if(document.activeElement instanceof HTMLElement)document.activeElement.blur();posTouchPanel.classList.remove("hidden");posTouchLayout()}
 function posTouchWrite(key){
  const el=posTouchTarget;if(!el||!el.isConnected)return;
  if(key==="Fermer"){posTouchClose();return}
@@ -3661,13 +3662,16 @@ posTouchKeys.addEventListener("pointerdown",e=>{if(e.target.closest("button"))e.
 posTouchKeys.addEventListener("click",e=>{const b=e.target.closest("button[data-touch-key]");if(b)posTouchWrite(b.dataset.touchKey)});
 $("posTouchKeyboardClose").onclick=posTouchClose;
 $("posTouchKeyboardOpen").onclick=()=>posTouchOpen($("posSku"));
-$("cashier").addEventListener("focusin",e=>{
- if(!posTouchFields.includes(e.target.id))return;
- if(e.target.id==="posSku"){if(!posTouchPanel.classList.contains("hidden"))posTouchOpen(e.target);return}
- if(posTouchPanel.classList.contains("hidden")&&e.target.id==="posModernCashReceived")return;
- posTouchOpen(e.target);
+// iPad native keyboard is the default. The Milou keyboard opens only after an explicit tap.
+// The active field is blurred first so both keyboards never display together.
+$("cashier").addEventListener("click",e=>{
+ const button=e.target.closest("button[data-pos-keyboard-for]");
+ if(!button)return;
+ posTouchOpen($(button.dataset.posKeyboardFor));
 });
-$("cashier").addEventListener("click",e=>{const el=e.target.closest("input");if(el&&posTouchFields.includes(el.id)&&el.id!=="posSku"&&el.id!=="posModernCashReceived")posTouchOpen(el)});
+$("cashier").addEventListener("focusin",e=>{
+ if(posTouchFields.includes(e.target.id)&&!posTouchPanel.classList.contains("hidden"))posTouchClose();
+});
 
 /* Vente sans etiquette : reutilise le stock et les RPC de caisse, sans paiement parallele. */
 let posQuickBusy=false;
@@ -3680,7 +3684,7 @@ function posFindItems(){
  if(q.length<2){panel.innerHTML='<div class="caption">Saisir au moins deux caractères pour rechercher.</div>';return}
  const found=stock.filter(i=>posEligibleStockItem(i)&&!posCartIds.includes(i.id)&&
  [i.sku,i.title,i.brand,i.size,i.age_band,i.consignors?.full_name,i.consignors?.code].some(v=>String(v||"").toLocaleLowerCase("fr-CA").includes(q))).slice(0,30);
- panel.innerHTML=found.length?found.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku||"")+' • '+esc(i.size||"Taille non précisée")+' • '+esc(i.consignors?.full_name||"Stock Milou")+'</small></div><strong>'+money(i.sale_price)+'</strong><button type="button" class="btn green small posFindAdd" data-id="'+esc(i.id)+'">Ajouter</button></div>').join(""):'<div class="empty">Aucun article disponible trouvé.</div>';
+ panel.innerHTML=found.length?found.map(i=>'<div class="row">'+(i.photo_url?'<img class="item-thumb" src="'+esc(i.photo_url)+'" alt="Photo de '+esc(i.title||i.sku)+'" loading="lazy">':'<div class="item-thumb placeholder" aria-label="Photo indisponible">👕</div>')+'<div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku||"")+' • '+esc(i.size||"Taille non précisée")+' • '+esc(i.consignors?.full_name||"Stock Milou")+'</small></div><strong>'+money(i.sale_price)+'</strong><button type="button" class="btn green small posFindAdd" data-id="'+esc(i.id)+'">Ajouter</button></div>').join(""):'<div class="empty">Aucun article disponible trouvé.</div>';
 }
 function posQuickOwners(){
  const selector=$("posQuickOwner"),prior=selector.value;
