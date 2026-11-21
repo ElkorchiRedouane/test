@@ -188,6 +188,14 @@ details.milou-secondary .panel{margin:10px 0 0}
  #posCamera{min-width:130px}
 }
 @media(min-width:721px){.page-head{margin-bottom:20px}.quick button{min-height:124px}}
+
+.pos-touch-keyboard{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fffdf8;border-top:2px solid #315f5c;padding:10px 12px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -12px 36px rgba(0,0,0,.2);max-height:52dvh;overflow:auto}
+.pos-touch-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 auto 8px;max-width:780px}
+.pos-touch-keys{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;max-width:780px;margin:auto}
+.pos-touch-keys button{border:1px solid #d2c9ba;border-radius:8px;min-height:43px;padding:4px 2px;background:white;color:#245a59;font-weight:750;font-size:clamp(13px,2.4vw,18px);touch-action:manipulation}
+.pos-touch-keys button.pos-key-wide{grid-column:span 2;background:#eaf0e8}
+.pos-touch-keys button.pos-key-space{grid-column:span 4;background:#eaf0e8}
+@media(max-width:520px){.pos-touch-keys{gap:3px}.pos-touch-keys button{min-height:39px}}
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -364,6 +372,7 @@ details.milou-secondary .panel{margin:10px 0 0}
     <div class="notice" id="posSquareSetupNotice">Le paiement reste dans Square. Milou sert à gérer les ventes, le stock et les commissions.</div>
     <div class="panel cashier-primary"><div class="panel-head"><h2>Panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Code de l’article</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
+      <div class="actions" style="margin-top:7px"><button type="button" id="posTouchKeyboardOpen" class="btn ghost small">⌨️ Clavier tactile (saisie manuelle)</button></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner un article</button><button id="posScanPhoto" class="btn ghost">Photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">Ajouter</button><button id="posClear" class="btn ghost">Vider</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
       <div class="panel" style="margin-top:12px;border:1px solid #d4e4dc"><div class="panel-body" style="padding:12px">
 <div style="font-weight:850;margin-bottom:8px">🏷️ Article sans étiquette</div>
@@ -375,6 +384,7 @@ details.milou-secondary .panel{margin:10px 0 0}
 <div class="notice warn" style="margin-top:6px">Si le propriétaire est inconnu, notez la vente sur papier et identifiez-le avant de l'enregistrer : ne la comptabilisez pas comme stock de Milou.</div>
 <button type="button" id="posQuickAdd" class="btn green" style="margin-top:10px">Ajouter cet article au panier</button><div id="posQuickStatus" role="status" aria-live="polite"></div></div>
 </div></div>
+      <div id="posTouchKeyboard" class="pos-touch-keyboard hidden" role="group" aria-label="Clavier tactile de caisse"><div class="pos-touch-head"><strong id="posTouchKeyboardLabel">Clavier tactile</strong><button type="button" class="btn ghost small" id="posTouchKeyboardClose">Fermer ✕</button></div><div id="posTouchKeyboardKeys" class="pos-touch-keys"></div></div>
       <div id="posScanSuccess" class="scan-success hidden" role="status" aria-live="assertive"></div><div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">État du lecteur</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
@@ -3609,6 +3619,55 @@ $("posHistoryBack").onclick=()=>go("cashier");
 $("posHistoryReload").onclick=()=>{loadPosHistory();loadPosReturns()};
 $("posHistoryFilter").onchange=renderPosHistory;
 
+
+
+/* Touch keyboard for an iPad with a Bluetooth HID scanner suppressing iOS typing. */
+let posTouchTarget=null,posTouchUpper=false;
+const posTouchPanel=$("posTouchKeyboard"),posTouchKeys=$("posTouchKeyboardKeys");
+const posTouchFields=["posSku","posFindQuery","posQuickTitle","posQuickPrice","posSquareReference","posSquareAmount","posCashReceived","posModernCashReceived"];
+function posTouchNumeric(el){return el?.id==="posQuickPrice"||el?.getAttribute("inputmode")==="decimal"||el?.type==="number"}
+function posTouchClose(){posTouchPanel.classList.add("hidden");posTouchTarget=null}
+function posTouchLayout(){
+ if(!posTouchTarget)return;
+ const numeric=posTouchNumeric(posTouchTarget);
+ const keys=numeric?["1","2","3","4","5","6","7","8","9","0",",",".","⌫","Effacer","Fermer"]:
+ ["a","z","e","r","t","y","u","i","o","p","q","s","d","f","g","h","j","k","l","m","w","x","c","v","b","n","é","è","à","ç","Maj","-","'","/","Espace","⌫","Effacer","Fermer"];
+ posTouchKeys.innerHTML=keys.map(key=>{
+  const wide=["⌫","Effacer","Fermer","Maj"].includes(key),space=key==="Espace";
+  return '<button type="button" data-touch-key="'+esc(key)+'" class="'+(space?"pos-key-space":wide?"pos-key-wide":"")+'">'+esc(key.length===1&&posTouchUpper&&!numeric?key.toLocaleUpperCase("fr-CA"):key)+'</button>';
+ }).join("");
+ $("posTouchKeyboardLabel").textContent="Clavier tactile — "+(posTouchTarget.id==="posSku"?"Code article":posTouchTarget.id==="posQuickTitle"?"Description":posTouchTarget.id==="posQuickPrice"?"Prix":posTouchTarget.id==="posFindQuery"?"Recherche":"Saisie");
+}
+function posTouchOpen(input){if(!input||input.disabled||input.readOnly)return;posTouchTarget=input;posTouchPanel.classList.remove("hidden");posTouchLayout()}
+function posTouchWrite(key){
+ const el=posTouchTarget;if(!el||!el.isConnected)return;
+ if(key==="Fermer"){posTouchClose();return}
+ if(key==="Maj"){posTouchUpper=!posTouchUpper;posTouchLayout();return}
+ let value=el.value||"";
+ const isNumber=el.type==="number";
+ const start=isNumber?value.length:(el.selectionStart??value.length);
+ const end=isNumber?value.length:(el.selectionEnd??start);
+ let next=value,pos=start;
+ if(key==="Effacer"){next="";pos=0}
+ else if(key==="⌫"){const begin=start===end?Math.max(0,start-1):start;next=value.slice(0,begin)+value.slice(end);pos=begin}
+ else{const inserted=key==="Espace"?" ":key===","&&posTouchNumeric(el)?".":posTouchUpper?key.toLocaleUpperCase("fr-CA"):key;next=value.slice(0,start)+inserted+value.slice(end);pos=start+inserted.length}
+ if(el.maxLength>=0&&next.length>el.maxLength)return;
+ if(isNumber&&next!==""&&!/^\d*(?:\.\d{0,2})?$/.test(next))return;
+ el.value=next;
+ if(!isNumber)try{el.setSelectionRange(pos,pos)}catch(e){}
+ el.dispatchEvent(new Event("input",{bubbles:true}));
+}
+posTouchKeys.addEventListener("pointerdown",e=>{if(e.target.closest("button"))e.preventDefault()});
+posTouchKeys.addEventListener("click",e=>{const b=e.target.closest("button[data-touch-key]");if(b)posTouchWrite(b.dataset.touchKey)});
+$("posTouchKeyboardClose").onclick=posTouchClose;
+$("posTouchKeyboardOpen").onclick=()=>posTouchOpen($("posSku"));
+$("cashier").addEventListener("focusin",e=>{
+ if(!posTouchFields.includes(e.target.id))return;
+ if(e.target.id==="posSku"){if(!posTouchPanel.classList.contains("hidden"))posTouchOpen(e.target);return}
+ if(posTouchPanel.classList.contains("hidden")&&e.target.id==="posModernCashReceived")return;
+ posTouchOpen(e.target);
+});
+$("cashier").addEventListener("click",e=>{const el=e.target.closest("input");if(el&&posTouchFields.includes(el.id)&&el.id!=="posSku"&&el.id!=="posModernCashReceived")posTouchOpen(el)});
 
 /* Vente sans etiquette : reutilise le stock et les RPC de caisse, sans paiement parallele. */
 let posQuickBusy=false;
