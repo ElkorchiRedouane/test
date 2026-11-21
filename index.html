@@ -329,20 +329,20 @@ details.milou-secondary .panel{margin:10px 0 0}
       <select id="stockSizeFilter"><option value="">Toutes tailles</option><option>0–24 mois</option><option>2–4 ans</option><option>5–8 ans</option><option>9–12 ans</option></select>
       <select id="stockConsignorFilter"><option value="">Tous consignateurs</option></select><select id="stockDepositFilter"><option value="">Tous dépôts</option></select><input id="stockDateFilter" type="date" title="Date d’ajout"><button id="exportStock" class="btn ghost small">Excel</button>
     </div>
-    <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Brother · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
+    <div class="actions" style="margin:0 0 12px"><button id="stockPickVisible" class="btn ghost small" type="button">☑ Sélectionner les articles filtrés</button><button id="stockPickClear" class="btn ghost small" type="button">Désélectionner</button><button id="stockPrintBrother" class="btn green small" type="button" disabled>🖨 Feuille Avery · 0</button><button id="stockLabels" class="btn ghost small">Autres formats et aperçu</button><button id="syncShopifyState" class="btn ghost small" style="display:none">↻ Synchroniser Shopify</button></div>
     <div id="stockLabelsStatus" class="caption" role="status" aria-live="polite">Coche les vêtements à étiqueter en regardant leurs photos.</div><div class="actions" style="margin:6px 0"><button id="stockReloadData" type="button" class="btn green small">↻ Recharger les articles</button><button id="stockReloadPhotos" type="button" class="btn ghost small">↻ Recharger les photos</button><span id="stockPhotosStatus" class="caption" role="status" aria-live="polite"></span></div><div id="locationSummary" class="notice hidden"></div>
     <div class="panel"><div class="panel-body"><div id="stockList" class="list"></div></div></div>
   </section>
 
 
   <section id="labels" class="page">
-    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Impression sur rouleau Brother QL-800 (DK-1201) ou autre format.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
+    <div class="page-head"><div><h1>🏷️ Étiquettes</h1><p>Impression par lot sur feuilles Avery (imprimante ordinaire) ou rouleau Brother.</p></div><button id="labelsBack" class="btn ghost small">← Stock</button></div>
     <div class="panel"><div class="panel-body">
       <div class="grid">
         <div class="field"><label>Dépôt à imprimer</label><select id="labelsDeposit"><option value="">Tous les articles disponibles</option></select></div>
-        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="brother-dk1201">Brother QL-800 — DK-1201 (90 × 29 mm)</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
+        <div class="field"><label>Format d'impression</label><select id="labelsFormat"><option value="letter30">Feuille Avery 5160 / 8160 — 30 étiquettes (US Letter)</option><option value="brother-dk1201">Brother QL-800 — DK-1201 (90 × 29 mm)</option><option value="roll">Étiquette 60 × 40 mm (rouleau)</option></select></div>
       </div>
-      <div class="notice" style="margin-top:10px"><b>Brother QL-800 / DK-1201 :</b> le bouton génère un PDF de 90 × 29 mm, une page par étiquette, afin d’éviter la réduction depuis A4. Ouvre le PDF téléchargé, sélectionne Brother QL-800 (DK-1201) et imprime à 100 % / taille réelle, sans ajuster à la page. Pas besoin de P-touch Editor.</div>
+      <div class="notice" id="labelsPrinterHelp" style="margin-top:10px"><b>Imprimante normale :</b> sélectionner le format Avery 5160/8160 et télécharger le PDF US Letter à 30 étiquettes. Imprimer à 100 % (taille réelle), en portrait, sans ajustement ni recto verso. Le format Brother reste disponible dans le menu.</div>
       <div id="labelsLetterControls" class="panel hidden" style="margin-top:12px"><div class="panel-body">
 <div class="notice"><b>Avery 5160 / 8160 — 30 étiquettes — US Letter (215,9 × 279,4 mm).</b><br>Papier : <b>Letter</b> — Échelle : <b>100 % / Taille réelle</b> — Portrait — <b>Jamais Ajuster à la page / Adapter / Réduire</b> — Marges : <b>par défaut</b>. Désactiver en-têtes/pieds si proposés par le navigateur.</div>
 <div class="grid">
@@ -2406,6 +2406,7 @@ function printMilouLabels(){
  if(!window.JsBarcode){note($("labelsStatus"),"Modules Code 128 / QR indisponibles. Recharge Safari avec Internet.","err");return}
  const items=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id));
  if(!items.length){note($("labelsStatus"),"Sélectionne au moins un article disponible.","warn");return}
+ if($("labelsFormat").value==="letter30"){milou30Print();return}
  if($("labelsFormat").value==="brother-dk1201"){
   try{milouBrotherDownload(items)}catch(error){note($("labelsStatus"),"PDF Brother impossible : "+esc(error?.message||String(error)),"err")}
   return;
@@ -2436,12 +2437,13 @@ $("stockPickVisible").onclick=()=>{
 $("stockPickClear").onclick=()=>{selectedLabelIds.clear();renderStock();};
 $("stockPrintBrother").onclick=()=>{
  if(!selectedLabelIds.size)return;
- $("labelsFormat").value="brother-dk1201";
+ $("labelsFormat").value="letter30";
+ milou30Update();
  $("labelsStatus").textContent="";
- printMilouLabels();
+ milou30Print();
  const msg=$("labelsStatus").textContent.trim();
  if(msg)note($("stockLabelsStatus"),msg);
- else note($("stockLabelsStatus"),"PDF Brother demandé pour "+selectedLabelIds.size+" article(s). Vérifie les téléchargements.");
+ else note($("stockLabelsStatus"),"PDF Avery demandé pour "+selectedLabelIds.size+" article(s). Vérifie les téléchargements.");
 };
 $("stockLabels").onclick=()=>{renderLabelOptions();go("labels")};
 $("labelsBack").onclick=()=>go("stock");
@@ -2463,6 +2465,11 @@ function milou30Update(){
  $("labelsLetterControls").classList.toggle("hidden",!enabled);
  const n=labelAvailableItems().filter(i=>selectedLabelIds.has(i.id)).length;
  $("labelsPageEstimate").textContent=n+" étiquette(s) · "+(enabled?milou30Pages(n,Number($("labelsStartSlot").value)||1):"—")+" feuille(s)";
+ const help=$("labelsPrinterHelp");
+ if(help)help.innerHTML=enabled?
+  "<b>Feuilles Avery 5160 / 8160 (3 × 10) :</b> PDF US Letter 215,9 × 279,4 mm. Imprime sur une imprimante normale en portrait à 100 % / taille réelle, sans ajuster à la page, sans recto verso. Tu peux commencer à la position 1–30 sur une feuille entamée.":
+  $("labelsFormat").value==="brother-dk1201"?
+  "<b>Brother QL-800 / DK-1201 :</b> PDF 90 × 29 mm (une page par étiquette), impression 100 % sans adaptation.":"<b>Rouleau 60 × 40 mm :</b> choisir une imprimante compatible avec ce format.";
 }
 
 function milouLabelDate(date){
@@ -2643,7 +2650,7 @@ function milou30Init(){
   try{localStorage.setItem("milou_label_start","1")}catch(e){}
   milou30Update();
  };
- $("labelsFormat").value="brother-dk1201";
+ $("labelsFormat").value="letter30";
  $("labelsPrint").onclick=printMilouLabels;
  $("labelsDateFilter").onchange=renderLabelList;
  $("labelsGeneratedFilter").onchange=renderLabelList;
@@ -4543,7 +4550,7 @@ function organizeMilouUI(){
  }
  // Présentation des étapes de vente plus courte.
  const p=$("posPrepare");if(p)p.textContent="Préparer la vente";
- const label=$("labelsFormat");if(label)label.value="brother-dk1201";
+ const label=$("labelsFormat");if(label){label.value="letter30";milou30Update()}
 }
 organizeMilouUI();
 initPosModern();
