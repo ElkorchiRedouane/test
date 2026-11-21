@@ -3651,8 +3651,12 @@ $("posFindResults").addEventListener("click",event=>{
 $("posQuickAdd").onclick=async()=>{
  if(posQuickBusy)return;
  const title=$("posQuickTitle").value.trim(),price=Number($("posQuickPrice").value),owner=$("posQuickOwner").value;
- if(!title||title.length>150||!Number.isFinite(price)||price<=0||Math.round(price*100)!==price*100&&Math.abs(Math.round(price*100)-price*100)>0.000001||!owner){
-  note($("posQuickStatus"),"Indique une description, un prix positif à deux décimales et le propriétaire.","warn");return;
+ if(!title){note($("posQuickStatus"),"Saisissez une description avant d'ajouter l'article.","warn");$("posQuickTitle").focus();return}
+ if(!Number.isFinite(price)||price<=0||Math.abs(Math.round(price*100)-price*100)>0.000001){
+  note($("posQuickStatus"),"Saisissez un prix positif avec au maximum deux décimales.","warn");$("posQuickPrice").focus();return;
+ }
+ if(!owner){
+  note($("posQuickStatus"),"Choisissez obligatoirement un propriétaire : Milou ou le consignateur concerné. Aucune vente ne sera enregistrée sans attribution.","warn");$("posQuickOwner").focus();return;
  }
  const consignor=owner==="shop"?null:consignors.find(c=>c.id===owner);
  if(owner!=="shop"&&!consignor){note($("posQuickStatus"),"Consignateur introuvable. Actualisez et réessayez.","err");return}
@@ -3660,24 +3664,28 @@ $("posQuickAdd").onclick=async()=>{
  if(consignor&&(consignor.default_commission_pct==null||!Number.isFinite(rate)||rate<0||rate>100)){
   note($("posQuickStatus"),"Le taux du consignateur doit être défini avant la vente.","err");return;
  }
- const button=$("posQuickAdd");posQuickBusy=true;button.disabled=true;
+ const button=$("posQuickAdd");posQuickBusy=true;button.disabled=true;button.textContent="Enregistrement…";
  try{
   const payload={title,sale_price:price,suggested_price:price,
    acquisition_mode:consignor?"consignment":"own_stock",consignor_id:consignor?.id||null,
    deposit_id:null,commission_pct:consignor?rate:null,
    status:"validated",validated:true,raw_text:"Article créé en vente rapide sans étiquette"};
+  note($("posQuickStatus"),"Enregistrement de l'article en cours…");
   const {data,error}=await sb.from("items").insert(payload).select("id,sku,title,sale_price,status").single();
   if(error)throw error;
-  await loadStock();
-  const item=stock.find(i=>i.id===data.id);
-  if(!item)throw new Error("Article enregistré mais stock non actualisé. Retrouvez le SKU "+data.sku+" avant de réessayer.");
-  posCartIds.push(item.id);
+  // Do not depend on a full stock reload after a successful insert: on a slow
+  // iPad connection the insert may succeed even if the subsequent reload fails.
+  const item={...data,deleted_at:null,consignors:consignor?{id:consignor.id,code:consignor.code,full_name:consignor.full_name}:null};
+  if(!stock.some(i=>i.id===item.id))stock.unshift(item);
+  if(!posCartIds.includes(item.id))posCartIds.push(item.id);
   posClearPrepared();renderPosCart();
   $("posQuickTitle").value="";$("posQuickPrice").value="";
   $("posQuickPanel").classList.add("hidden");
-  note($("posMessage"),"Article "+esc(item.sku)+" créé et ajouté au panier. Confirmez la vente après encaissement.");
+  $("posQuickStatus").textContent="";
+  note($("posMessage"),"✓ Article "+esc(item.sku)+" créé et ajouté au panier. Après encaissement, confirmez la vente dans Milou.");
+  void loadStock().catch(e=>console.warn("Actualisation différée du stock après vente rapide",e));
  }catch(e){note($("posQuickStatus"),"Impossible d'ajouter : "+esc(e.message||String(e))+". Vérifiez le stock avant de réessayer.","err")}
- finally{posQuickBusy=false;button.disabled=false}
+ finally{posQuickBusy=false;button.disabled=false;button.textContent="Ajouter cet article au panier"}
 };
 
 function renderPosCart(){
