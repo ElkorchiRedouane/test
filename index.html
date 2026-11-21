@@ -365,6 +365,16 @@ details.milou-secondary .panel{margin:10px 0 0}
     <div class="panel cashier-primary"><div class="panel-head"><h2>Panier</h2><span id="posCartCount" class="badge">0 article</span></div><div class="panel-body">
       <div class="field"><label>Code de l’article</label><input id="posSku" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" placeholder="MIL-000123"></div>
       <div class="actions"><button id="posCamera" class="btn green">📷 Scanner un article</button><button id="posScanPhoto" class="btn ghost">Photo</button><input id="posScanFile" type="file" accept="image/*" capture="environment" class="hidden" aria-label="Photo du code-barres"><button id="posAdd" class="btn green">Ajouter</button><button id="posClear" class="btn ghost">Vider</button></div><div id="posCameraBox" class="hidden" style="margin-top:12px"><div id="posCameraReader" style="background:#111;border-radius:16px;overflow:hidden;min-height:180px"></div><div class="caption" style="padding:7px;color:#ffffff">Place le code-barres horizontalement, entier et net dans le cadre, sans reflets.</div><button id="posCameraClose" class="btn ghost small" style="margin-top:8px">Fermer la caméra</button></div>
+      <div class="panel" style="margin-top:12px;border:1px solid #d4e4dc"><div class="panel-body" style="padding:12px">
+<div style="font-weight:850;margin-bottom:8px">🏷️ Article sans étiquette</div>
+<div class="actions"><button type="button" id="posFindToggle" class="btn green small">🔎 Rechercher dans le stock</button><button type="button" id="posQuickToggle" class="btn ghost small">＋ Article non enregistré</button></div>
+<div id="posFindPanel" class="hidden" style="margin-top:10px"><label for="posFindQuery" class="caption">Rechercher par nom, taille, marque, SKU ou consignateur</label><input id="posFindQuery" placeholder="Ex. manteau 6 ans"><div id="posFindResults" class="list" style="margin-top:8px"></div></div>
+<div id="posQuickPanel" class="hidden" style="margin-top:10px"><div class="field"><label for="posQuickTitle">Description de l'article</label><input id="posQuickTitle" maxlength="150" placeholder="Ex. Chandail enfant 6 ans"></div>
+<div class="field"><label for="posQuickPrice">Prix de vente ($)</label><input id="posQuickPrice" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="8.00"></div>
+<div class="field"><label for="posQuickOwner">Propriétaire de l'article</label><select id="posQuickOwner"><option value="">Choisir le propriétaire</option><option value="shop">Stock appartenant à Milou</option></select></div>
+<div class="notice warn" style="margin-top:6px">Si le propriétaire est inconnu, notez la vente sur papier et identifiez-le avant de l'enregistrer : ne la comptabilisez pas comme stock de Milou.</div>
+<button type="button" id="posQuickAdd" class="btn green" style="margin-top:10px">Ajouter cet article au panier</button><div id="posQuickStatus" role="status" aria-live="polite"></div></div>
+</div></div>
       <div id="posScanSuccess" class="scan-success hidden" role="status" aria-live="assertive"></div><div id="posMessage" role="status" aria-live="polite"></div><div id="posScanStatus" role="status" aria-live="polite" class="caption"></div><button id="posScanDiagnostics" type="button" class="btn ghost small">État du lecteur</button><div id="posScanDiagnosticsResult" class="notice hidden" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="posCartLines" class="list" style="margin-top:12px"></div>
       <div class="summary-card" style="margin-top:14px">
         <div style="display:flex;justify-content:space-between"><span>Sous-total hors taxes</span><strong id="posSubtotal">0,00 $</strong></div>
@@ -3598,6 +3608,77 @@ $("posHistoryOpen").onclick=()=>go("poshistory");
 $("posHistoryBack").onclick=()=>go("cashier");
 $("posHistoryReload").onclick=()=>{loadPosHistory();loadPosReturns()};
 $("posHistoryFilter").onchange=renderPosHistory;
+
+
+/* Vente sans etiquette : reutilise le stock et les RPC de caisse, sans paiement parallele. */
+let posQuickBusy=false;
+function posEligibleStockItem(i){
+ return !!i&&!i.deleted_at&&["validated","shopify_draft","online"].includes(i.status)&&i.sale_price!=null&&Number.isFinite(Number(i.sale_price))&&Number(i.sale_price)>0;
+}
+function posFindItems(){
+ const q=$("posFindQuery").value.trim().toLocaleLowerCase("fr-CA");
+ const panel=$("posFindResults");
+ if(q.length<2){panel.innerHTML='<div class="caption">Saisir au moins deux caractères pour rechercher.</div>';return}
+ const found=stock.filter(i=>posEligibleStockItem(i)&&!posCartIds.includes(i.id)&&
+ [i.sku,i.title,i.brand,i.size,i.age_band,i.consignors?.full_name,i.consignors?.code].some(v=>String(v||"").toLocaleLowerCase("fr-CA").includes(q))).slice(0,30);
+ panel.innerHTML=found.length?found.map(i=>'<div class="row"><div class="row-main"><b>'+esc(i.title||i.sku)+'</b><small>'+esc(i.sku||"")+' • '+esc(i.size||"Taille non précisée")+' • '+esc(i.consignors?.full_name||"Stock Milou")+'</small></div><strong>'+money(i.sale_price)+'</strong><button type="button" class="btn green small posFindAdd" data-id="'+esc(i.id)+'">Ajouter</button></div>').join(""):'<div class="empty">Aucun article disponible trouvé.</div>';
+}
+function posQuickOwners(){
+ const selector=$("posQuickOwner"),prior=selector.value;
+ selector.innerHTML='<option value="">Choisir le propriétaire</option><option value="shop">Stock appartenant à Milou</option>'+
+ consignors.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.full_name||c.code||"Consignateur")+'</option>').join("");
+ if([...selector.options].some(o=>o.value===prior))selector.value=prior;
+}
+$("posFindToggle").onclick=()=>{
+ $("posFindPanel").classList.toggle("hidden");
+ $("posQuickPanel").classList.add("hidden");
+ if(!$("posFindPanel").classList.contains("hidden")){$("posFindQuery").focus();posFindItems()}
+};
+$("posQuickToggle").onclick=()=>{
+ $("posQuickPanel").classList.toggle("hidden");
+ $("posFindPanel").classList.add("hidden");
+ if(!$("posQuickPanel").classList.contains("hidden")){posQuickOwners();$("posQuickTitle").focus()}
+};
+$("posFindQuery").oninput=posFindItems;
+$("posFindResults").addEventListener("click",event=>{
+ const b=event.target.closest("button.posFindAdd");
+ if(!b)return;
+ const i=stock.find(x=>x.id===b.dataset.id);
+ if(!posEligibleStockItem(i)||posCartIds.includes(i.id)){posFindItems();note($("posMessage"),"Article indisponible ou déjà au panier.","warn");return}
+ $("posSku").value=i.sku;
+ if(addPosSku(false)){$("posFindQuery").value="";$("posFindPanel").classList.add("hidden")}
+});
+$("posQuickAdd").onclick=async()=>{
+ if(posQuickBusy)return;
+ const title=$("posQuickTitle").value.trim(),price=Number($("posQuickPrice").value),owner=$("posQuickOwner").value;
+ if(!title||title.length>150||!Number.isFinite(price)||price<=0||Math.round(price*100)!==price*100&&Math.abs(Math.round(price*100)-price*100)>0.000001||!owner){
+  note($("posQuickStatus"),"Indique une description, un prix positif à deux décimales et le propriétaire.","warn");return;
+ }
+ const consignor=owner==="shop"?null:consignors.find(c=>c.id===owner);
+ if(owner!=="shop"&&!consignor){note($("posQuickStatus"),"Consignateur introuvable. Actualisez et réessayez.","err");return}
+ const rate=consignor?Number(consignor.default_commission_pct):null;
+ if(consignor&&(consignor.default_commission_pct==null||!Number.isFinite(rate)||rate<0||rate>100)){
+  note($("posQuickStatus"),"Le taux du consignateur doit être défini avant la vente.","err");return;
+ }
+ const button=$("posQuickAdd");posQuickBusy=true;button.disabled=true;
+ try{
+  const payload={title,sale_price:price,suggested_price:price,
+   acquisition_mode:consignor?"consignment":"own_stock",consignor_id:consignor?.id||null,
+   deposit_id:null,commission_pct:consignor?rate:null,
+   status:"validated",validated:true,raw_text:"Article créé en vente rapide sans étiquette"};
+  const {data,error}=await sb.from("items").insert(payload).select("id,sku,title,sale_price,status").single();
+  if(error)throw error;
+  await loadStock();
+  const item=stock.find(i=>i.id===data.id);
+  if(!item)throw new Error("Article enregistré mais stock non actualisé. Retrouvez le SKU "+data.sku+" avant de réessayer.");
+  posCartIds.push(item.id);
+  posClearPrepared();renderPosCart();
+  $("posQuickTitle").value="";$("posQuickPrice").value="";
+  $("posQuickPanel").classList.add("hidden");
+  note($("posMessage"),"Article "+esc(item.sku)+" créé et ajouté au panier. Confirmez la vente après encaissement.");
+ }catch(e){note($("posQuickStatus"),"Impossible d'ajouter : "+esc(e.message||String(e))+". Vérifiez le stock avant de réessayer.","err")}
+ finally{posQuickBusy=false;button.disabled=false}
+};
 
 function renderPosCart(){
  const items=posCartIds.map(id=>stock.find(x=>x.id===id)).filter(Boolean);
