@@ -2933,7 +2933,7 @@ function stockUpdateLabelCount(){
  const valid=new Set(labelAvailableItems().map(item=>item.id));
  for(const id of selectedLabelIds)if(!valid.has(id))selectedLabelIds.delete(id);
  const count=selectedLabelIds.size;
- const btn=$("stockPrintBrother");if(btn){btn.disabled=count===0;btn.textContent="🖨 Brother · "+count;}
+ const btn=$("stockPrintBrother");if(btn){btn.disabled=count===0;btn.textContent="🖨 Feuille Avery · "+count;}
  const status=$("stockLabelsStatus");if(status)status.textContent=count+" article(s) sélectionné(s) pour les étiquettes.";
 }
 function renderStock(){
