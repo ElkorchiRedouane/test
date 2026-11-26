@@ -1019,11 +1019,37 @@ function bindDepositButtons(){
    b.textContent=original;
  });
 }
+function openDepositConsignorChange(id){
+ const d=deposits.find(x=>x.id===id);if(!d)return;
+ const candidates=consignors.filter(c=>c.status==="active"&&!c.deleted_at&&c.id!==d.consignor_id);
+ if(!candidates.length){toast("Aucun autre consignateur actif.");return;}
+ const modal=document.createElement("div");modal.className="modal";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
+ modal.innerHTML='<div class="modal-box" style="max-width:560px"><div class="modal-head"><h2>Modifier le consignateur</h2></div><p>Consignateur actuel : '+esc(d.consignors?.full_name||"Non défini")+'</p><div class="field"><label for="depNewConsignor">Nouveau consignateur</label><select id="depNewConsignor"><option value="">Sélectionner</option>'+candidates.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.code+" — "+c.full_name)+'</option>').join("")+'</select></div><div class="notice warn" style="margin-top:12px">Tous les articles admissibles restent dans ce dépôt. Les SKU et références Shopify sont conservés. Le taux du dépôt ou, à défaut, celui du nouveau consignateur est appliqué. Un dépôt avec historique de vente, article archivé ou paiement en attente ne peut pas être transféré intégralement.</div><div class="actions" style="margin-top:12px"><button type="button" class="btn primary" id="depChangeSave" disabled>Enregistrer</button><button type="button" class="btn ghost" id="depChangeCancel">Annuler</button></div><div id="depChangeFeedback" role="status"></div></div>';
+ document.body.appendChild(modal);
+ const select=modal.querySelector("#depNewConsignor"),save=modal.querySelector("#depChangeSave"),cancel=modal.querySelector("#depChangeCancel"),feedback=modal.querySelector("#depChangeFeedback");
+ select.onchange=()=>{save.disabled=!select.value;};
+ cancel.onclick=()=>modal.remove();
+ save.onclick=async()=>{
+  const c=candidates.find(x=>x.id===select.value);if(!c)return;
+  if(!confirm("Transférer le dépôt "+d.code+" et ses articles vers "+c.full_name+" ?"))return;
+  save.disabled=true;cancel.disabled=true;select.disabled=true;
+  try{
+   const {data,error}=await sb.rpc("milou_reassign_deposit_consignor",{p_deposit_id:id,p_consignor_id:c.id,p_previous_consignor_id:d.consignor_id});
+   if(error)throw error;
+   if(data?.status!=="ok")throw new Error("Confirmation serveur inattendue");
+   modal.remove();toast("Consignateur modifié : "+data.moved_count+" article(s).");
+   try{await refreshAll();renderDepositDetail(id);}catch(e){toast("Transfert enregistré. Actualise la page pour voir le résultat.");}
+  }catch(e){feedback.textContent="Transfert refusé : "+(e.message||String(e));save.disabled=false;cancel.disabled=false;select.disabled=false;}
+ };
+ select.focus();
+}
+
 function renderDepositDetail(id){
  const d=deposits.find(x=>x.id===id);if(!d)return;
  const items=d.items||[],total=items.reduce((s,i)=>s+Number(i.sale_price||0),0),share=items.reduce((s,i)=>s+Number(i.sale_price||0)*Number(i.commission_pct??d.commission_pct??0)/100,0);
  const canDeleteDeposit=items.every(i=>!i.shopify_product_id);
  $("depositDetail").innerHTML='<div class="panel"><div class="panel-head"><div><h2>'+esc(d.code)+' — '+esc(d.consignors?.full_name||"Sans consignateur")+'</h2><small style="color:var(--muted)">Date du dépôt : '+esc(d.received_on||milouLabelDate(d.created_at))+' • '+items.length+' article(s) • valeur '+money(total)+'</small></div><div class="row-actions">'+
+   (d.acquisition_mode==="consignment"&&d.status!=="deleted"&&!d.deleted_at?'<button id="depChangeConsignor" type="button" class="btn ghost small">Modifier le consignateur</button>':'')+
    (d.status!=="deleted"&&!d.deleted_at?'<button id="depAdd" type="button" class="btn primary small">+ Nouvel article</button>':'')+
    (d.status!=="closed"&&d.status!=="deleted"&&!d.deleted_at?'<button id="depFinish" type="button" class="btn ghost small">Terminer</button>':d.status==="closed"?'<span class="badge">Terminé</span>':'')+
    '<button id="depAttachExisting" class="btn ghost small">+ Article existant</button>'+ 
@@ -1050,6 +1076,7 @@ function renderDepositDetail(id){
  const a=$("depAdd"),f=$("depFinish"),all=$("depPublishAll"),del=$("depDelete");
  const attach=$("depAttachExisting");if(attach)attach.onclick=()=>openMilouItemReassignment(id,null);
  const back=document.createElement("button");back.className="btn ghost small";back.textContent="← Retour à tous les dépôts";back.onclick=()=>{$("depositDetail").innerHTML="";$("depositList").scrollIntoView({behavior:"smooth"})};$("depositDetail .panel-head .row-actions")?.prepend(back);
+ const change=$("depChangeConsignor");if(change)change.onclick=()=>openDepositConsignorChange(id);
  if(a)a.onclick=()=>addNewItemToDeposit(id);
  if(f)f.onclick=()=>finishDeposit(id);
  if(all)all.onclick=()=>publishDeposit(id);
