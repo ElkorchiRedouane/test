@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/square/callback",
+      "destination": "/square/callback.html"
+    }
+  ]
+}
